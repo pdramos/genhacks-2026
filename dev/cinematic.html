@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Página de teste da cena do cigarro. Abre: http://localhost:8000/dev/cinematic.html
+       Opções: ?level=demo  &ix=10&iy=7 (quadrado da ignição)  &style=canada -->
+  <!-- <base> faz com que os caminhos (data/, src/) partam da raiz do projeto, como no index.html -->
+  <base href="../">
+  <title>Ignition Test</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #a9d4f5; font-family: system-ui, sans-serif; }
+    #game canvas { display: block; }
+    #info { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
+            background: rgba(0,0,0,.6); color: #fff; font-size: 14px; pointer-events: none; }
+    #hud { position: fixed; right: 12px; bottom: 12px; display: flex; gap: 8px; }
+    #hud button { padding: 10px 16px; font-size: 16px; font-weight: 600; border: 0; border-radius: 6px;
+                  background: #d9480f; color: #fff; cursor: pointer; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="info">Ignition cinematic test</div>
+  <div id="hud"><button id="play">Play cinematic</button></div>
+  <script type="module">
+    import { game } from './src/render/main.js';
+    import { playIgnition } from './src/render/ignitionCinematic.js';
+
+    // No nível demo, a ignição (2,2) não está ao pé de uma estrada.
+    // Aqui usamos uma ignição de teste: por omissão a relva (10,7), colada à estrada principal (y=8).
+    const params = new URLSearchParams(location.search);
+    game.level.ignition = { x: Number(params.get('ix') ?? 10), y: Number(params.get('iy') ?? 7) };
+
+    const info = document.getElementById('info');
+    const button = document.getElementById('play');
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      game.fireFx.clear();
+      const started = performance.now();
+      info.textContent = 'Playing...';
+      await playIgnition(game);
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      info.textContent = `Cinematic finished in ${seconds} s. Fire starts at (${game.level.ignition.x}, ${game.level.ignition.y}).`;
+      game.fireFx.ignite(game.level.ignition.x, game.level.ignition.y);
+      button.disabled = false;
+    });
+    window.game = game; // para testes na consola
+  </script>
+</body>
+</html>
