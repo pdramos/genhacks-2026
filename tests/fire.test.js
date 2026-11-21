@@ -85,3 +85,34 @@ test('the school is lost when it burns', () => {
   assert.equal(outcome.housesSaved, 1);
   assert.equal(outcome.schoolSaved, false);
 });
+
+// Floresta de eucaliptos cortada por uma linha de corta-fogo, estrada e água (coluna 3).
+// O vento de oeste (270) empurra o fogo para leste, contra a linha.
+const forestWithBarrier = () => villageFrom(
+  'EEEFEEH',
+  'EEERBEE',
+  'EEEWEEH',
+  'EEEFEEE',
+  'EEERBEH',
+);
+const westWind = { direction: 270, speed: 40 };
+
+test('firebreak, road and water tiles never burn in a disaster', () => {
+  const village = forestWithBarrier();
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(village, { ignition: { x: 0, y: 2 }, wind: westWind, seed });
+    for (const { burning, burned } of steps) {
+      for (const [x, y] of [...burning, ...burned]) {
+        const type = village.tiles[y][x];
+        assert.ok(!['firebreak', 'road', 'water'].includes(type), `seed ${seed}: ${type} at (${x}, ${y}) burned`);
+      }
+    }
+  }
+});
+
+test('a line of firebreak, road and water saves the houses behind it', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const { outcome } = runDisaster(forestWithBarrier(), { ignition: { x: 0, y: 2 }, wind: westWind, seed });
+    assert.equal(outcome.housesSaved, 3, `seed ${seed}`);
+  }
+});
