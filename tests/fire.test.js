@@ -190,3 +190,40 @@ test('a firebreak built on the ignition tile never burns, so the fire never star
   }
   assert.equal(outcome.burnedCount, 0);
 });
+
+// ---------- Declive: o fogo sobe a encosta mais depressa ----------
+
+test('fire is more likely to spread uphill than on flat ground, and less likely downhill', () => {
+  const noWind = { direction: 0, speed: 0 };
+  // Último argumento: quanto o vizinho está mais alto (+) ou mais baixo (-), em níveis 0-9.
+  const uphill = ignitionProbability('grass', ...EAST, noWind, 0.05, 2);
+  const flat = ignitionProbability('grass', ...EAST, noWind, 0.05, 0);
+  const downhill = ignitionProbability('grass', ...EAST, noWind, 0.05, -2);
+  assert.ok(uphill > flat, `uphill ${uphill} should be > flat ${flat}`);
+  assert.ok(downhill < flat, `downhill ${downhill} should be < flat ${flat}`);
+  assert.ok(downhill > 0, 'fire can still go downhill, only slower');
+});
+
+test('on a hillside with no wind, the fire climbs to the top faster than it runs down to the bottom', () => {
+  // Uma encosta de relva de 21 x 7 que sobe para leste (altura 0 a oeste, 9 a leste).
+  const slopeRow = '001122334455667788999';
+  const hillside = createVillage({
+    name: 'hill',
+    map: Array(7).fill('G'.repeat(21)),
+    heights: Array(7).fill(slopeRow),
+  });
+  let eastSteps = 0, westSteps = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(hillside, { ignition: { x: 10, y: 3 }, wind: { direction: 0, speed: 0 }, seed });
+    // Em que passo o fogo chega pela primeira vez à coluna pedida?
+    // Se nunca lá chegar, conta como o fim + 1 (o mais lento possível).
+    const reaches = (column) => {
+      const index = steps.findIndex(({ burning, burned }) =>
+        [...burning, ...burned].some(([x]) => x === column));
+      return index === -1 ? steps.length : index;
+    };
+    eastSteps += reaches(20);
+    westSteps += reaches(0);
+  }
+  assert.ok(eastSteps < westSteps, `uphill (east) took ${eastSteps} steps in total, downhill (west) ${westSteps}`);
+});

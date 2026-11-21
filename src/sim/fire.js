@@ -24,7 +24,9 @@ export const DEFAULT_K = 0.05;
 // (dx, dy) = direção do quadrado a arder até ao vizinho (um dos 8 vizinhos).
 // wind = { direction, speed }: de onde o vento vem (graus) e a força (km/h).
 // k = quanto o vento conta (se faltar, usa DEFAULT_K).
-export function ignitionProbability(targetType, dx, dy, wind, k = DEFAULT_K) {
+// heightDiff = altura do vizinho menos altura do quadrado a arder (níveis 0-9 do mapa):
+//   positivo = o vizinho fica acima (o fogo sobe), negativo = fica abaixo (o fogo desce).
+export function ignitionProbability(targetType, dx, dy, wind, k = DEFAULT_K, heightDiff = 0) {
   const flammability = FLAMMABILITY[targetType] ?? 0;
 
   // Para onde o vento empurra o fogo (downwind), na grelha (y cresce para sul).
@@ -45,7 +47,19 @@ export function ignitionProbability(targetType, dx, dy, wind, k = DEFAULT_K) {
   // têm menos probabilidade. Assim o fogo não fica com forma de quadrado.
   const distanceFactor = dx !== 0 && dy !== 0 ? DIAGONAL_FACTOR : 1;
 
-  return clamp(flammability * windFactor * distanceFactor, 0, 1);
+  return clamp(flammability * windFactor * distanceFactor * slopeFactor(heightDiff, length), 0, 1);
+}
+
+// Declive: as chamas inclinam-se para cima e aquecem o mato que está mais acima,
+// por isso o fogo SOBE uma encosta mais depressa e DESCE mais devagar.
+// Por cada nível de altura que o vizinho está acima (por quadrado de distância),
+// a probabilidade é multiplicada por SLOPE_BASE; por cada nível abaixo, é dividida.
+// Exemplos com 1.3: +1 nível -> x1.3, +2 -> x1.69, -1 -> x0.77, -2 -> x0.59.
+export const SLOPE_BASE = 1.3;
+
+// O fator do declive. distance = 1 para os vizinhos ao lado, cerca de 1.4 na diagonal.
+export function slopeFactor(heightDiff, distance = 1) {
+  return Math.pow(SLOPE_BASE, heightDiff / distance);
 }
 
 // Quanto conta um vizinho na diagonal, comparado com um vizinho ao lado.
@@ -107,7 +121,8 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
         if (nx < 0 || ny < 0 || nx >= village.width || ny >= village.height) continue;
         const neighbourKey = key(nx, ny);
         if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
-        const chance = ignitionProbability(village.tiles[ny][nx], dx, dy, currentWind, k);
+        const heightDiff = heightOf(village, nx, ny) - heightOf(village, x, y);
+        const chance = ignitionProbability(village.tiles[ny][nx], dx, dy, currentWind, k, heightDiff);
         if (rand() < chance) newFires.push(neighbourKey);
       }
     }
@@ -159,6 +174,11 @@ function key(x, y) {
 }
 function fromKey(tileKey) {
   return tileKey.split(',').map(Number);
+}
+
+// A altura (0-9) de um quadrado. Uma vila sem "heights" é plana (altura 0).
+function heightOf(village, x, y) {
+  return village.heights?.[y]?.[x] ?? 0;
 }
 
 function burnSteps(village, x, y) {
