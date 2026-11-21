@@ -50,10 +50,12 @@ export function applyAction(state, x, y, actionName) {
 }
 
 // Desfaz a ação no quadrado (x, y): volta ao tipo original e devolve o dinheiro todo.
-// Devolve { ok: true, refund, restoredType }.
+// Devolve { ok: true, refund, restoredType } ou { ok: false, reason: 'nothing-to-undo' }.
 export function undoAction(state, x, y) {
   const key = `${x},${y}`;
   const change = state.changes[key];
+  // Este quadrado não foi mudado nesta fase? Não há nada para desfazer.
+  if (!change) return { ok: false, reason: 'nothing-to-undo' };
   const refund = ACTIONS[change.actionName].cost;
 
   state.village.tiles[y][x] = change.originalType;

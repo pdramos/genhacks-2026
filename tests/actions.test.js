@@ -98,3 +98,12 @@ test('undo restores the original tile and refunds the exact cost', () => {
   assert.equal(tileAt(village, 2, 0), 'eucalyptus');
   assert.equal(remainingBudget(state), 1000);
 });
+
+test('undo on a tile that was never changed fails and gives no money', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 1000);
+  // Um corta-fogo que já vinha no mapa não foi comprado: não há nada a desfazer.
+  assert.deepEqual(undoAction(state, 4, 1), { ok: false, reason: 'nothing-to-undo' });
+  assert.equal(tileAt(village, 4, 1), 'firebreak');
+  assert.equal(remainingBudget(state), 1000);
+});
