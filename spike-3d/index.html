@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brace — 3D test</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd3ff; font-family: system-ui, sans-serif; }
+    canvas { display: block; }
+    #info { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
+            background: rgba(0,0,0,.6); color: #fff; font-size: 14px; pointer-events: none; }
+    #fire { position: fixed; right: 12px; bottom: 12px; padding: 10px 16px; border: 0; border-radius: 8px;
+            background: #e2572b; color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+  </style>
+  <!-- Diz ao navegador onde está o Three.js (versão fixa) -->
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="info">Drag to rotate · Right-drag to move · Scroll to zoom · Click a tile</div>
+  <button id="fire">🔥 Demo fire</button>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
