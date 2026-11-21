@@ -16,7 +16,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.15;
 document.body.appendChild(renderer.domElement);
@@ -75,11 +75,15 @@ for (let y = 0; y < village.height; y++) {
 
     const prop = new THREE.Group();
     prop.position.set(wx, 0.25, wz);
-    if (type === 'eucalyptus') addTrees(prop, 'conifer', 2);
+    if (type === 'eucalyptus') addTrees(prop, 'conifer', 3);
     if (type === 'broadleaf') addTrees(prop, 'broadleaf', 1);
     if (type === 'brush') addBushes(prop);
-    if (type === 'house') prop.add(style.buildHouse(rand));
-    if (type === 'school') prop.add(style.buildSchool(rand));
+    if (type === 'house') {
+      const house = style.buildHouse(rand);
+      house.rotation.y = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
+      prop.add(house);
+    }
+    if (type === 'school') addSchool(prop, x, y);
     prop.traverse((o) => { if (o.userData.animate) animated.push(o); });
     if (prop.children.length) { scene.add(prop); props.set(`${x},${y}`, prop); }
   }
@@ -87,6 +91,38 @@ for (let y = 0; y < village.height; y++) {
 const base = new THREE.Mesh(new THREE.BoxGeometry(village.width + 0.4, 1.2, village.height + 0.4), GM.dirt);
 base.position.y = -0.85;
 scene.add(base);
+
+// A escola pode ocupar vários quadrados (ex.: 2x2). Construímos UMA só escola, no
+// quadrado do canto de cima-esquerda do bloco, aumentada para ocupar o bloco todo.
+function addSchool(group, x, y) {
+  const isSchool = (cx, cy) => cx >= 0 && cy >= 0 && cx < village.width && cy < village.height
+    && tileAt(village, cx, cy) === 'school';
+  if (isSchool(x - 1, y) || isSchool(x, y - 1)) return; // não é o canto: já foi construída
+  let w = 1, h = 1;
+  while (isSchool(x + w, y)) w++;
+  while (isSchool(x, y + h)) h++;
+  const school = style.buildSchool(rand);
+  school.scale.setScalar(Math.min(w, h) * 0.95);
+  school.position.set((w - 1) / 2, 0, (h - 1) / 2); // centro do bloco
+  school.rotation.y = facingRoad(x, y);
+  group.add(school);
+}
+
+// Ângulo (múltiplo de 90°) para o objeto olhar para a estrada mais próxima.
+// Os estilos constroem as casas com a porta virada para +z.
+function facingRoad(x, y) {
+  let best = null;
+  for (let r = 1; r <= 4 && !best; r++) {
+    for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+      const cx = x + dx * r, cy = y + dy * r;
+      if (cx >= 0 && cy >= 0 && cx < village.width && cy < village.height && tileAt(village, cx, cy) === 'road') {
+        best = [dx, dy]; break;
+      }
+    }
+  }
+  if (!best) return 0;
+  return Math.atan2(best[0], best[1]); // +z -> 0, +x -> 90°, -z -> 180°, -x -> -90°
+}
 
 function addTrees(group, kind, count) {
   for (let i = 0; i < count; i++) {
@@ -160,9 +196,11 @@ function burnTile(x, y) {
 }
 
 // ---------- Animação ----------
-const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
-  const dt = clock.getDelta(), t = clock.elapsedTime;
+let lastMs = 0;
+renderer.setAnimationLoop((ms) => {
+  // ms = milissegundos desde o início; dt = segundos desde o último desenho
+  const dt = lastMs ? Math.min((ms - lastMs) / 1000, 0.1) : 0, t = ms / 1000;
+  lastMs = ms;
   controls.update();
   swaying.forEach((s) => { s.obj.rotation.z = Math.sin(t * 1.6 + s.phase) * 0.04; });
   animated.forEach((o) => o.userData.animate(t));
