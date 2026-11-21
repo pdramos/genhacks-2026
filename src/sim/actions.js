@@ -5,6 +5,7 @@
 export const ACTIONS = {
   clearBrush: { cost: 200, label: 'Clear brush', result: 'cleared' },
   firebreak: { cost: 500, label: 'Firebreak', result: 'firebreak' },
+  replaceTrees: { cost: 800, label: 'Replace trees', result: 'broadleaf' },
 };
 
 // Começa a fase de construção. O "estado" guarda a vila (que vamos alterar)
