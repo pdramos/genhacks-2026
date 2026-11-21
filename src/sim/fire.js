@@ -116,14 +116,15 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
   // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
   if (canBurn(village, ignition.x, ignition.y)) startFire(fire, key(ignition.x, ignition.y));
 
-  const steps = [snapshot(0, fire, windAt(0))];
+  const steps = [snapshot(0, fire, windAt(0), [])];
 
   for (let step = 1; step <= maxSteps && fire.burning.size > 0; step++) {
     const currentWind = windAt(step - 1);
-    const newFires = spreadToNeighbours(fire, currentWind); // 1) o fogo passa aos vizinhos
-    burnOneStep(fire);                                       // 2) quem arde gasta um passo
-    for (const tileKey of newFires) startFire(fire, tileKey); // 3) os fogos novos começam
-    steps.push(snapshot(step, fire, currentWind));
+    const newFires = spreadToNeighbours(fire, currentWind);   // 1) o fogo passa aos vizinhos
+    const spots = throwEmbers(fire, currentWind, newFires);   // 2) brasas saltam com o vento
+    burnOneStep(fire);                                         // 3) quem arde gasta um passo
+    for (const tileKey of newFires) startFire(fire, tileKey); // 4) os fogos novos começam
+    steps.push(snapshot(step, fire, currentWind, spots));
   }
 
   return { steps, outcome: countOutcome(village, fire.burning, fire.burned, steps.length - 1) };
@@ -135,10 +136,10 @@ function canBurn(village, x, y) {
 }
 
 // Passo 1: cada quadrado a arder pode pegar fogo a cada um dos 8 vizinhos.
-// Devolve a lista de "x,y" que vão começar a arder.
+// Devolve o conjunto (Set) de "x,y" que vão começar a arder.
 function spreadToNeighbours(fire, wind) {
   const { village, burning, burned, rand, k } = fire;
-  const newFires = [];
+  const newFires = new Set();
   for (const [tileKey, { totalSteps }] of burning) {
     const [x, y] = fromKey(tileKey);
     for (const [dx, dy] of NEIGHBOURS) {
@@ -148,13 +149,76 @@ function spreadToNeighbours(fire, wind) {
       if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
       const heightDiff = heightOf(village, nx, ny) - heightOf(village, x, y);
       const wholeChance = ignitionProbability(village.tiles[ny][nx], dx, dy, wind, k, heightDiff);
-      if (rand() < chancePerStep(wholeChance, totalSteps)) newFires.push(neighbourKey);
+      if (rand() < chancePerStep(wholeChance, totalSteps)) newFires.add(neighbourKey);
     }
   }
   return newFires;
 }
 
-// Passo 2: os que estão a arder gastam um passo; quando chegam a 0 ficam queimados.
+// ---------- Brasas (spotting) ----------
+// Com vento forte, pedaços de casca e folhas a arder voam e caem 2 ou 3 quadrados à frente,
+// a favor do vento. Por isso uma estrada estreita (1 quadrado) nem sempre trava o fogo!
+// Uma brasa nunca acende água, estrada ou corta-fogo (inflamabilidade 0).
+// Decisão: casas e a ESCOLA podem pegar fogo com brasas (são edifícios, têm inflamabilidade
+// 0.4). Na vida real, muitas casas ardem por causa das brasas, não das chamas.
+
+// Abaixo desta velocidade do vento (km/h) não voam brasas.
+export const SPOT_MIN_WIND_KMH = 20;
+// Por cada km/h acima do mínimo, a chance de um quadrado a arder largar uma brasa num passo
+// aumenta 0.2% (vezes a força do fogo). Ex.: 40 km/h e fogo forte (1) -> 4% por passo.
+// Afinado a medir: com 30 km/h, um fogo de mato salta uma estrada de 1 quadrado em cerca
+// de 1 vez em 5; com 50 km/h, em mais de metade das vezes.
+export const SPOT_CHANCE_PER_KMH = 0.002;
+// A chance nunca passa disto, nem num temporal.
+export const SPOT_MAX_CHANCE = 0.3;
+// As brasas não vão em linha reta: desviam-se até 25 graus para cada lado do vento.
+export const SPOT_SPREAD_DEGREES = 25;
+
+// A chance (0 a 1) de um quadrado a arder com esta força (0..1) largar uma brasa num passo.
+export function spotChance(windSpeed, intensity) {
+  const extraWind = Math.max(0, windSpeed - SPOT_MIN_WIND_KMH);
+  return Math.min(SPOT_MAX_CHANCE, extraWind * SPOT_CHANCE_PER_KMH * intensity);
+}
+
+// Passo 2: cada quadrado a arder pode largar uma brasa. Se a brasa cair num quadrado que
+// pode arder, há uma chance (a inflamabilidade dele) de começar um fogo novo.
+// Acrescenta os fogos novos a newFires e devolve a lista [[fromX, fromY, toX, toY], ...].
+function throwEmbers(fire, wind, newFires) {
+  const { village, burning, burned, rand } = fire;
+  const spots = [];
+  if (wind.speed <= SPOT_MIN_WIND_KMH) return spots; // vento fraco: sem brasas (e sem gastar acaso)
+  for (const [tileKey, tile] of burning) {
+    const [x, y] = fromKey(tileKey);
+    const intensity = tileIntensity(village.tiles[y][x], tile, wind);
+    if (rand() >= spotChance(wind.speed, intensity)) continue;
+
+    const [toX, toY] = emberLanding(x, y, wind, rand);
+    if (!isInside(village, toX, toY) || !canBurn(village, toX, toY)) continue;
+    const targetKey = key(toX, toY);
+    if (burning.has(targetKey) || burned.has(targetKey) || newFires.has(targetKey)) continue;
+    if (rand() < FLAMMABILITY[village.tiles[toY][toX]]) {
+      newFires.add(targetKey);
+      spots.push([x, y, toX, toY]);
+    }
+  }
+  return spots;
+}
+
+// Onde cai uma brasa que sai de (x, y): 2 ou 3 quadrados a favor do vento, com um desvio.
+function emberLanding(x, y, wind, rand) {
+  const distance = rand() < 0.5 ? 2 : 3;
+  const swerve = (rand() * 2 - 1) * SPOT_SPREAD_DEGREES; // de -25 a +25 graus
+  // Direção downwind (ver GLOSSARY): dx = -sin(d), dy = cos(d), com o desvio somado.
+  const radians = ((wind.direction + swerve) * Math.PI) / 180;
+  const dirX = -Math.sin(radians);
+  const dirY = Math.cos(radians);
+  // Esticamos a direção para que o maior dos dois passos seja exatamente "distance" quadrados.
+  // Assim, mesmo na diagonal, a brasa cai a 2 ou 3 quadrados (e nunca num vizinho).
+  const stretch = distance / Math.max(Math.abs(dirX), Math.abs(dirY));
+  return [x + Math.round(dirX * stretch), y + Math.round(dirY * stretch)];
+}
+
+// Passo 3: os que estão a arder gastam um passo; quando chegam a 0 ficam queimados.
 function burnOneStep(fire) {
   for (const [tileKey, tile] of fire.burning) {
     if (tile.stepsLeft <= 1) {
@@ -166,7 +230,7 @@ function burnOneStep(fire) {
   }
 }
 
-// Passo 3: um quadrado começa a arder (se ainda não estiver a arder).
+// Passo 4: um quadrado começa a arder (se ainda não estiver a arder).
 // Dois vizinhos podem acender o mesmo quadrado no mesmo passo: só conta uma vez.
 function startFire(fire, tileKey) {
   if (fire.burning.has(tileKey)) return;
@@ -222,7 +286,8 @@ function burnSteps(village, x, y, rand) {
 
 // Uma "fotografia" do fogo num passo: listas de [x, y], e a força do fogo em cada
 // quadrado a arder (intensity: "x,y" -> 0..1), para a animação desenhar chamas maiores ou menores.
-function snapshot(step, fire, wind) {
+// spots = as brasas que saltaram neste passo e acenderam um fogo novo: [[fromX, fromY, toX, toY], ...].
+function snapshot(step, fire, wind, spots) {
   const intensity = {};
   for (const [tileKey, tile] of fire.burning) {
     const [x, y] = fromKey(tileKey);
@@ -233,6 +298,7 @@ function snapshot(step, fire, wind) {
     burning: [...fire.burning.keys()].map(fromKey),
     burned: [...fire.burned].map(fromKey),
     intensity,
+    spots,
   };
 }
 

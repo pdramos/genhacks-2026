@@ -88,14 +88,16 @@ test('the school is lost when it burns', () => {
   assert.equal(outcome.schoolSaved, false);
 });
 
-// Floresta de eucaliptos cortada por uma linha de corta-fogo, estrada e água (coluna 3).
-// O vento de oeste (270) empurra o fogo para leste, contra a linha.
+// Floresta de eucaliptos cortada por uma faixa de corta-fogo, estrada e água (colunas 3 a 5).
+// O vento de oeste (270) empurra o fogo para leste, contra a faixa.
+// A faixa tem 3 quadrados de largura: as brasas voam no máximo 3 quadrados, por isso
+// caem sempre dentro da faixa. (Uma linha de 1 quadrado pode ser saltada: ver os testes das brasas.)
 const forestWithBarrier = () => villageFrom(
-  'EEEFEEH',
-  'EEERBEE',
-  'EEEWEEH',
-  'EEEFEEE',
-  'EEERBEH',
+  'EEEFFFEEH',
+  'EEERRRBEE',
+  'EEEWWWEEH',
+  'EEEFFFEEE',
+  'EEERRRBEH',
 );
 const westWind = { direction: 270, speed: 40 };
 
@@ -323,4 +325,80 @@ test('a fire dies down in its last step before the tile is burned', () => {
   const values = steps.filter(({ burning }) => burning.length > 0).map(({ intensity }) => intensity['1,1']);
   assert.ok(values.length >= 3);
   assert.ok(values.at(-1) < values[0], `first ${values[0]}, last ${values.at(-1)}`);
+});
+
+// ---------- Brasas (spotting): com vento forte, o fogo salta 2-3 quadrados ----------
+
+// Um campo de mato cortado por uma estrada de 1 quadrado (coluna 4). O fogo começa a oeste.
+const fieldWithRoad = () => villageFrom(...Array(7).fill('BBBBRBBBB'));
+const roadOptions = (speed, seed) => ({ ignition: { x: 1, y: 3 }, wind: { direction: 270, speed }, seed });
+const crossedTheRoad = ({ steps }) => steps.at(-1).burned.some(([x]) => x > 4);
+
+test('with no wind, embers never fly, so the fire never crosses a 1-tile road', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const result = runDisaster(fieldWithRoad(), roadOptions(0, seed));
+    assert.equal(crossedTheRoad(result), false, `seed ${seed}`);
+    assert.ok(result.steps.every(({ spots }) => spots.length === 0), `seed ${seed}: an ember flew`);
+  }
+});
+
+test('with a strong wind, embers can jump over a 1-tile road and start a new fire on the other side', () => {
+  let crossings = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    if (crossedTheRoad(runDisaster(fieldWithRoad(), roadOptions(50, seed)))) crossings++;
+  }
+  assert.ok(crossings > 0, 'the fire never crossed the road');
+});
+
+test('each ember goes from a tile that was burning to a new fire 2 or 3 tiles away, never onto road, water or firebreak', () => {
+  let embers = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(mixedVillage(), { ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 50 }, seed });
+    assert.deepEqual(steps[0].spots, []);
+    for (let i = 1; i < steps.length; i++) {
+      const has = (list, x, y) => list.some(([ax, ay]) => ax === x && ay === y);
+      for (const [fromX, fromY, toX, toY] of steps[i].spots) {
+        embers++;
+        assert.ok(has(steps[i - 1].burning, fromX, fromY), 'the ember came from a burning tile');
+        assert.ok(has(steps[i].burning, toX, toY), 'the ember started a fire');
+        assert.ok(!has(steps[i - 1].burning, toX, toY) && !has(steps[i - 1].burned, toX, toY), 'the target was not on fire before');
+        const distance = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
+        assert.ok(distance === 2 || distance === 3, `the ember flew ${distance} tiles`);
+        assert.ok(!['road', 'water', 'firebreak'].includes(mixedVillage().tiles[toY][toX]));
+      }
+    }
+  }
+  assert.ok(embers > 0, 'no ember flew in 20 windy fires');
+});
+
+test('embers fly with the wind: they land downwind of the tile they came from', () => {
+  // Vento de oeste (270): as brasas vão para leste (x maior).
+  const field = villageFrom(...Array(15).fill('E'.repeat(15)));
+  for (let seed = 1; seed <= 10; seed++) {
+    const { steps } = runDisaster(field, { ignition: { x: 2, y: 7 }, wind: { direction: 270, speed: 50 }, seed });
+    for (const { spots } of steps) {
+      for (const [fromX, , toX] of spots) assert.ok(toX > fromX, `seed ${seed}: ember went from x=${fromX} to x=${toX}`);
+    }
+  }
+});
+
+test('the stronger the wind, the more embers fly', () => {
+  const field = villageFrom(...Array(15).fill('E'.repeat(15)));
+  const countEmbers = (speed) => {
+    let count = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const { steps } = runDisaster(field, { ignition: { x: 2, y: 7 }, wind: { direction: 270, speed }, seed, maxSteps: 6 });
+      for (const { spots } of steps) count += spots.length;
+    }
+    return count;
+  };
+  assert.ok(countEmbers(60) > countEmbers(25), `60 km/h: ${countEmbers(60)} embers, 25 km/h: ${countEmbers(25)}`);
+});
+
+test('a fire with embers is still the same every time with the same seed', () => {
+  const options = { ignition: { x: 1, y: 3 }, wind: { direction: 270, speed: 60 }, seed: 9 };
+  const first = runDisaster(fieldWithRoad(), options);
+  const second = runDisaster(fieldWithRoad(), options);
+  assert.ok(first.steps.some(({ spots }) => spots.length > 0), 'this test needs at least one ember');
+  assert.deepEqual(second, first);
 });
