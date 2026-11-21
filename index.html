@@ -4,15 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brace</title>
-  <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #a9d4f5; font-family: system-ui, sans-serif; }
-    #game canvas { display: block; }
-    /* Caixa de informação por cima do jogo */
-    #info { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
-            background: rgba(0,0,0,.6); color: #fff; font-size: 14px; pointer-events: none; }
-    /* Os outros módulos do jogo (construção, desastre) põem os seus botões aqui */
-    #hud { position: fixed; right: 12px; bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  </style>
+  <!-- Tipo de letra "Fredoka" (Google Fonts), redondo e com ar de jogo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <!-- O aspeto de toda a interface (barra de cima, cartas, botões, mensagens) -->
+  <link rel="stylesheet" href="src/render/ui/hud.css">
   <!-- Diz ao navegador onde está o Three.js (versão fixa) -->
   <script type="importmap">
     { "imports": {
@@ -21,10 +18,49 @@
     } }
   </script>
 </head>
-<body>
+<body data-phase="build">
   <div id="game"></div>
+
+  <!-- Barra de cima: nome do nível, vento (só no desastre), moedas e botão do som.
+       Fica aqui no HTML para existir logo, antes de qualquer script correr. -->
+  <header id="topbar" class="topbar">
+    <div class="level-badge">
+      <span class="level-kicker">Level</span>
+      <span id="level-name" class="level-name"></span>
+    </div>
+    <div id="wind" class="wind-chip" hidden>
+      <div class="compass">
+        <div id="wind-dial" class="compass-dial"><span class="compass-north">N</span></div>
+        <div id="wind-arrow" class="compass-arrow"></div>
+      </div>
+      <div class="wind-words">
+        <span class="wind-label">Wind</span>
+        <span id="wind-text" class="wind-text"></span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div id="budget" class="coin-counter" title="Budget left">
+        <span id="budget-coin" class="coin"></span>
+        <span id="budget-value" class="budget-value"></span>
+      </div>
+      <!-- O módulo de som liga-se a este botão (id "sound-toggle"). -->
+      <button id="sound-toggle" class="round-button" type="button" aria-pressed="false" title="Mute sound" aria-label="Mute sound">
+        <svg class="sound-on" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M8 18h8l10-9v30l-10-9H8z" fill="#fff6e5" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M32 17c3 3.5 3 10.5 0 14M37 12c6 6 6 18 0 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+        </svg>
+        <svg class="sound-off" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M8 18h8l10-9v30l-10-9H8z" fill="#fff6e5" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M33 18l10 12M43 18L33 30" fill="none" stroke="#e8452c" stroke-width="3.6" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
   <div id="info">Drag to rotate · Right-drag to move · Scroll to zoom · Click a tile</div>
+  <!-- Os outros módulos do jogo (construção, desastre) põem os seus botões aqui -->
   <div id="hud"></div>
+
   <script type="module" src="src/render/main.js"></script>
   <script type="module" src="src/render/buildPanel.js"></script>
   <script type="module" src="src/render/disasterPlayer.js"></script>
