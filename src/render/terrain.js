@@ -481,6 +481,42 @@ export function createTerrain(scene, village, palette) {
     scene.add(roads);
   }
 
+  // ---------- 3h. Tufos de erva (pequenos, aos milhares, para o chão ter "textura") ----------
+  // Usamos UMA InstancedMesh: a mesma forma desenhada muitas vezes de uma só vez (é rápido).
+  // Cada quadrado tem TUFTS_PER_TILE lugares; um tufo que não deve aparecer fica com tamanho 0.
+  const TUFTS_PER_TILE = 7;
+  const TUFT_SIZE = { grass: 1, broadleaf: 0.85, brush: 0.9, house: 0.6, cleared: 0.35, burned: 0.45 };
+  const tufts = new THREE.InstancedMesh(
+    new THREE.ConeGeometry(0.045, 0.11, 5),
+    new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }),
+    W * H * TUFTS_PER_TILE,
+  );
+  tufts.receiveShadow = true;
+  scene.add(tufts);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) placeTufts(x, y);
+
+  // Põe (ou esconde) os tufos de um quadrado, conforme o tipo de chão.
+  function placeTufts(x, y) {
+    const type = surfaces[y][x];
+    const size = TUFT_SIZE[type] || 0;
+    const m = new THREE.Matrix4(), c = new THREE.Color();
+    for (let n = 0; n < TUFTS_PER_TILE; n++) {
+      const id = (y * W + x) * TUFTS_PER_TILE + n;
+      const gx = x + (hash(id, 1, 20) - 0.5) * 0.9, gy = y + (hash(id, 2, 20) - 0.5) * 0.9;
+      const s = size * (0.6 + hash(id, 3, 20) * 0.8);
+      m.compose(
+        new THREE.Vector3(gx - halfX, heightAt(gx, gy) + 0.04 * s, gy - halfZ),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), hash(id, 4, 20) * 6.28),
+        new THREE.Vector3(s, s, s),
+      );
+      tufts.setMatrixAt(id, m);
+      surfaceColour(type, gx, gy, c);
+      tufts.setColorAt(id, type === 'burned' ? c.setHex(CHARCOAL) : c.multiplyScalar(0.72));
+    }
+    tufts.instanceMatrix.needsUpdate = true;
+    if (tufts.instanceColor) tufts.instanceColor.needsUpdate = true;
+  }
+
   // =====================================================================================
   // 4. A API
   // =====================================================================================
@@ -502,6 +538,7 @@ export function createTerrain(scene, village, palette) {
     const wasRoad = surfaces[y][x] === 'road';
     surfaces[y][x] = type;
     repaint(x, y);
+    placeTufts(x, y);
     if (wasRoad || type === 'road') rebuildRoads();
   }
 
