@@ -116,3 +116,44 @@ test('a line of firebreak, road and water saves the houses behind it', () => {
     assert.equal(outcome.housesSaved, 3, `seed ${seed}`);
   }
 });
+
+// Uma vila mista de 12 x 8 para os testes que precisam de um fogo "a sério".
+const mixedVillage = () => villageFrom(
+  'EEEBBGGGHHGG',
+  'EEBBGGGGHHGG',
+  'EBBGGOOGGGBB',
+  'BBGGOOGGHGBB',
+  'BGGHHGGGGGEE',
+  'GGGHHGGRRRRR',
+  'GGGGGGGRGSSG',
+  'GGBBGGGRGSSG',
+);
+
+test('the same village, wind and seed always give an identical disaster', () => {
+  const options = { ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 30 }, seed: 42 };
+  const first = runDisaster(mixedVillage(), options);
+  const second = runDisaster(mixedVillage(), options);
+  assert.deepEqual(second, first);
+});
+
+test('running a disaster does not change the village tiles', () => {
+  const village = mixedVillage();
+  runDisaster(village, { ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 30 }, seed: 42 });
+  assert.deepEqual(village.tiles, mixedVillage().tiles);
+});
+
+test('the wind can be a function of the step, so it can change over time', () => {
+  const steadyWind = { direction: 315, speed: 30 };
+  const options = { ignition: { x: 0, y: 0 }, seed: 42 };
+  const withObject = runDisaster(mixedVillage(), { ...options, wind: steadyWind });
+  const withFunction = runDisaster(mixedVillage(), { ...options, wind: () => steadyWind });
+  assert.deepEqual(withFunction, withObject);
+});
+
+test('the fire stops after maxSteps even if something is still burning', () => {
+  const { steps, outcome } = runDisaster(mixedVillage(), {
+    ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 30 }, seed: 42, maxSteps: 3,
+  });
+  assert.equal(steps.length, 4); // passo 0 (a ignição) + 3 passos
+  assert.equal(outcome.stepCount, 3);
+});
