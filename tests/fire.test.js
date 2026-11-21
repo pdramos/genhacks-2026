@@ -25,3 +25,15 @@ test('a wind from the north-west (315 degrees) pushes fire towards the south-eas
   const northWest = ignitionProbability('grass', -1, -1, nwWind, 0.05);
   assert.ok(southEast > northWest, `south-east ${southEast} should be > north-west ${northWest}`);
 });
+
+test('firebreak, road and water can never catch fire, even right downwind of a strong wind', () => {
+  const stormWind = { direction: 0, speed: 100 };
+  for (const type of ['firebreak', 'road', 'water']) {
+    assert.equal(ignitionProbability(type, ...SOUTH, stormWind, 0.05), 0, type);
+  }
+});
+
+test('the probability never goes above 1, even for eucalyptus in a storm', () => {
+  const stormWind = { direction: 0, speed: 100 };
+  assert.equal(ignitionProbability('eucalyptus', ...SOUTH, stormWind, 0.05), 1);
+});
