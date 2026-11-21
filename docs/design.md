@@ -52,9 +52,9 @@ O formato é o de "construir a base e defendê-la de um ataque", conhecido de jo
 
 | Abordagem | Prós | Contras | Decisão |
 |---|---|---|---|
-| **1. 2D isométrico com imagens renderizadas de modelos 3D** (a técnica do próprio Clash of Clans) | Aspecto 3D, pouco código, sobra tempo para a lógica e os dados | A câmara não roda | ✅ **Escolhida pelo estudante** |
+| **1. 2D isométrico com imagens renderizadas de modelos 3D** (a técnica do próprio Clash of Clans) | Aspecto 3D, pouco código, sobra tempo para a lógica e os dados | A câmara não roda | Escolhida primeiro, depois trocada pela 3 |
 | 2. 2D visto de cima, com quadrados simples | O mais rápido de fazer | Parece um tabuleiro, fraco no critério de apresentação | Plano B, só se o tempo apertar |
-| 3. 3D de verdade (Three.js) | Câmara a rodar, efeitos bonitos | +5 a 7 dias, risco alto para um iniciante | Descartada |
+| 3. 3D de verdade (Three.js) | Câmara a rodar, efeitos bonitos | +4 a 6 dias, risco alto para um iniciante | ✅ **Escolhida em 21/11 depois de um teste (spike) que funcionou.** Os gráficos são gerados por código, com um estilo por região (decisão do estudante) |
 
 ## 5. Como o jogo funciona
 
@@ -147,6 +147,16 @@ O formato é o de "construir a base e defendê-la de um ataque", conhecido de jo
 - Resolução base de 1280×720, que se ajusta ao ecrã.
 
 ## 6. Tecnologia (decidida)
+
+> **Atualização de 21/11:** os pontos sobre o Phaser e a Kenney abaixo foram **substituídos**.
+> - **Motor gráfico:** Three.js 0.186.1, carregado com `importmap`.
+> - **Gráficos:** 100% gerados por código, sem descarregar modelos. Há um estilo por região:
+>   - `portugal.js`: casas de xisto, casas caiadas com barra colorida, escola do Plano dos Centenários, eucalipto, pinheiro-bravo, sobreiro, tojo, giesta e urze;
+>   - `canada.js`: casas de madeira de montanha, cabana de troncos, o Information Centre de Jasper, pinheiro-de-casca-fina, abeto e álamo.
+> - **Câmara:** roda, dá zoom e arrasta.
+> - A simulação continua igual e independente do desenho.
+>
+> O código do teste está em `spike-3d/` e passa a ser a base do ticket 1.
 - **Phaser 3.90.0** (motor de jogos 2D gratuito, para o navegador), carregado por CDN com a versão fixada: `phaser@3.90.0`. *Atenção:* a tag `latest` já aponta para o Phaser 4.
 - Gráficos (verificado):
   - **Kenney Isometric Tiles Landscape** e **Isometric Tiles Buildings** (CC0, mesma série);
