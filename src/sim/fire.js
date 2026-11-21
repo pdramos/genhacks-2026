@@ -322,8 +322,9 @@ export const FIRE_INTENSITY = {
   cleared: 0.2,
 };
 
-// O vento dá mais oxigénio ao fogo: a 60 km/h a força duplica (mas nunca passa de 1).
-export const WIND_INTENSITY_KMH = 60;
+// O vento dá mais oxigénio ao fogo: a 100 km/h a força duplica (mas nunca passa de 1).
+// Ex.: com 30 km/h, eucalipto 0.75 -> 0.98, mato 0.6 -> 0.78, relva 0.3 -> 0.39.
+export const WIND_INTENSITY_KMH = 100;
 
 // No último passo antes de ficar queimado, o fogo já está a apagar-se: fica com 60% da força.
 export const DYING_FACTOR = 0.6;
