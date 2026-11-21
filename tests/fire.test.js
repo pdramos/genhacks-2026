@@ -58,3 +58,30 @@ test('a lone patch of grass in a lake burns, and then the fire stops', () => {
   assert.deepEqual(steps.at(-1).burned, [[1, 1]]);
   assert.equal(outcome.burnedCount, 1);
 });
+
+test('the outcome counts the houses saved and says if the school was saved', () => {
+  // A casa da esquerda arde; a casa da direita e a escola estão do outro lado da água.
+  const village = villageFrom(
+    'HWH',
+    'WWW',
+    'SWW',
+  );
+  const { outcome } = runDisaster(village, {
+    ignition: { x: 0, y: 0 }, wind: { direction: 0, speed: 0 }, seed: 1,
+  });
+  assert.equal(outcome.housesTotal, 2);
+  assert.equal(outcome.housesSaved, 1);
+  assert.equal(outcome.schoolSaved, true);
+});
+
+test('the school is lost when it burns', () => {
+  const village = villageFrom(
+    'HWS',
+    'WWW',
+  );
+  const { outcome } = runDisaster(village, {
+    ignition: { x: 2, y: 0 }, wind: { direction: 0, speed: 0 }, seed: 1,
+  });
+  assert.equal(outcome.housesSaved, 1);
+  assert.equal(outcome.schoolSaved, false);
+});

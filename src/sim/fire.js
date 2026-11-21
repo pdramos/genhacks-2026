@@ -119,7 +119,25 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
     steps.push(snapshot(step, burning, burned));
   }
 
-  return { steps, outcome: { burnedCount: burned.size + burning.size } };
+  return { steps, outcome: countOutcome(village, burning, burned, steps.length - 1) };
+}
+
+// O resultado final. Um quadrado que ainda arde no fim também conta como perdido.
+// schoolSaved = nenhum quadrado de escola pegou fogo.
+function countOutcome(village, burning, burned, stepCount) {
+  let housesTotal = 0, housesSaved = 0, schoolSaved = true;
+  for (let y = 0; y < village.height; y++) {
+    for (let x = 0; x < village.width; x++) {
+      const type = village.tiles[y][x];
+      const caughtFire = burning.has(key(x, y)) || burned.has(key(x, y));
+      if (type === 'house') {
+        housesTotal++;
+        if (!caughtFire) housesSaved++;
+      }
+      if (type === 'school' && caughtFire) schoolSaved = false;
+    }
+  }
+  return { housesTotal, housesSaved, schoolSaved, burnedCount: burned.size + burning.size, stepCount };
 }
 
 // "x,y" <-> [x, y]: uma forma simples de guardar quadrados num Map ou Set.
