@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage, tileAt } from '../src/sim/village.js';
-import { createBuildState, applyAction, undoAction, remainingBudget } from '../src/sim/actions.js';
+import { createBuildState, applyAction, undoAction, remainingBudget, checkAction } from '../src/sim/actions.js';
 
 // Uma vila pequena (5x2) com um quadrado de cada tipo:
 //   x:  0      1      2           3          4
@@ -122,4 +122,30 @@ test('after an undo, the tile cannot be undone again but can take a new action',
   assert.deepEqual(applyAction(state, 2, 0, 'replaceTrees'), { ok: true, newType: 'broadleaf' });
   assert.equal(tileAt(village, 2, 0), 'broadleaf');
   assert.equal(remainingBudget(state), 200);
+});
+
+// ---------- checkAction: "posso fazer isto aqui?" sem mudar nada (para o destaque do quadrado) ----------
+
+test('checkAction says yes for a valid action and changes nothing', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 1000);
+  assert.deepEqual(checkAction(state, 1, 0, 'clearBrush'), { ok: true, cost: 200 });
+  assert.equal(tileAt(village, 1, 0), 'brush');
+  assert.equal(remainingBudget(state), 1000);
+});
+
+test('checkAction gives the same reasons as applyAction', () => {
+  const state = createBuildState(smallVillage(), 300);
+  assert.deepEqual(checkAction(state, 4, 0, 'clearBrush'), { ok: false, reason: 'invalid-target' });
+  assert.deepEqual(checkAction(state, 0, 0, 'firebreak'), { ok: false, reason: 'not-enough-money' });
+  assert.deepEqual(checkAction(state, 9, 9, 'firebreak'), { ok: false, reason: 'outside' });
+  applyAction(state, 1, 0, 'clearBrush');
+  assert.deepEqual(checkAction(state, 1, 0, 'firebreak'), { ok: false, reason: 'already-changed' });
+});
+
+test('checkAction for undo is ok only on a changed tile', () => {
+  const state = createBuildState(smallVillage(), 1000);
+  assert.deepEqual(checkAction(state, 1, 0, 'undo'), { ok: false, reason: 'nothing-to-undo' });
+  applyAction(state, 1, 0, 'clearBrush');
+  assert.deepEqual(checkAction(state, 1, 0, 'undo'), { ok: true, cost: -200 });
 });

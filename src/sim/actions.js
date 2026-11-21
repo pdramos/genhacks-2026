@@ -27,26 +27,40 @@ export function createBuildState(village, budget) {
 // Tenta aplicar uma ação no quadrado (x, y).
 // Devolve { ok: true, newType } ou { ok: false, reason } a dizer porque não deu.
 export function applyAction(state, x, y, actionName) {
-  const { village } = state;
-  // Fora da grelha? Não há quadrado para mudar.
-  if (x < 0 || y < 0 || x >= village.width || y >= village.height) return { ok: false, reason: 'outside' };
-
+  const check = checkAction(state, x, y, actionName);
+  if (!check.ok) return check;
   const action = ACTIONS[actionName];
   const key = `${x},${y}`;
   const currentType = state.village.tiles[y][x];
-
-  // O quadrado já foi mudado? Tem de ser desfeito primeiro.
-  if (state.changes[key]) return { ok: false, reason: 'already-changed' };
-  // A ação não faz sentido neste tipo de quadrado? Recusa.
-  if (!action.from.includes(currentType)) return { ok: false, reason: 'invalid-target' };
-  // Não há dinheiro suficiente? Recusa, sem mexer em nada.
-  if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
 
   // Tudo bem: guarda o tipo original (para o undo), muda o quadrado e paga.
   state.changes[key] = { actionName, originalType: currentType };
   state.village.tiles[y][x] = action.result;
   state.budget -= action.cost;
   return { ok: true, newType: action.result };
+}
+
+// "Posso fazer esta ação aqui?" — a mesma verificação do applyAction, mas SEM mudar nada.
+// Serve para a interface pintar o quadrado debaixo do rato de verde (pode) ou vermelho (não pode).
+// actionName pode ser também 'undo'. Devolve { ok: true, cost } (no undo, cost é negativo:
+// é dinheiro que volta) ou { ok: false, reason }.
+export function checkAction(state, x, y, actionName) {
+  const { village } = state;
+  // Fora da grelha? Não há quadrado para mudar.
+  if (x < 0 || y < 0 || x >= village.width || y >= village.height) return { ok: false, reason: 'outside' };
+  const change = state.changes[`${x},${y}`];
+  if (actionName === 'undo') {
+    if (!change) return { ok: false, reason: 'nothing-to-undo' };
+    return { ok: true, cost: -ACTIONS[change.actionName].cost };
+  }
+  const action = ACTIONS[actionName];
+  // O quadrado já foi mudado? Tem de ser desfeito primeiro.
+  if (change) return { ok: false, reason: 'already-changed' };
+  // A ação não faz sentido neste tipo de quadrado? Recusa.
+  if (!action.from.includes(village.tiles[y][x])) return { ok: false, reason: 'invalid-target' };
+  // Não há dinheiro suficiente? Recusa, sem mexer em nada.
+  if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
+  return { ok: true, cost: action.cost };
 }
 
 // Desfaz a ação no quadrado (x, y): volta ao tipo original e devolve o dinheiro todo.
