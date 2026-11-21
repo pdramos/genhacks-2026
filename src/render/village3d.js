@@ -1,90 +1,84 @@
 // "Os olhos" do jogo: desenha a vila da simulação em 3D e permite mudá-la depois.
 // Não tem regras do jogo — só mostra o que a simulação diz.
+// O chão (relevo, cores, estradas, rio, borda da ilha) é feito em terrain.js;
+// aqui pomos por cima as casas, a escola, as árvores e o mato.
 //
 // API (o que o resto do jogo pode usar):
 //   const view = createVillageView(scene, village, style, rand)
 //   view.setTileType(x, y, type)   -> redesenha um quadrado com outro tipo (ex.: depois de construir)
-//   view.setBurned(x, y)           -> pinta o quadrado como queimado (chão e objetos)
+//   view.setBurned(x, y)           -> mostra o quadrado queimado (chão de carvão e objetos carbonizados)
 //   view.tileFromPointer(event, camera, canvas) -> {x, y} do quadrado clicado, ou null
-//   view.worldPosition(x, y)       -> {x, z} no mundo 3D (centro do quadrado)
+//   view.worldPosition(x, y)       -> {x, y, z} no mundo 3D: centro do quadrado, y = altura do chão
 //   view.update(t)                 -> animações (árvores ao vento, bandeiras, água); chamar a cada desenho
+//   view.terrain                   -> o terreno (ver terrain.js), para quem precisar da altura exata
 import * as THREE from 'three';
 import { tileAt } from '../sim/village.js';
+import { createTerrain } from './terrain.js';
+
+// O aspeto de "queimado" dos objetos vem de charring.js (feito por outra pessoa).
+// Enquanto esse ficheiro não existir, usamos uma versão simples (pinta tudo de carvão).
+const charcoalMat = new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness: 1, flatShading: true });
+let charProp = (group) => group.traverse((o) => { if (o.isMesh) o.material = charcoalMat; });
+import('./charring.js').then((m) => { if (m.charProp) charProp = m.charProp; }).catch(() => {});
 
 export function createVillageView(scene, village, style, rand) {
-  const half = (village.width - 1) / 2;
+  const halfX = (village.width - 1) / 2, halfZ = (village.height - 1) / 2;
+  const terrain = createTerrain(scene, village, style.palette);
 
-  // Materiais do chão (cores vêm do estilo da região)
-  const P = style.palette;
-  const groundMat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, flatShading: true, ...o });
-  const GM = {
-    grass: groundMat(P.grass), brush: groundMat(P.brush), dirt: groundMat(P.dirt), road: groundMat(P.road),
-    cleared: groundMat(P.cleared), firebreak: groundMat(P.firebreak), burned: groundMat(P.burned),
-    water: groundMat(P.water, { roughness: 0.2, transparent: true, opacity: 0.85 }),
-  };
-  const tileGeo = new THREE.BoxGeometry(1, 0.5, 1);
-  const waterGeo = new THREE.BoxGeometry(1, 0.35, 1);
-
-  // tiles[y][x] = { block, prop, swaying: [...], animated: [...] }
+  // tiles[y][x] = { type, prop, swaying: [...], animated: [...] }
   const tiles = [];
-  const blocks = []; // para o clique
-
+  const props = []; // grupos de objetos, para o clique
   for (let y = 0; y < village.height; y++) {
     tiles.push([]);
-    for (let x = 0; x < village.width; x++) {
-      const block = new THREE.Mesh(tileGeo, GM.grass);
-      block.receiveShadow = true;
-      block.userData = { x, y };
-      scene.add(block);
-      blocks.push(block);
-      tiles[y].push({ block, prop: null, swaying: [], animated: [] });
-    }
+    for (let x = 0; x < village.width; x++) tiles[y].push({ type: null, prop: null, swaying: [], animated: [] });
   }
   for (let y = 0; y < village.height; y++) {
     for (let x = 0; x < village.width; x++) setTileType(x, y, tileAt(village, x, y));
   }
 
-  // Base da "ilha" por baixo de tudo
-  const base = new THREE.Mesh(new THREE.BoxGeometry(village.width + 0.4, 1.2, village.height + 0.4), GM.dirt);
-  base.position.y = -0.85;
-  scene.add(base);
-
+  // Centro do quadrado no mundo 3D; y é a altura do chão nesse ponto.
   function worldPosition(x, y) {
-    return { x: x - half, z: y - half };
+    return { x: x - halfX, y: terrain.groundHeight(x, y), z: y - halfZ };
   }
 
-  // Redesenha um quadrado: o bloco do chão e o que está em cima (árvores, casas...).
+  // Redesenha um quadrado: a cor do chão e o que está em cima (árvores, casas...).
   function setTileType(x, y, type) {
     const t = tiles[y][x];
-    if (t.prop) scene.remove(t.prop);
-    t.prop = null; t.swaying = []; t.animated = [];
+    removeProp(t);
+    t.type = type;
+    terrain.setSurface(x, y, type);
 
-    const { x: wx, z: wz } = worldPosition(x, y);
-    const isWater = type === 'water';
-    t.block.geometry = isWater ? waterGeo : tileGeo;
-    t.block.position.set(wx, isWater ? -0.08 : 0, wz);
-    const top = GM[type] || GM.grass;
-    t.block.material = [GM.dirt, GM.dirt, top, GM.dirt, GM.dirt, GM.dirt];
-
+    const { x: wx, y: wy, z: wz } = worldPosition(x, y);
     const prop = new THREE.Group();
-    prop.position.set(wx, 0.25, wz);
+    prop.position.set(wx, wy, wz);
+    prop.userData = { x, y };
     if (type === 'eucalyptus') addTrees(t, prop, 'conifer', 3);
     if (type === 'broadleaf') addTrees(t, prop, 'broadleaf', 1);
     if (type === 'brush') addBushes(prop);
-    if (type === 'house') {
-      const house = style.buildHouse(rand);
-      house.rotation.y = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
-      prop.add(house);
-    }
+    if (type === 'house') addHouse(prop, x, y);
     if (type === 'school') addSchool(prop, x, y);
     prop.traverse((o) => { if (o.userData.animate) t.animated.push(o); });
-    if (prop.children.length) { scene.add(prop); t.prop = prop; }
+    if (prop.children.length) { scene.add(prop); t.prop = prop; props.push(prop); }
+  }
+
+  function removeProp(t) {
+    if (t.prop) {
+      scene.remove(t.prop);
+      props.splice(props.indexOf(t.prop), 1);
+    }
+    t.prop = null; t.swaying = []; t.animated = [];
+  }
+
+  // Põe um objeto dentro do quadrado, deslocado (ox, oz) do centro, assente no relevo.
+  function placeOnGround(group, obj, ox, oz) {
+    const ground = terrain.heightAtWorld(group.position.x + ox, group.position.z + oz);
+    obj.position.set(ox, ground - group.position.y - 0.02, oz); // -0.02: enterra um pouco a base
   }
 
   function addTrees(t, group, kind, count) {
     for (let i = 0; i < count; i++) {
       const tree = style.buildTree(kind, rand);
-      tree.position.set((rand() - 0.5) * 0.45, 0, (rand() - 0.5) * 0.45);
+      placeOnGround(group, tree, (rand() - 0.5) * 0.45, (rand() - 0.5) * 0.45);
       tree.rotation.y = rand() * Math.PI * 2;
       group.add(tree);
       t.swaying.push({ obj: tree, phase: rand() * 10 });
@@ -94,10 +88,19 @@ export function createVillageView(scene, village, style, rand) {
   function addBushes(group) {
     for (let i = 0; i < 3; i++) {
       const b = style.buildBush(rand);
-      b.position.set((rand() - 0.5) * 0.6, 0, (rand() - 0.5) * 0.6);
+      placeOnGround(group, b, (rand() - 0.5) * 0.6, (rand() - 0.5) * 0.6);
       b.rotation.y = rand() * Math.PI * 2;
       group.add(b);
     }
+  }
+
+  // A casa assenta no ponto MAIS BAIXO do seu terreno: numa encosta fica "encaixada" no
+  // monte (como as casas reais), em vez de ficar a flutuar.
+  function addHouse(group, x, y) {
+    const house = style.buildHouse(rand);
+    house.rotation.y = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
+    house.position.y = lowestGround(group.position.x, group.position.z, 1, 1) - group.position.y;
+    group.add(house);
   }
 
   // A escola pode ocupar vários quadrados (ex.: 2x2). Construímos UMA só escola, no
@@ -110,9 +113,19 @@ export function createVillageView(scene, village, style, rand) {
     while (isSchool(x, y + h)) h++;
     const school = style.buildSchool(rand);
     school.scale.setScalar(Math.min(w, h) * 0.95);
-    school.position.set((w - 1) / 2, 0, (h - 1) / 2); // centro do bloco
+    const cx = group.position.x + (w - 1) / 2, cz = group.position.z + (h - 1) / 2; // centro do bloco
+    school.position.set((w - 1) / 2, lowestGround(cx, cz, w, h) - group.position.y, (h - 1) / 2);
     school.rotation.y = facingRoad(x, y);
     group.add(school);
+  }
+
+  // A altura mais baixa do chão debaixo de um retângulo w x h (em quadrados) centrado em (cx, cz).
+  function lowestGround(cx, cz, w, h) {
+    let low = Infinity;
+    for (const fx of [-0.42, 0, 0.42]) {
+      for (const fz of [-0.42, 0, 0.42]) low = Math.min(low, terrain.heightAtWorld(cx + fx * w, cz + fz * h));
+    }
+    return low - 0.02;
   }
 
   // Ângulo (múltiplo de 90°) para o objeto olhar para a estrada mais próxima.
@@ -131,23 +144,29 @@ export function createVillageView(scene, village, style, rand) {
     return x >= 0 && y >= 0 && x < village.width && y < village.height;
   }
 
-  // Pinta um quadrado como queimado: chão escuro e tudo o que está em cima carbonizado.
+  // Mostra um quadrado queimado: chão de carvão e cinza, e os objetos carbonizados.
   function setBurned(x, y) {
     const t = tiles[y][x];
-    t.block.material = [GM.dirt, GM.dirt, GM.burned, GM.dirt, GM.dirt, GM.dirt];
-    if (t.prop) t.prop.traverse((o) => { if (o.isMesh) o.material = GM.burned; });
+    terrain.setSurface(x, y, 'burned');
+    if (t.prop) charProp(t.prop);
     t.swaying = []; // árvores queimadas não balançam
   }
 
   // Descobre que quadrado está debaixo do rato (um "raio" sai da câmara pelo ponto clicado).
+  // Se o raio bater primeiro numa casa ou árvore, conta o quadrado desse objeto.
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   function tileFromPointer(event, camera, canvas) {
     const r = canvas.getBoundingClientRect();
     pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(blocks)[0];
-    return hit ? { x: hit.object.userData.x, y: hit.object.userData.y } : null;
+    const propHit = raycaster.intersectObjects(props, true)[0];
+    if (propHit) {
+      let o = propHit.object;
+      while (o && !(o.parent && o.parent.isScene)) o = o.parent; // sobe até ao grupo do quadrado
+      if (o && o.userData.x !== undefined) return { x: o.userData.x, y: o.userData.y };
+    }
+    return terrain.pickTile(raycaster);
   }
 
   function update(t) {
@@ -157,8 +176,8 @@ export function createVillageView(scene, village, style, rand) {
         for (const o of tile.animated) o.userData.animate(t);
       }
     }
-    GM.water.opacity = 0.8 + Math.sin(t * 2) * 0.05;
+    terrain.update(t);
   }
 
-  return { setTileType, setBurned, tileFromPointer, worldPosition, update };
+  return { setTileType, setBurned, tileFromPointer, worldPosition, update, terrain };
 }

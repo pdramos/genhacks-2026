@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terrain test</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #a9d4f5; font-family: system-ui, sans-serif; }
+    #bar { position: fixed; left: 12px; top: 12px; display: flex; gap: 6px; }
+    #bar button { padding: 6px 10px; }
+    #info { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="bar"><button id="burn">Burn a patch</button></div>
+  <div id="info">Terrain test · ?style=portugal|canada · ?heights=hill|flat · click a tile</div>
+  <script type="module">
+    // Página de TESTE do terreno (só para desenvolvimento): usa o nível demo com alturas
+    // inventadas (um monte a noroeste e o rio no fundo de um vale), para ver encostas.
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { createVillage } from './src/sim/village.js';
+    import { setupRenderer, addLights } from './src/render/lighting.js';
+    import { createVillageView } from './src/render/village3d.js';
+
+    const params = new URLSearchParams(location.search);
+    const level = await fetch('data/levels/demo.json', { cache: 'no-cache' }).then((r) => r.json());
+    if (params.get('heights') !== 'flat') level.heights = fakeHeights();
+    const village = createVillage(level);
+    const style = await import(`./src/render/styles/${params.get('style') || 'portugal'}.js`);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    setupRenderer(renderer);
+    document.body.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    addLights(scene, 16);
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
+    camera.position.set(22, 20, 22);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    let seed = 42;
+    const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const view = createVillageView(scene, village, style, rand);
+    window.testView = view; window.testCamera = camera; window.testControls = controls;
+
+    // Queima um "borrão" irregular de quadrados, para ver o aspeto de queimado.
+    document.getElementById('burn').onclick = () => {
+      for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+        const d = Math.hypot(x - 5, y - 6) + Math.sin(x * 1.7 + y) * 1.2;
+        if (d < 4.5 && village.tiles[y][x] !== 'road' && village.tiles[y][x] !== 'water') view.setBurned(x, y);
+      }
+    };
+    renderer.domElement.addEventListener('click', (e) => {
+      const t = view.tileFromPointer(e, camera, renderer.domElement);
+      document.getElementById('info').textContent = t
+        ? `Tile (${t.x}, ${t.y}) ${village.tiles[t.y][t.x]} · ground y = ${view.worldPosition(t.x, t.y).y.toFixed(2)}`
+        : 'Outside';
+    });
+    renderer.setAnimationLoop((ms) => { controls.update(); view.update(ms / 1000); renderer.render(scene, camera); });
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+    });
+
+    // Alturas inventadas: monte alto no canto noroeste, a descer para o rio a leste.
+    function fakeHeights() {
+      const rows = [];
+      for (let y = 0; y < 20; y++) {
+        let row = '';
+        for (let x = 0; x < 20; x++) {
+          const hill = 9 - Math.hypot(x - 2, y - 2) * 0.75;
+          const valley = (19 - x) * 0.25;
+          row += String(Math.round(Math.max(0, Math.min(9, Math.max(hill, valley)))));
+        }
+        rows.push(row);
+      }
+      return rows;
+    }
+  </script>
+</body>
+</html>
