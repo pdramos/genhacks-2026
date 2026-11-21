@@ -20,7 +20,8 @@ export const FLAMMABILITY = {
 // mais provável e contra o vento quase não avança. Afinado a jogar.
 export const DEFAULT_K = 0.05;
 
-// Probabilidade (0 a 1) de um quadrado a arder pegar fogo ao vizinho do tipo targetType.
+// Probabilidade (0 a 1) de um quadrado a arder pegar fogo ao vizinho do tipo targetType,
+// durante todo o tempo em que arde (em cada passo usa-se chancePerStep, mais abaixo).
 // (dx, dy) = direção do quadrado a arder até ao vizinho (um dos 8 vizinhos).
 // wind = { direction, speed }: de onde o vento vem (graus) e a força (km/h).
 // k = quanto o vento conta (se faltar, usa DEFAULT_K).
@@ -63,7 +64,18 @@ export function slopeFactor(heightDiff, distance = 1) {
 }
 
 // Quanto conta um vizinho na diagonal, comparado com um vizinho ao lado.
-export const DIAGONAL_FACTOR = 0.7;
+// Afinado com testes: com 0.55, um fogo sem vento cresce redondo (nem quadrado, nem losango).
+// (Com 1, o fogo ficava um quadrado; com 0, ficava um losango.)
+export const DIAGONAL_FACTOR = 0.55;
+
+// A probabilidade de ignitionProbability vale para TODO o tempo em que o quadrado arde.
+// Um eucalipto que arde 4 passos não tem 4 hipóteses grandes: tem 4 hipóteses pequenas
+// que, juntas, dão a mesma probabilidade. Isto faz o fogo avançar aos poucos, de forma
+// irregular, em vez de "saltar" sempre 1 quadrado por passo como num tabuleiro.
+// Conta: falhar em todos os passos = (1 - chancePorPasso) ^ passos = 1 - wholeChance.
+export function chancePerStep(wholeChance, totalSteps) {
+  return 1 - Math.pow(1 - wholeChance, 1 / totalSteps);
+}
 
 // Quantos passos (de 10 minutos) cada tipo fica a arder antes de ficar queimado.
 // As árvores ardem mais tempo do que a relva.
@@ -93,61 +105,79 @@ const NEIGHBOURS = [
 // - seed: semente do acaso (o mesmo seed dá sempre o mesmo fogo)
 // - k: quanto o vento conta; maxSteps: número máximo de passos (144 passos = 24 horas)
 export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, maxSteps = 144 }) {
-  const rand = createRandom(seed);
   const windAt = typeof wind === 'function' ? wind : () => wind;
 
   // Estado do fogo, guardado à parte para não mexer em village.tiles.
-  // burning: "x,y" -> passos que ainda faltam a arder. burned: conjunto de "x,y".
-  const burning = new Map();
-  const burned = new Set();
+  // burning: "x,y" -> { stepsLeft, totalSteps } (quanto falta arder e quanto arde ao todo).
+  // burned: conjunto de "x,y" que já arderam.
+  const fire = { village, k, rand: createRandom(seed), burning: new Map(), burned: new Set() };
+
   // O fogo só começa se o quadrado da ignição puder arder.
   // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
-  const ignitionType = village.tiles[ignition.y][ignition.x];
-  if ((FLAMMABILITY[ignitionType] ?? 0) > 0) {
-    burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y, rand));
-  }
+  if (canBurn(village, ignition.x, ignition.y)) startFire(fire, key(ignition.x, ignition.y));
 
-  const steps = [snapshot(0, burning, burned)];
+  const steps = [snapshot(0, fire)];
 
-  for (let step = 1; step <= maxSteps && burning.size > 0; step++) {
+  for (let step = 1; step <= maxSteps && fire.burning.size > 0; step++) {
     const currentWind = windAt(step - 1);
-
-    // 1) Cada quadrado a arder pode pegar fogo aos vizinhos.
-    const newFires = [];
-    for (const tileKey of burning.keys()) {
-      const [x, y] = fromKey(tileKey);
-      for (const [dx, dy] of NEIGHBOURS) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= village.width || ny >= village.height) continue;
-        const neighbourKey = key(nx, ny);
-        if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
-        const heightDiff = heightOf(village, nx, ny) - heightOf(village, x, y);
-        const chance = ignitionProbability(village.tiles[ny][nx], dx, dy, currentWind, k, heightDiff);
-        if (rand() < chance) newFires.push(neighbourKey);
-      }
-    }
-
-    // 2) Os que já estavam a arder gastam um passo; quando chegam a 0 ficam queimados.
-    for (const [tileKey, left] of burning) {
-      if (left <= 1) {
-        burning.delete(tileKey);
-        burned.add(tileKey);
-      } else {
-        burning.set(tileKey, left - 1);
-      }
-    }
-
-    // 3) Os fogos novos começam a arder.
-    for (const tileKey of newFires) {
-      if (burning.has(tileKey)) continue; // dois vizinhos podem acender o mesmo quadrado
-      const [x, y] = fromKey(tileKey);
-      burning.set(tileKey, burnSteps(village, x, y, rand));
-    }
-
-    steps.push(snapshot(step, burning, burned));
+    const newFires = spreadToNeighbours(fire, currentWind); // 1) o fogo passa aos vizinhos
+    burnOneStep(fire);                                       // 2) quem arde gasta um passo
+    for (const tileKey of newFires) startFire(fire, tileKey); // 3) os fogos novos começam
+    steps.push(snapshot(step, fire));
   }
 
-  return { steps, outcome: countOutcome(village, burning, burned, steps.length - 1) };
+  return { steps, outcome: countOutcome(village, fire.burning, fire.burned, steps.length - 1) };
+}
+
+// Um quadrado pode arder se o tipo dele tiver inflamabilidade maior do que 0.
+function canBurn(village, x, y) {
+  return (FLAMMABILITY[village.tiles[y][x]] ?? 0) > 0;
+}
+
+// Passo 1: cada quadrado a arder pode pegar fogo a cada um dos 8 vizinhos.
+// Devolve a lista de "x,y" que vão começar a arder.
+function spreadToNeighbours(fire, wind) {
+  const { village, burning, burned, rand, k } = fire;
+  const newFires = [];
+  for (const [tileKey, { totalSteps }] of burning) {
+    const [x, y] = fromKey(tileKey);
+    for (const [dx, dy] of NEIGHBOURS) {
+      const nx = x + dx, ny = y + dy;
+      if (!isInside(village, nx, ny)) continue;
+      const neighbourKey = key(nx, ny);
+      if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
+      const heightDiff = heightOf(village, nx, ny) - heightOf(village, x, y);
+      const wholeChance = ignitionProbability(village.tiles[ny][nx], dx, dy, wind, k, heightDiff);
+      if (rand() < chancePerStep(wholeChance, totalSteps)) newFires.push(neighbourKey);
+    }
+  }
+  return newFires;
+}
+
+// Passo 2: os que estão a arder gastam um passo; quando chegam a 0 ficam queimados.
+function burnOneStep(fire) {
+  for (const [tileKey, tile] of fire.burning) {
+    if (tile.stepsLeft <= 1) {
+      fire.burning.delete(tileKey);
+      fire.burned.add(tileKey);
+    } else {
+      tile.stepsLeft--;
+    }
+  }
+}
+
+// Passo 3: um quadrado começa a arder (se ainda não estiver a arder).
+// Dois vizinhos podem acender o mesmo quadrado no mesmo passo: só conta uma vez.
+function startFire(fire, tileKey) {
+  if (fire.burning.has(tileKey)) return;
+  const [x, y] = fromKey(tileKey);
+  const totalSteps = burnSteps(fire.village, x, y, fire.rand);
+  fire.burning.set(tileKey, { stepsLeft: totalSteps, totalSteps });
+}
+
+// O quadrado (x, y) está dentro do mapa?
+function isInside(village, x, y) {
+  return x >= 0 && y >= 0 && x < village.width && y < village.height;
 }
 
 // O resultado final. Um quadrado que ainda arde no fim também conta como perdido.
@@ -191,11 +221,11 @@ function burnSteps(village, x, y, rand) {
 }
 
 // Uma "fotografia" do fogo num passo: listas de [x, y].
-function snapshot(step, burning, burned) {
+function snapshot(step, fire) {
   return {
     step,
-    burning: [...burning.keys()].map(fromKey),
-    burned: [...burned].map(fromKey),
+    burning: [...fire.burning.keys()].map(fromKey),
+    burned: [...fire.burned].map(fromKey),
   };
 }
 

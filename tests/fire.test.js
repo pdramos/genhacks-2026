@@ -249,3 +249,39 @@ test('tiles of the same type burn for slightly different times, between 1 and 3 
   assert.ok(values.every((steps) => steps >= 1 && steps <= 3), `durations ${values}`);
   assert.ok(new Set(values).size > 1, 'not every tile burned for the same time');
 });
+
+// ---------- Forma do fogo: sem vento, cresce como um círculo (nem quadrado, nem losango) ----------
+
+// O quadrado a arder (ou queimado) mais longe do centro (cx, cy) num "cone" de ±15 graus
+// à volta de angleDegrees (0 = leste, 90 = sul, porque y cresce para sul).
+function farthestInDirection(tiles, cx, cy, angleDegrees) {
+  let farthest = 0;
+  for (const [x, y] of tiles) {
+    const angle = (Math.atan2(y - cy, x - cx) * 180) / Math.PI;
+    const difference = Math.abs(((angle - angleDegrees) % 360 + 540) % 360 - 180);
+    if (difference <= 15) farthest = Math.max(farthest, Math.hypot(x - cx, y - cy));
+  }
+  return farthest;
+}
+
+for (const [letter, fuel] of [['E', 'eucalyptus'], ['B', 'brush'], ['G', 'grass']]) {
+  test(`with no wind, a fire in a ${fuel} field grows round: as far along the diagonals as along the axes`, () => {
+    // Um quadrado em losango teria rácio ~0.7; um fogo em forma de quadrado teria ~1.4.
+    const field = villageFrom(...Array(41).fill(letter.repeat(41)));
+    let ratioSum = 0;
+    const seeds = 10;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const { steps } = runDisaster(field, { ignition: { x: 20, y: 20 }, wind: { direction: 0, speed: 0 }, seed });
+      // O primeiro passo em que o fogo está a 12 quadrados (ou mais) do centro.
+      const fireTiles = ({ burning, burned }) => [...burning, ...burned];
+      const snapshot = steps.find((s) => fireTiles(s).some(([x, y]) => Math.hypot(x - 20, y - 20) >= 12));
+      const tiles = fireTiles(snapshot);
+      const axes = [0, 90, 180, 270].map((angle) => farthestInDirection(tiles, 20, 20, angle));
+      const diagonals = [45, 135, 225, 315].map((angle) => farthestInDirection(tiles, 20, 20, angle));
+      const average = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+      ratioSum += average(diagonals) / average(axes);
+    }
+    const ratio = ratioSum / seeds;
+    assert.ok(ratio > 0.9 && ratio < 1.1, `diagonal / axis reach was ${ratio.toFixed(2)}`);
+  });
+}
