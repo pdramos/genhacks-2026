@@ -4,7 +4,8 @@
 // As ações que o jogador pode comprar. cost = preço em euros.
 export const ACTIONS = {
   clearBrush: { cost: 200, label: 'Clear brush', result: 'cleared' },
-  firebreak: { cost: 500, label: 'Firebreak', result: 'firebreak' },
+  firebreak: { cost: 500, label: 'Firebreak', result: 'firebreak',
+    from: ['grass', 'brush', 'eucalyptus', 'broadleaf', 'cleared'] },
   replaceTrees: { cost: 800, label: 'Replace trees', result: 'broadleaf' },
 };
 
@@ -19,6 +20,10 @@ export function applyAction(state, x, y, actionName) {
   const action = ACTIONS[actionName];
   // Não há dinheiro suficiente? Recusa, sem mexer em nada.
   if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
+  // A ação não faz sentido neste tipo de quadrado? Recusa.
+  if (action.from && !action.from.includes(state.village.tiles[y][x])) {
+    return { ok: false, reason: 'invalid-target' };
+  }
 
   state.village.tiles[y][x] = action.result;
   state.budget -= action.cost;

@@ -48,3 +48,14 @@ test('an action that costs more than the budget is blocked and nothing changes',
   assert.equal(tileAt(village, 2, 0), 'eucalyptus');
   assert.equal(remainingBudget(state), 700);
 });
+
+test('a firebreak cannot be built on a house, school, road or water', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 10000);
+  const targets = [[4, 0, 'house'], [0, 1, 'school'], [1, 1, 'road'], [2, 1, 'water']];
+  for (const [x, y, type] of targets) {
+    assert.deepEqual(applyAction(state, x, y, 'firebreak'), { ok: false, reason: 'invalid-target' }, type);
+    assert.equal(tileAt(village, x, y), type);
+  }
+  assert.equal(remainingBudget(state), 10000);
+});
