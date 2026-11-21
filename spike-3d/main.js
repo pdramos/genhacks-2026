@@ -2,7 +2,46 @@
 // Usa a MESMA simulação da versão 2D (src/sim/village.js) — só o desenho muda.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createVillage, tileAt } from '../src/sim/village.js';
+
+// ---------- Modelos 3D da Kenney (CC0) ----------
+// Carregamos cada modelo uma vez; depois fazemos "cópias" (clones) para cada quadrado.
+const MODEL_FILES = {
+  pine: ['nature/tree_pineTallA_detailed', 'nature/tree_pineTallB_detailed', 'nature/tree_pineRoundA'],
+  broadleaf: ['nature/tree_oak', 'nature/tree_detailed', 'nature/tree_default'],
+  bush: ['nature/plant_bush', 'nature/plant_bushDetailed', 'nature/plant_bushSmall', 'nature/grass_large'],
+  decor: ['nature/flower_redA', 'nature/flower_yellowA', 'nature/rock_smallA'],
+  house: ['suburban/building-type-a', 'suburban/building-type-b', 'suburban/building-type-c',
+    'suburban/building-type-d', 'suburban/building-type-e', 'suburban/building-type-f',
+    'suburban/building-type-g', 'suburban/building-type-h'],
+  school: ['suburban/building-type-t'],
+  stump: ['nature/stump_old', 'nature/stump_oldTall'],
+};
+const loader = new GLTFLoader();
+const MODELS = {};
+for (const [kind, files] of Object.entries(MODEL_FILES)) {
+  MODELS[kind] = await Promise.all(files.map((f) =>
+    loader.loadAsync(`../assets/models/${f}.glb`).then((g) => g.scene)));
+}
+
+// Faz uma cópia de um modelo e ajusta o tamanho para caber no quadrado,
+// com a base assente no chão e centrada.
+function placeModel(kind, footprint, rand) {
+  const list = MODELS[kind];
+  const model = list[Math.floor(rand() * list.length)].clone(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const s = footprint / Math.max(size.x, size.z);
+  model.scale.setScalar(s);
+  const box2 = new THREE.Box3().setFromObject(model);
+  const center = box2.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -box2.min.y, -center.z);
+  const holder = new THREE.Group();
+  holder.add(model);
+  holder.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return holder;
+}
 
 const level = await fetch('../data/levels/demo.json').then((r) => r.json());
 const village = createVillage(level);
@@ -13,7 +52,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;                 // sombras reais
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; // cores mais "de cinema"
+renderer.toneMapping = THREE.NeutralToneMapping; // mantém as cores vivas dos modelos
+renderer.toneMappingExposure = 1.15;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -93,25 +133,10 @@ scene.add(base);
 
 function addTrees(group, kind, count) {
   for (let i = 0; i < count; i++) {
-    const t = new THREE.Group();
-    const h = 0.5 + rand() * 0.4;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, h * 0.5, 6), M.trunk);
-    trunk.position.y = h * 0.25;
-    t.add(trunk);
-    if (kind === 'pine') {
-      for (let k = 0; k < 3; k++) { // três "andares" de cone
-        const c = new THREE.Mesh(new THREE.ConeGeometry(0.28 - k * 0.07, 0.4, 7), M.pine);
-        c.position.y = h * 0.45 + k * 0.22;
-        t.add(c);
-      }
-    } else {
-      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32 + rand() * 0.08, 0), M.leaf);
-      crown.position.y = h * 0.75;
-      t.add(crown);
-    }
-    t.position.set((rand() - 0.5) * 0.5, 0, (rand() - 0.5) * 0.5);
-    t.rotation.y = rand() * Math.PI;
-    t.traverse((o) => { o.castShadow = true; });
+    const t = placeModel(kind === 'pine' ? 'pine' : 'broadleaf', kind === 'pine' ? 0.45 : 0.75, rand);
+    t.scale.multiplyScalar(0.85 + rand() * 0.3); // tamanhos um pouco diferentes
+    t.position.set((rand() - 0.5) * 0.45, 0, (rand() - 0.5) * 0.45);
+    t.rotation.y = rand() * Math.PI * 2;
     group.add(t);
     swaying.push({ obj: t, phase: rand() * 10 });
   }
@@ -119,30 +144,26 @@ function addTrees(group, kind, count) {
 
 function addBushes(group) {
   for (let i = 0; i < 3; i++) {
-    const b = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + rand() * 0.08, 0), M.bush);
-    b.position.set((rand() - 0.5) * 0.7, 0.08, (rand() - 0.5) * 0.7);
-    b.castShadow = true;
+    const b = placeModel('bush', 0.3 + rand() * 0.15, rand);
+    b.position.set((rand() - 0.5) * 0.6, 0, (rand() - 0.5) * 0.6);
+    b.rotation.y = rand() * Math.PI * 2;
     group.add(b);
+  }
+  if (rand() < 0.4) { // de vez em quando, uma flor ou pedra
+    const d = placeModel('decor', 0.15, rand);
+    d.position.set((rand() - 0.5) * 0.6, 0, (rand() - 0.5) * 0.6);
+    group.add(d);
   }
 }
 
 function addHouse(group, isSchool) {
-  const w = isSchool ? 0.85 : 0.6, h = isSchool ? 0.55 : 0.4;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), isSchool ? M.school : M.wall);
-  body.position.y = h / 2;
-  const roofMat = isSchool ? M.roofs[1] : M.roofs[Math.floor(rand() * 3)];
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.78, h * 0.7, 4), roofMat);
-  roof.position.y = h + h * 0.35;
-  roof.rotation.y = Math.PI / 4;
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.02), M.window);
-  door.position.set(0, 0.1, w * 0.4 + 0.01);
-  [body, roof].forEach((m) => { m.castShadow = true; m.receiveShadow = true; });
-  group.add(body, roof, door);
-  if (isSchool) { // mastro com bandeira
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.7), M.window);
-    pole.position.set(w * 0.55, 0.35, 0);
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.01), M.roofs[0]);
-    flag.position.set(w * 0.55 + 0.1, 0.62, 0);
+  const h = placeModel(isSchool ? 'school' : 'house', isSchool ? 1.0 : 0.92, rand);
+  group.add(h);
+  if (isSchool) { // mastro com bandeira (para se distinguir das casas)
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.9), M.window);
+    pole.position.set(0.45, 0.45, 0.45);
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.13, 0.01), M.roofs[0]);
+    flag.position.set(0.56, 0.82, 0.45);
     group.add(pole, flag);
     swaying.push({ obj: flag, phase: 0, flag: true });
   }
@@ -205,7 +226,7 @@ function burnTile(x, y) {
   const block = tileMeshes.find((m) => m.userData.x === x && m.userData.y === y);
   block.material = [M.dirt, M.dirt, M.burned, M.dirt, M.dirt, M.dirt];
   const prop = props.get(`${x},${y}`);
-  if (prop) prop.traverse((o) => { if (o.isMesh) o.material = M.ember; });
+  if (prop) prop.traverse((o) => { if (o.isMesh) o.material = M.burned; }); // tudo carbonizado
 }
 
 // ---------- Ciclo de animação (≈60 vezes por segundo) ----------
