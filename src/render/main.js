@@ -1,5 +1,5 @@
 // Ponto de entrada do jogo: carrega o nível, cria a vila (simulação) e mostra-a em 3D.
-// ?style=portugal|canada escolhe o estilo da região (senão usa o do nível).
+// ?style=sintra|portugal|canada escolhe o estilo da região (senão usa o do nível).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createVillage } from '../sim/village.js';
@@ -8,8 +8,8 @@ import { createVillageView } from './village3d.js';
 import { createFireFx } from './fireFx.js';
 
 const params = new URLSearchParams(location.search);
-// ?level=sintra carrega data/levels/sintra.json (por omissão, o nível de desenvolvimento "demo").
-const levelName = params.get('level') || 'demo';
+// ?level=demo carrega data/levels/demo.json (por omissão, o nível a sério: Sintra, outubro de 2018).
+const levelName = params.get('level') || 'sintra';
 const level = await fetch(`data/levels/${levelName}.json`, { cache: 'no-cache' }).then((r) => r.json());
 const village = createVillage(level);
 const styleName = params.get('style') || level.style || 'portugal';
@@ -36,11 +36,12 @@ controls.maxDistance = 55;
 // ---------- A vila em 3D ----------
 const rand = mulberry32(42); // acaso com semente: a vila sai sempre igual
 const view = createVillageView(scene, village, style, rand);
-const fireFx = createFireFx(scene, view);
+const fireFx = createFireFx(scene, view, { wind: level.wind }); // o fumo inclina-se com o vento do nível
 
 // Exposto para os outros módulos do jogo (fase de construção, desastre) se ligarem.
 // game.village é a MESMA vila que a fase de construção altera e que o fogo lê.
-export const game = { level, village, view, fireFx, camera, renderer, phase: 'build' };
+// scene e controls servem à cena do cigarro (ignitionCinematic.js), que move a câmara.
+export const game = { level, village, view, fireFx, scene, camera, controls, renderer, phase: 'build' };
 
 // ---------- Fases do jogo: 'build' (construir) -> 'disaster' (fogo) -> 'result' (estrelas) ----------
 const phaseListeners = [];

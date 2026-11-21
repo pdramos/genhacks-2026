@@ -149,7 +149,7 @@ export function createVillageView(scene, village, style, rand) {
   function setBurned(x, y) {
     const t = tiles[y][x];
     terrain.setSurface(x, y, 'burned');
-    if (t.prop) charProp(t.prop);
+    if (t.prop) charProp(t.prop, t.type); // o tipo diz ao charring se são árvores, mato ou casas
     t.swaying = []; // árvores queimadas não balançam
   }
 

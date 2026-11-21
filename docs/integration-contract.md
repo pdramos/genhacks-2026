@@ -20,6 +20,7 @@ Várias pessoas/agentes trabalham ao mesmo tempo, cada uma no **seu ficheiro**. 
   "ignition": { "x": 0, "y": 0 },  // quadrado de vegetação (mato/relva) COLADO a uma estrada: é onde cai o cigarro
   "wind": { "direction": 0, "speed": 0 },  // de onde vem o vento, em graus; km/h
   "briefing": "...", "sources": ["url", ...]  // opcional; os ecrãs de missão chegam depois
+  "schoolName": "Fire station"  // opcional; nome do edifício "S" no cartão final (por omissão "School")
 }
 ```
 `createVillage(level)` devolve `{ name, width, height, tiles, heights }`. A função `heightAt(village, x, y)` existe e devolve 0–9.

@@ -167,7 +167,8 @@ export function setWindAngles(arrowRadians, northRadians) {
 
 // ---------- Cartão do resultado (fim do desastre) ----------
 // outcome = { housesSaved, housesTotal, schoolSaved } (vem da simulação).
-export function showResultCard(outcome) {
+// schoolLabel = o nome do edifício importante deste nível (em Sintra é o quartel dos bombeiros).
+export function showResultCard(outcome, schoolLabel = 'School') {
   const allSaved = outcome.schoolSaved && outcome.housesSaved === outcome.housesTotal;
   const card = document.createElement('div');
   card.className = 'result-card ' + (allSaved ? 'good' : 'bad');
@@ -183,7 +184,7 @@ export function showResultCard(outcome) {
       <div class="result-stat ${outcome.schoolSaved ? '' : 'lost'}">
         <span class="result-icon">${schoolIcon}</span>
         <span class="result-number">${outcome.schoolSaved ? 'Safe' : 'Lost'}</span>
-        <span class="result-label">School</span>
+        <span class="result-label">${schoolLabel}</span>
       </div>
     </div>
     <div class="result-buttons">
