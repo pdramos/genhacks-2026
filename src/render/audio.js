@@ -29,6 +29,7 @@ let muted = false;
 let phase = 'build';     // a fase pedida (lembrada mesmo antes do initAudio)
 let fireLevel = 0;
 let liveVoices = 0;      // quantos sons curtos estão a tocar agora (para ver se não há fugas)
+let lastSound = null;    // o último som pedido ao play() (para testar)
 let nextBirdAt = 0;      // quando cantam os próximos pássaros (segundos do AudioContext)
 let nextGustAt = 0;      // quando muda a próxima rajada de vento
 
@@ -68,6 +69,7 @@ export function setFireLevel(level) {
 }
 
 export function play(name) {
+  lastSound = name;
   if (!ctx || muted || ctx.state !== 'running') return;
   const sound = SOUNDS[name];
   if (sound) sound(ctx.currentTime + 0.01);
@@ -86,15 +88,15 @@ export function setMuted(value) {
 
 export function isMuted() { return muted; }
 
-// 0 quadrados -> 0; uns 25 quadrados a arder já é fogo "cheio" (1).
+// 0 quadrados -> 0; uns 40 quadrados a arder já é fogo "cheio" (1).
 // A raiz quadrada faz os primeiros quadrados já se ouvirem bem.
-export function fireLevelFromCount(count, fullAt = 25) {
+export function fireLevelFromCount(count, fullAt = 40) {
   if (count <= 0) return 0;
   return Math.min(1, Math.sqrt(count / fullAt));
 }
 
 export function getAudioDebug() {
-  return { state: ctx ? ctx.state : 'none', muted, phase, fireLevel, liveVoices };
+  return { state: ctx ? ctx.state : 'none', muted, phase, fireLevel, liveVoices, lastSound };
 }
 
 // ---------- A mesa de som ----------
