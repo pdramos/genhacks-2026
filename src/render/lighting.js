@@ -19,23 +19,35 @@ export function setupRenderer(renderer) {
   renderer.toneMappingExposure = 1.05;
 }
 
+// As cores do céu (topo, meio, horizonte) de dia e de noite. A noite tem um brilho
+// alaranjado no horizonte: é o reflexo do incêndio no fumo.
+const SKY_DAY = ['#5fa8e6', '#a9d4f5', '#e2eff6'];
+const SKY_NIGHT = ['#060a18', '#141c36', '#3a2630'];
+
 // Céu em degradê: azul forte em cima, quase branco no horizonte.
 // É uma imagem de 2x256 píxeis desenhada em código (nada é descarregado).
-function makeSkyBackground() {
-  if (typeof document === 'undefined') return new THREE.Color(0xa9d4f5); // sem navegador: cor lisa
+// Devolve { texture, paint(t) }: paint(t) redesenha o céu entre o dia (t = 0) e a noite (t = 1).
+function makeSky() {
+  if (typeof document === 'undefined') return { texture: new THREE.Color(0xa9d4f5), paint() {} }; // sem navegador
   const canvas = document.createElement('canvas');
   canvas.width = 2;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-  gradient.addColorStop(0, '#5fa8e6');    // topo do céu
-  gradient.addColorStop(0.55, '#a9d4f5'); // meio
-  gradient.addColorStop(1, '#e2eff6');    // horizonte
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 2, 256);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+  const a = new THREE.Color(), b = new THREE.Color();
+  const mix = (day, night, t) => '#' + a.set(day).lerp(b.set(night), t).getHexString();
+  function paint(t) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+    gradient.addColorStop(0, mix(SKY_DAY[0], SKY_NIGHT[0], t));    // topo do céu
+    gradient.addColorStop(0.55, mix(SKY_DAY[1], SKY_NIGHT[1], t)); // meio
+    gradient.addColorStop(1, mix(SKY_DAY[2], SKY_NIGHT[2], t));    // horizonte
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 2, 256);
+    texture.needsUpdate = true;
+  }
+  paint(0);
+  return { texture, paint };
 }
 
 // Luz ambiente "de estúdio" (IBL): dá brilho suave e reflexos às superfícies,
@@ -70,14 +82,30 @@ function makeSun(size) {
   return sun;
 }
 
+// Os valores de dia e de noite de cada luz. setTimeOfDay(t) mistura-os (t = 0 dia, 1 noite).
+// De noite: o sol passa a ser um luar fraco e azulado, e são as luzes do FOGO que mandam
+// (chamas aditivas, brilho e fumo iluminado por baixo só se veem bem no escuro).
+const DAY = {
+  sun: { color: 0xffe6c2, intensity: 3.0 }, fill: { color: 0xbfd8ff, intensity: 0.3 },
+  hemiSky: 0xcfe4ff, hemiGround: 0x9c8a66, hemi: 1.0, env: 0.15,
+  fog: { color: 0xdcecf5, near: 36, far: 90 },
+};
+const NIGHT = {
+  sun: { color: 0x8fa6d8, intensity: 0.45 }, fill: { color: 0x4a5a8a, intensity: 0.15 },
+  hemiSky: 0x2a3a66, hemiGround: 0x15110e, hemi: 0.45, env: 0.05,
+  fog: { color: 0x10131f, near: 30, far: 80 },
+};
+
 // Céu, nevoeiro e luzes. `size` = metade do tamanho da área que tem de ter sombras.
-// Devolve { sun, fill } para quem quiser mexer nas luzes (ex.: hora do dia).
+// Devolve { sun, fill, hemi, setTimeOfDay(t) }: t = 0 é dia (sol forte), t = 1 é noite.
 export function addLights(scene, size = 16) {
-  scene.background = makeSkyBackground();
+  const sky = makeSky();
+  scene.background = sky.texture;
   // Nevoeiro na cor do horizonte: o canto mais longe do tabuleiro fica levemente enevoado.
-  scene.fog = new THREE.Fog(0xdcecf5, 36, 90);
+  scene.fog = new THREE.Fog(DAY.fog.color, DAY.fog.near, DAY.fog.far);
   // Luz do céu (azul fresco) + reflexo do chão (castanho claro e quente).
-  scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x9c8a66, 1.0));
+  const hemi = new THREE.HemisphereLight(DAY.hemiSky, DAY.hemiGround, DAY.hemi);
+  scene.add(hemi);
   addEnvironment(scene);
 
   const sun = makeSun(size);
@@ -85,10 +113,30 @@ export function addLights(scene, size = 16) {
 
   // Luz de enchimento azul-céu do outro lado: clareia as paredes na sombra (lado +x),
   // para se distinguirem das sombras projetadas no chão. Não faz sombras.
-  const fill = new THREE.DirectionalLight(0xbfd8ff, 0.3);
+  const fill = new THREE.DirectionalLight(DAY.fill.color, DAY.fill.intensity);
   fill.position.set(14, 8, -10);
   fill.castShadow = false;
   scene.add(fill);
 
-  return { sun, fill };
+  // Muda a hora do dia: 0 = dia, 1 = noite (valores pelo meio = crepúsculo).
+  const tmp = new THREE.Color();
+  const lerpColor = (target, day, night, t) => target.copy(tmp.set(day)).lerp(new THREE.Color(night), t);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function setTimeOfDay(t) {
+    const k = Math.min(1, Math.max(0, t));
+    lerpColor(sun.color, DAY.sun.color, NIGHT.sun.color, k);
+    sun.intensity = lerp(DAY.sun.intensity, NIGHT.sun.intensity, k);
+    lerpColor(fill.color, DAY.fill.color, NIGHT.fill.color, k);
+    fill.intensity = lerp(DAY.fill.intensity, NIGHT.fill.intensity, k);
+    lerpColor(hemi.color, DAY.hemiSky, NIGHT.hemiSky, k);
+    lerpColor(hemi.groundColor, DAY.hemiGround, NIGHT.hemiGround, k);
+    hemi.intensity = lerp(DAY.hemi, NIGHT.hemi, k);
+    scene.environmentIntensity = lerp(DAY.env, NIGHT.env, k);
+    lerpColor(scene.fog.color, DAY.fog.color, NIGHT.fog.color, k);
+    scene.fog.near = lerp(DAY.fog.near, NIGHT.fog.near, k);
+    scene.fog.far = lerp(DAY.fog.far, NIGHT.fog.far, k);
+    sky.paint(k);
+  }
+
+  return { sun, fill, hemi, setTimeOfDay };
 }

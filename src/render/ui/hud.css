@@ -298,6 +298,35 @@ body[data-phase="disaster"] .toast-stack, body[data-phase="result"] .toast-stack
 .result-button:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--ink); }
 .result-button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 
+/* Estrelas do resultado (0 a 3) */
+.result-stars { display: flex; justify-content: center; gap: 6px; margin: -4px 0 12px; }
+.star { width: 46px; height: 46px; stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; }
+.star.on { fill: var(--gold); animation: star-pop .5s cubic-bezier(.3, 1.6, .5, 1) both; }
+.star.on:nth-child(2) { animation-delay: .15s; }
+.star.on:nth-child(3) { animation-delay: .3s; }
+.star.off { fill: #e9dcc4; }
+@keyframes star-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* "What really happened": a história real e as fontes */
+.result-story {
+  margin-top: 14px; padding: 10px 12px; text-align: left; max-height: 26vh; overflow-y: auto;
+  border: 3px solid var(--ink); border-radius: 16px; background: #fff;
+}
+.story-heading { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); }
+.story-text { margin: 4px 0 6px; font-size: 14px; line-height: 1.35; }
+.story-sources { margin: 0 0 6px; padding-left: 18px; font-size: 12.5px; columns: 2; }
+.story-sources a { color: var(--blue); }
+.credit { font-size: 11.5px; color: var(--ink-soft); }
+
+/* Cartão do briefing (antes de construir): o resto da interface espera por baixo */
+body.briefing #hud, body.briefing #info { visibility: hidden; }
+.briefing-card { width: min(520px, calc(100% - 32px)); text-align: left; }
+.briefing-card .result-title { background: var(--blue); }
+.briefing-name { font-size: 22px; font-weight: 700; }
+.briefing-place { font-size: 13px; color: var(--ink-soft); }
+.briefing-text { margin: 10px 0; font-size: 15px; line-height: 1.4; max-height: 42vh; overflow-y: auto; }
+.briefing-card .result-buttons { justify-content: flex-end; }
+
 /* ============ Ecrãs estreitos (telemóvel, janela pequena) ============ */
 @media (max-width: 640px) {
   .topbar { top: 8px; left: 8px; right: 8px; gap: 6px; }

@@ -4,6 +4,7 @@
 // os outros módulos (buildPanel.js, disasterPlayer.js) chamam estas funções.
 // O aspeto (cores, tamanhos, animações) está em hud.css.
 import { coinIcon, flameIcon, windArrowIcon, houseIcon, schoolIcon } from './icons.js';
+import { countStars } from '../../sim/stars.js';
 
 // ---------- Barra de cima ----------
 // Os elementos da barra de cima já existem no index.html (ids: level-name, budget, wind...).
@@ -165,16 +166,54 @@ export function setWindAngles(arrowRadians, northRadians) {
   document.getElementById('wind-dial').style.transform = `rotate(${northRadians + Math.PI / 2}rad)`;
 }
 
+// ---------- Cartão do briefing (antes da construção) ----------
+// Conta a história verdadeira do nível (level.briefing) e só depois deixa construir.
+// onStart é chamado quando o jogador carrega em "Prepare the town".
+export function showBriefingCard(level, onStart) {
+  if (!level.briefing) { onStart?.(); return null; }
+  const card = document.createElement('div');
+  card.className = 'result-card briefing-card';
+  card.setAttribute('role', 'dialog');
+  card.innerHTML = `
+    <div class="result-title">Mission briefing</div>
+    <div class="briefing-name"></div>
+    <div class="briefing-place"></div>
+    <p class="briefing-text"></p>
+    <div class="credit">Real weather of that night: Open-Meteo (CC BY 4.0)</div>
+    <div class="result-buttons">
+      <button type="button" class="result-button" data-do="start">Prepare the town</button>
+    </div>`;
+  card.querySelector('.briefing-name').textContent = level.name;
+  card.querySelector('.briefing-place').textContent = level.place || '';
+  card.querySelector('.briefing-text').textContent = level.briefing;
+  card.querySelector('[data-do="start"]').addEventListener('click', () => {
+    card.remove();
+    onStart?.();
+  });
+  document.body.append(card);
+  card.querySelector('[data-do="start"]').focus();
+  return card;
+}
+
+// Desenho de uma estrela (cheia ou vazia).
+function starSvg(filled) {
+  return `<svg viewBox="0 0 24 24" class="star ${filled ? 'on' : 'off'}" aria-hidden="true">
+    <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>`;
+}
+
 // ---------- Cartão do resultado (fim do desastre) ----------
 // outcome = { housesSaved, housesTotal, schoolSaved } (vem da simulação).
 // schoolLabel = o nome do edifício importante deste nível (em Sintra é o quartel dos bombeiros).
-export function showResultCard(outcome, schoolLabel = 'School') {
+// level (opcional) = o nível: mostra "o que aconteceu de verdade" (level.aftermath) e as fontes.
+export function showResultCard(outcome, schoolLabel = 'School', level = {}) {
   const allSaved = outcome.schoolSaved && outcome.housesSaved === outcome.housesTotal;
+  const stars = countStars(outcome);
   const card = document.createElement('div');
   card.className = 'result-card ' + (allSaved ? 'good' : 'bad');
   card.setAttribute('role', 'dialog');
   card.innerHTML = `
     <div class="result-title">${allSaved ? 'Village saved!' : 'The fire is out'}</div>
+    <div class="result-stars" aria-label="${stars} of 3 stars">${[1, 2, 3].map((n) => starSvg(n <= stars)).join('')}</div>
     <div class="result-stats">
       <div class="result-stat">
         <span class="result-icon">${houseIcon}</span>
@@ -187,10 +226,32 @@ export function showResultCard(outcome, schoolLabel = 'School') {
         <span class="result-label">${schoolLabel}</span>
       </div>
     </div>
+    <div class="result-story">
+      <div class="story-heading">What really happened</div>
+      <p class="story-text"></p>
+      <ul class="story-sources"></ul>
+      <div class="credit">Weather: Open-Meteo (CC BY 4.0) · Game rules are simplified: this is not a fire forecast.</div>
+    </div>
     <div class="result-buttons">
       <button type="button" class="result-button secondary" data-do="look">Look around</button>
       <button type="button" class="result-button" data-do="again">Play again</button>
     </div>`;
+  // A história real e as fontes (com textContent: o texto do nível nunca vira HTML).
+  const story = card.querySelector('.result-story');
+  if (level.aftermath) card.querySelector('.story-text').textContent = level.aftermath;
+  else card.querySelector('.story-text').remove();
+  const list = card.querySelector('.story-sources');
+  for (const url of level.sources || []) {
+    const item = document.createElement('li');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = sourceName(url);
+    item.append(link);
+    list.append(item);
+  }
+  if (!level.aftermath && !(level.sources || []).length) story.querySelector('.story-heading').remove();
   // "Look around" fecha o cartão (para ver a vila queimada); "Play again" recomeça o nível.
   card.querySelector('[data-do="look"]').addEventListener('click', () => card.remove());
   card.querySelector('[data-do="again"]').addEventListener('click', () => location.reload());
@@ -199,6 +260,11 @@ export function showResultCard(outcome, schoolLabel = 'School') {
 }
 
 // ---------- Pequenas ajudas ----------
+// Um nome curto para uma fonte: "https://www.dn.pt/pais/..." -> "dn.pt".
+function sourceName(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
 // 9300 -> "€9,300"
 export function formatEuros(amount) {
   return '€' + amount.toLocaleString('en-US');

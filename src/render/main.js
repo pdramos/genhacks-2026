@@ -16,14 +16,18 @@ const styleName = params.get('style') || level.style || 'portugal';
 const style = await import(`./styles/${styleName}.js`);
 
 // ---------- Renderizador, cena, câmara ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// ?lowgpu = modo leve para computadores fracos (menos píxeis e sombras mais pequenas).
+const lowGpu = params.has('lowgpu');
+const renderer = new THREE.WebGLRenderer({ antialias: !lowGpu });
+// Ecrãs "retina" têm 2 ou 3 píxeis por ponto: 1.5 já fica nítido e poupa muito a placa gráfica.
+renderer.setPixelRatio(Math.min(devicePixelRatio, lowGpu ? 1 : 1.5));
 renderer.setSize(innerWidth, innerHeight);
 setupRenderer(renderer);
 document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-addLights(scene, 16);
+const lights = addLights(scene, 16); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
+if (lowGpu) lights.sun.shadow.mapSize.set(1024, 1024);
 
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(22, 20, 22);
@@ -36,12 +40,18 @@ controls.maxDistance = 55;
 // ---------- A vila em 3D ----------
 const rand = mulberry32(42); // acaso com semente: a vila sai sempre igual
 const view = createVillageView(scene, village, style, rand);
-const fireFx = createFireFx(scene, view, { wind: level.wind }); // o fumo inclina-se com o vento do nível
+// O fumo inclina-se com o vento do nível; o tipo de cada quadrado diz a altura das chamas.
+// As sombras só são recalculadas quando a vila muda (construir, arder) ou quando alguém pede
+// (a cena do cigarro liga o autoUpdate enquanto o carro anda). Poupa metade dos desenhos.
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
+view.onShadowsChanged(() => { renderer.shadowMap.needsUpdate = true; });
+const fireFx = createFireFx(scene, view, { wind: level.wind, tileType: (x, y) => village.tiles[y]?.[x] });
 
 // Exposto para os outros módulos do jogo (fase de construção, desastre) se ligarem.
 // game.village é a MESMA vila que a fase de construção altera e que o fogo lê.
 // scene e controls servem à cena do cigarro (ignitionCinematic.js), que move a câmara.
-export const game = { level, village, view, fireFx, scene, camera, controls, renderer, phase: 'build' };
+export const game = { level, village, view, fireFx, scene, camera, controls, renderer, lights, phase: 'build' };
 
 // ---------- Fases do jogo: 'build' (construir) -> 'disaster' (fogo) -> 'result' (estrelas) ----------
 const phaseListeners = [];
@@ -62,14 +72,27 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const tile = view.tileFromPointer(e, camera, renderer.domElement);
   for (const fn of clickListeners) fn(tile);
 });
-// Na fase de construção: mostra o tipo do quadrado clicado.
+// Na fase de construção: mostra o nome do quadrado clicado (ex.: "Dry scrub").
+// Esperamos um instante (setTimeout 0) para o painel de construção já ter feito a ação:
+// assim mostramos o tipo NOVO (ex.: "Cleared land" logo depois de limpar o mato).
 // Depois disso, #info mostra o relógio do fogo e a mensagem final, que um clique não pode apagar.
 onTileClick((tile) => {
   if (game.phase !== 'build') return;
-  document.getElementById('info').textContent = tile
-    ? `Tile (${tile.x}, ${tile.y}): ${village.tiles[tile.y][tile.x]}`
-    : 'Outside the village';
+  setTimeout(() => {
+    if (game.phase !== 'build') return;
+    document.getElementById('info').textContent = tile ? tileName(village.tiles[tile.y][tile.x]) : 'Outside the village';
+  }, 0);
 });
+
+// Nomes "de jogo" (em inglês) para cada tipo de quadrado.
+const TILE_NAMES = {
+  grass: 'Dry grass', brush: 'Dry scrub', eucalyptus: 'Eucalyptus & pine', broadleaf: 'Cork oaks & broadleaf',
+  house: 'House', road: 'Road', water: 'Water', cleared: 'Cleared land', firebreak: 'Firebreak',
+};
+export function tileName(type) {
+  if (type === 'school') return level.schoolName || 'School';
+  return TILE_NAMES[type] || type;
+}
 
 // ---------- Ciclo de desenho ----------
 const frameListeners = [];

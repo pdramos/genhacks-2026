@@ -3,18 +3,20 @@
 // Nunca castanho (castanho parece lama!).
 //
 // API:
-//   charProp(group, tileType?) -> carboniza o grupo de objetos de um quadrado
+//   charProp(group, tileType?, heightAt?) -> carboniza o grupo de objetos de um quadrado
 //       group    = o THREE.Group com as árvores/casas desse quadrado (o "prop" da vista),
 //                  com a base no chão (y = 0 do grupo = altura do chão)
 //       tileType = opcional: 'eucalyptus', 'broadleaf', 'brush', 'house', 'school'...
 //                  Se faltar, adivinhamos o tipo de cada objeto pela forma e pelas cores.
+//       heightAt = opcional: (mundoX, mundoZ) -> altura do chão. Com ele, a cinza segue o relevo.
 //   CHAR_COLORS -> as cores do queimado (o terreno pode usar CHAR_COLORS.ground no chão)
 //
 // O que acontece a cada tipo:
 //   árvore -> a copa desaparece; o tronco fica preto e ganha uns ramos secos pretos
 //   mato   -> desaparece; ficam uns tocos pretos pequeninos
 //   casa   -> paredes enegrecidas; o telhado fica preto, afundado, com vigas queimadas
-//   e, por baixo de tudo, uma "mancha" de cinza cinzenta e carvão desenhada em código.
+//   e, por baixo, 2 a 4 montinhos de cinza e carvão (pequenos, tortos, colados ao relevo).
+//   (O chão queimado em si — carvão e cinza — é desenhado pelo terreno, em terrain.js.)
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -30,12 +32,10 @@ const STICK = new THREE.CylinderGeometry(0.5, 1, 1, 5); // pau que afina para ci
 STICK.translate(0, 0.5, 0);                             // base do pau em y = 0
 const STUB = new THREE.ConeGeometry(1, 1, 5);           // toco de mato
 STUB.translate(0, 0.5, 0);
-const ASH_PLANE = new THREE.PlaneGeometry(1, 1);
-ASH_PLANE.rotateX(-Math.PI / 2);                        // deitado no chão
 let ashMaterials = null;                                // criados na 1.ª vez (precisam do <canvas>)
 
 // ---------- A função principal ----------
-export function charProp(group, tileType) {
+export function charProp(group, tileType, heightAt) {
   if (!group || group.userData.charred) return; // já está queimado: não fazer duas vezes
   group.userData.charred = true;
   group.updateMatrixWorld(true);
@@ -49,7 +49,7 @@ export function charProp(group, tileType) {
     else charBuilding(group, child, random);
   }
   mergeWood(group);
-  addAsh(group, random);
+  addAsh(group, random, heightAt);
 }
 
 // ---------- Que objeto é este? ----------
@@ -176,7 +176,7 @@ function charBuilding(group, building, random) {
     if (isRoof) collapse(o, base);
     else wallTop = Math.max(wallTop, part.max.y);
   });
-  addBeams(group, box, wallTop, random);
+  addBeams(group, building, wallTop, random);
 }
 
 // Copia o material, mas escuro: guarda a textura (pedra, tijolo), que fica enegrecida.
@@ -208,26 +208,72 @@ function collapse(mesh, base) {
 }
 
 // Vigas do telhado queimadas, tortas, a sair do topo das paredes.
-function addBeams(group, box, wallTop, random) {
-  const min = group.worldToLocal(box.min.clone()), max = group.worldToLocal(box.max.clone());
+// Ficam DENTRO das paredes do corpo principal da casa: os estilos dizem o tamanho do corpo em
+// building.userData.lot = { w, d, z } (sem muros do quintal, anexos nem plantas). Sem isso,
+// usamos a maior peça da casa. Assim nenhuma viga fica a flutuar por cima do quintal ou da rua.
+function addBeams(group, building, wallTop, random) {
+  const body = bodyFootprint(building);
   const topY = group.worldToLocal(new THREE.Vector3(0, wallTop, 0)).y;
-  const width = Math.max(max.x - min.x, max.z - min.z);
+  const width = Math.min(body.w, body.d);
   for (let i = 0; i < 3; i++) {
-    const x = min.x + (max.x - min.x) * (0.2 + random() * 0.6);
-    const z = min.z + (max.z - min.z) * (0.2 + random() * 0.6);
-    const length = width * (0.25 + random() * 0.2);
-    addStick(group, x, topY - 0.12, z, length, 0.02, random() * Math.PI * 2, 0.7 + random() * 0.6);
+    // um ponto dentro das paredes (até 30% do centro para cada lado), no espaço da casa
+    const inside = new THREE.Vector3(
+      body.x + (random() - 0.5) * body.w * 0.6, 0, body.z + (random() - 0.5) * body.d * 0.6,
+    );
+    const p = group.worldToLocal(building.localToWorld(inside));
+    const length = width * (0.18 + random() * 0.12);   // no máximo 0.3 da largura
+    addStick(group, p.x, topY - 0.1, p.z, length, 0.02, random() * Math.PI * 2, 0.15 + random() * 0.35);
   }
 }
 
+// O corpo principal da casa, no espaço da própria casa: { x, z, w, d }.
+function bodyFootprint(building) {
+  const lot = building.userData.lot || building.userData.footprint;
+  if (lot && lot.w !== undefined) return { x: 0, z: lot.z ?? 0, w: lot.w, d: lot.d ?? lot.D ?? lot.w };
+  if (lot && lot.W !== undefined) return { x: 0, z: lot.z ?? 0, w: lot.W, d: lot.D ?? lot.W };
+  // Sem pistas do estilo: a maior peça (medida no espaço da casa).
+  let best = null, bestVolume = 0;
+  building.updateMatrixWorld(true);
+  const toBuilding = new THREE.Matrix4().copy(building.matrixWorld).invert();
+  building.traverse((o) => {
+    if (!o.isMesh || !o.visible) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld).applyMatrix4(toBuilding);
+    const size = b.getSize(new THREE.Vector3());
+    const volume = size.x * size.y * size.z;
+    if (volume > bestVolume) { bestVolume = volume; best = b; }
+  });
+  if (!best) return { x: 0, z: 0, w: 0.5, d: 0.5 };
+  const c = best.getCenter(new THREE.Vector3()), size = best.getSize(new THREE.Vector3());
+  return { x: c.x, z: c.z, w: size.x, d: size.z };
+}
+
 // ---------- Cinza no chão ----------
-// Um quadrado com uma imagem de cinza e carvão (com bordas esbatidas) deitado no chão.
-function addAsh(group, random) {
+// 2 a 4 montinhos de cinza pequenos, com posição, tamanho e rotação ao acaso (nada de uma
+// mancha redonda igual em cada quadrado). Cada montinho é uma grelha de 6x6 bocadinhos e cada
+// ponto fica colado ao chão (heightAt): numa encosta, a cinza segue o relevo.
+// Os montinhos do quadrado juntam-se numa só peça (1 "pedido" à placa gráfica).
+const ASH_GRID = 6;
+function addAsh(group, random, heightAt) {
   if (!ashMaterials) ashMaterials = [1, 2, 3, 4].map((seed) => makeAshMaterial(seed));
-  const ash = new THREE.Mesh(ASH_PLANE, ashMaterials[Math.floor(random() * ashMaterials.length)]);
-  ash.position.y = 0.006;
-  ash.rotation.y = Math.floor(random() * 4) * (Math.PI / 2);
-  ash.scale.setScalar(1.05);
+  const count = 2 + Math.floor(random() * 3);
+  const pieces = [];
+  for (let i = 0; i < count; i++) {
+    const size = 0.4 + random() * 0.5;
+    const plane = new THREE.PlaneGeometry(size, size * (0.7 + random() * 0.5), ASH_GRID, ASH_GRID);
+    plane.rotateX(-Math.PI / 2);
+    plane.rotateY(random() * Math.PI * 2);
+    plane.translate((random() - 0.5) * 0.6, 0, (random() - 0.5) * 0.6);
+    const position = plane.attributes.position;
+    for (let k = 0; k < position.count; k++) {
+      const lx = position.getX(k), lz = position.getZ(k);
+      const ground = heightAt ? heightAt(group.position.x + lx, group.position.z + lz) - group.position.y : 0;
+      position.setY(k, ground + 0.012 + i * 0.002); // um pouco acima do chão (e sem lutar entre si)
+    }
+    pieces.push(plane);
+  }
+  const ash = new THREE.Mesh(mergeGeometries(pieces), ashMaterials[Math.floor(random() * ashMaterials.length)]);
+  for (const piece of pieces) piece.dispose();
   ash.receiveShadow = true;
   ash.renderOrder = -1; // antes das outras coisas transparentes
   group.add(ash);

@@ -1,6 +1,9 @@
 // A CENA DO CIGARRO: como o incêndio começa.
 // Um carro passa na estrada ao lado da ignição, o condutor atira uma ponta de cigarro
 // acesa pela janela, ela cai no mato seco da berma, sai um fiozinho de fumo... e o fogo começa.
+// Se não houver estrada perto da ignição, é uma pessoa a pé (um caminhante) que atira o cigarro.
+// É uma DRAMATIZAÇÃO: se o nível tiver ignitionNote (ex.: "a causa real nunca foi confirmada"),
+// isso aparece em letra pequena por baixo da legenda.
 //
 // API:
 //   await playIgnition(game)  -> a Promise termina quando o fogo deve começar (cerca de 7 s).
@@ -14,7 +17,9 @@ import { findRoadPath } from './roadPath.js';
 // ---------- Tempos e medidas da cena ----------
 const LAUNCH_TIME = 2.4;     // segundos até a ponta de cigarro sair pela janela (aproximado)
 const FLIGHT_TIME = 0.9;     // quanto tempo a ponta de cigarro voa
-const SMOKE_TIME = 2.3;      // quanto tempo vemos o fumo a subir antes do fogo
+const SMOKE_TIME = 3.2;      // quanto tempo vemos o fumo a subir e a chama a crescer antes de voltar
+const SLOW_MOTION = 0.35;    // durante o voo da ponta de cigarro, o tempo anda a 35% (câmara lenta)
+const FIRE_AT = 0.45;        // a meio do fumo, o fogo verdadeiro (fireFx) acende no quadrado da ignição
 const RETURN_TIME = 1.1;     // quanto tempo a câmara demora a voltar para o jogador
 const INTRO_TIME = 1.3;      // quanto tempo a câmara demora a "voar" do jogador até ao carro
 const ROAD_EXTENSION = 1.5;  // o carro aparece um pouco antes da estrada e sai um pouco depois
@@ -29,6 +34,10 @@ export function playIgnition(game) {
     let lastMs = performance.now();
     const overlay = createOverlay();
     const stopListening = listenForSkip(() => { skipRequested = true; });
+    // O carro mexe-se: durante a cena, as sombras são recalculadas a cada desenho.
+    const shadowMap = game.renderer.shadowMap;
+    const shadowAuto = shadowMap.autoUpdate;
+    shadowMap.autoUpdate = true;
 
     // Corremos o nosso código mesmo antes de cada desenho do jogo (depois dos controlos da câmara),
     // por isso a câmara da cena "ganha" aos controlos do jogador enquanto a cena dura.
@@ -53,6 +62,8 @@ export function playIgnition(game) {
       stopListening();
       overlay.remove();
       if (cinematic) cinematic.dispose(); // tira o carro e o fumo e devolve a câmara ao jogador
+      shadowMap.autoUpdate = shadowAuto;
+      shadowMap.needsUpdate = true;       // uma última vez, já sem o carro
       resolve();
     }
   });
@@ -63,22 +74,28 @@ export function playIgnition(game) {
 //        -> 'return' (a câmara volta ao jogador) -> fim.
 function createCinematic(game, scene, overlay) {
   const route = buildRoute(game);
-  const car = buildCar();
+  // Com estrada: um carro. Sem estrada: um caminhante (mais pequeno e mais lento).
+  const car = route.onFoot ? buildWalker() : buildCar();
   const butt = buildCigaretteButt();
   const flicker = buildFlicker(route.landing);
   const smoke = createSmoke(scene, game.level.wind);
   const cameraRig = createCameraRig(game, route);
+  const restoreBushes = shrinkBushesNear(game, route.landing); // nada tapa o sítio onde a ponta cai
   scene.add(car.group, butt.group, flicker.group);
-  playSound('car');
+  if (!route.onFoot) playSound('car');
 
-  const speed = THREE.MathUtils.clamp(route.launchDistance / LAUNCH_TIME, 1.2, 2.8);
+  const speed = route.onFoot
+    ? THREE.MathUtils.clamp(route.launchDistance / LAUNCH_TIME, 0.45, 0.9)
+    : THREE.MathUtils.clamp(route.launchDistance / LAUNCH_TIME, 1.2, 2.8);
+  let fireStarted = false;
   let carDistance = 0;   // quanto o carro já andou ao longo do caminho
   let phase = 'drive';
   let phaseTime = 0;     // segundos desde o início da fase atual
   let puffTimer = 0;     // para largar um bocadinho de fumo de vez em quando
   let flightStart = null;
 
-  function update(dt) {
+  function update(realDt) {
+    const dt = phase === 'flight' ? realDt * SLOW_MOTION : realDt; // câmara lenta no voo
     phaseTime += dt;
     carDistance += speed * dt;
     moveCar(car, route, carDistance, dt * speed);
@@ -93,12 +110,12 @@ function createCinematic(game, scene, overlay) {
     } else if (phase === 'flight') {
       const progress = Math.min(phaseTime / FLIGHT_TIME, 1);
       flyButt(butt, flightStart, route, progress, dt);
-      emitEvery(0.025, dt, () => smoke.emitTrail(butt.group.position));
+      emitEvery(0.012, dt, () => smoke.emitTrail(butt.group.position));
       cameraRig.followCarThenIgnition(car.group.position, progress, dt);
       if (progress >= 1) {
         landButt(butt, route.landing);
         playSound('ignite');
-        overlay.showCaption('One careless cigarette is all it takes.');
+        overlay.showCaption('One careless cigarette can be all it takes.', dramatisationNote(game.level));
         startPhase('smoke');
       }
     } else if (phase === 'smoke') {
@@ -106,6 +123,13 @@ function createCinematic(game, scene, overlay) {
       glowButt(butt, phaseTime);
       flicker.update(phaseTime / SMOKE_TIME, phaseTime);
       cameraRig.watchIgnition(dt);
+      // O fogo a sério acende ANTES de a câmara voltar: quando ela volta, já se vê a chama.
+      if (!fireStarted && phaseTime >= SMOKE_TIME * FIRE_AT) {
+        fireStarted = true;
+        const { x, y } = game.level.ignition;
+        game.fireFx?.setIntensity?.(x, y, 0.45);
+        game.fireFx?.ignite?.(x, y);
+      }
       if (phaseTime >= SMOKE_TIME) {
         cameraRig.startReturn();
         startPhase('return');
@@ -134,6 +158,7 @@ function createCinematic(game, scene, overlay) {
   }
 
   function dispose() {
+    restoreBushes();
     for (const group of [car.group, butt.group, flicker.group]) {
       scene.remove(group);
       disposeObject(group);
@@ -149,7 +174,9 @@ function createCinematic(game, scene, overlay) {
 // Transforma os quadrados de estrada (roadPath.js) numa linha 3D por onde o carro anda.
 function buildRoute(game) {
   const { village, level, view } = game;
-  const path = findRoadPath(village, level.ignition) || fallbackPath(village, level.ignition);
+  const roadPath = findRoadPath(village, level.ignition);
+  const onFoot = !roadPath; // sem estrada perto: um caminhante num carreiro
+  const path = roadPath || fallbackPath(village, level.ignition);
   const ignition = groundPoint(view, level.ignition.x, level.ignition.y);
   const road = path.tiles[path.dropIndex];
   const roadPoint = groundPoint(view, road.x, road.y);
@@ -163,17 +190,18 @@ function buildRoute(game) {
   const points = path.tiles.map((t) => groundPoint(view, t.x, t.y));
   points.unshift(points[0].clone().addScaledVector(forward, -ROAD_EXTENSION));
   points.push(points[points.length - 1].clone().addScaledVector(forward, ROAD_EXTENSION));
-  for (const p of points) p.addScaledVector(left, -LANE_OFFSET);
+  for (const p of points) p.addScaledVector(left, onFoot ? -0.32 : -LANE_OFFSET);
 
   // Distância acumulada até cada ponto (para saber onde está o carro depois de andar "s").
   const distances = [0];
   for (let i = 1; i < points.length; i++) distances.push(distances[i - 1] + points[i].distanceTo(points[i - 1]));
 
   // O cigarro cai na berma: no quadrado da ignição, um pouco mais perto da estrada.
-  const landing = ignition.clone().addScaledVector(left, -0.22);
-  landing.y += 0.015;
+  const landing = ignition.clone().addScaledVector(left, onFoot ? 0.05 : -0.22);
+  const ground = view.terrain?.heightAtWorld;
+  landing.y = ground ? ground(landing.x, landing.z) + 0.015 : landing.y + 0.015;
   return {
-    points, distances, forward, left, landing,
+    points, distances, forward, left, landing, onFoot,
     length: distances[distances.length - 1],
     // O condutor atira o cigarro um pouco antes de passar pela ignição (o cigarro voa para a frente).
     launchDistance: Math.max(0.3, distances[path.dropIndex + 1] - 0.35),
@@ -193,12 +221,12 @@ function travelDirection(view, path, roadPoint, ignition) {
   return new THREE.Vector3(-side.z, 0, side.x);
 }
 
-// Se não houver estrada perto da ignição, inventamos uma "estrada" a sul dela
-// (o carro passa por cima da relva, mas a cena continua a fazer sentido).
+// Se não houver estrada perto da ignição, o caminhante segue um carreiro a sul dela
+// (pelo meio do mato ou da floresta, como quem faz uma caminhada).
 function fallbackPath(village, ignition) {
   const y = ignition.y + 1 < village.height ? ignition.y + 1 : ignition.y - 1;
   const tiles = [];
-  for (let x = Math.max(0, ignition.x - 4); x <= Math.min(village.width - 1, ignition.x + 4); x++) {
+  for (let x = Math.max(0, ignition.x - 2); x <= Math.min(village.width - 1, ignition.x + 3); x++) {
     tiles.push({ x, y });
   }
   const dropIndex = tiles.findIndex((t) => t.x === ignition.x);
@@ -289,6 +317,50 @@ function buildWheel(group, x, z, tireMaterial, hubMaterial) {
   return axle;
 }
 
+// ---------- O caminhante (para níveis sem estrada perto da ignição) ----------
+// Uma pessoa low-poly (~0.3 de altura, à escala das casas), com pernas e braços que balançam.
+// Tem a mesma "forma" que o carro ({ group, wheels, driverWindow, ... }) para o resto da cena
+// não precisar de saber se é um carro ou uma pessoa: driverWindow é a mão que atira o cigarro.
+function buildWalker() {
+  const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, flatShading: true });
+  const shirt = mat(0x3d6fb6), trousers = mat(0x3a3a44), skin = mat(0xe0b08a), hair = mat(0x3b2a1e), bag = mat(0x7a5a32);
+  const group = new THREE.Group();
+  group.rotation.order = 'YXZ';
+  const part = (geo, material, x, y, z, parent = group) => {
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    parent.add(mesh);
+    return mesh;
+  };
+  // pernas e braços dentro de "articulações" (grupos) que rodam na anca e no ombro
+  const limb = (x, y, length, material) => {
+    const joint = new THREE.Group();
+    joint.position.set(x, y, 0);
+    group.add(joint);
+    part(new THREE.BoxGeometry(0.035, length, 0.035), material, 0, -length / 2, 0, joint);
+    return joint;
+  };
+  const legs = [limb(0.025, 0.14, 0.14, trousers), limb(-0.025, 0.14, 0.14, trousers)];
+  part(new THREE.BoxGeometry(0.09, 0.11, 0.05), shirt, 0, 0.195, 0);          // tronco
+  part(new THREE.BoxGeometry(0.07, 0.09, 0.04), bag, 0, 0.2, -0.045);         // mochila
+  part(new THREE.SphereGeometry(0.032, 8, 6), skin, 0, 0.285, 0);              // cabeça
+  part(new THREE.SphereGeometry(0.034, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), hair, 0, 0.29, -0.004);
+  const arms = [limb(0.06, 0.245, 0.11, shirt), limb(-0.06, 0.245, 0.11, shirt)];
+  let swing = 0;
+  return {
+    group, wheels: [], wheelRadius: 1,
+    // a mão esquerda (+x), à altura do ombro: é daqui que o cigarro sai
+    driverWindow: new THREE.Vector3(0.07, 0.2, 0.03),
+    animate(travelled) {
+      swing += travelled * 22;
+      const a = Math.sin(swing) * 0.6;
+      legs[0].rotation.x = a; legs[1].rotation.x = -a;
+      arms[0].rotation.x = -a * 0.8; arms[1].rotation.x = a * 0.8;
+    },
+  };
+}
+
 // Põe o carro no sítio certo do caminho, virado para a frente, e faz as rodas girar.
 const carPoint = new THREE.Vector3();
 function moveCar(car, route, distance, travelled) {
@@ -301,6 +373,7 @@ function moveCar(car, route, distance, travelled) {
   car.group.visible = fade > 0;
   car.group.scale.setScalar(Math.max(fade, 0.001));
   for (const wheel of car.wheels) wheel.rotation.x += travelled / car.wheelRadius;
+  car.animate?.(travelled); // o caminhante mexe as pernas
   car.group.updateMatrixWorld();
 }
 
@@ -340,8 +413,8 @@ function flyButt(butt, start, route, progress, dt) {
   quadraticBezier(start, arcControl, route.landing, progress, butt.group.position);
   butt.group.rotation.x += dt * 15; // vai a rodopiar no ar
   butt.group.rotation.z += dt * 9;
-  butt.glow.material.opacity = 0.7 + Math.random() * 0.3;
-  butt.glow.scale.setScalar(0.08);
+  butt.glow.material.opacity = 0.8 + Math.random() * 0.2;
+  butt.glow.scale.setScalar(0.2); // a brasa a voar brilha bem (vê-se de longe, de noite)
 }
 
 function landButt(butt, landing) {
@@ -398,9 +471,10 @@ function createSmoke(scene, wind) {
   const drift = windDrift(wind);
   const puffs = [];
 
-  function emit(position, { life, rise, size, grow, opacity, color }) {
+  function emit(position, { life, rise, size, grow, opacity, color, glow = false }) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: texture, color, transparent: true, depthWrite: false, opacity: 0,
+      blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
     }));
     sprite.position.copy(position);
     sprite.position.x += (Math.random() - 0.5) * 0.02;
@@ -410,10 +484,10 @@ function createSmoke(scene, wind) {
     puffs.push({ sprite, age: 0, life, rise, size, grow, opacity, wobble: Math.random() * 6 });
   }
 
-  // Rasto fininho atrás da ponta de cigarro a voar
-  const emitTrail = (position) => emit(position, { life: 0.6, rise: 0.05, size: 0.025, grow: 0.06, opacity: 0.45, color: 0xdedede });
+  // Rasto brilhante (faúlhas laranja) atrás da ponta de cigarro a voar
+  const emitTrail = (position) => emit(position, { life: 0.5, rise: 0.02, size: 0.05, grow: -0.04, opacity: 0.9, color: 0xff8a2a, glow: true });
   // O fiozinho de fumo que sobe do mato
-  const emitWisp = (position) => emit(position, { life: 2.6, rise: 0.3, size: 0.04, grow: 0.22, opacity: 0.5, color: 0xb9b6b0 });
+  const emitWisp = (position) => emit(position, { life: 2.6, rise: 0.3, size: 0.05, grow: 0.3, opacity: 0.65, color: 0xd8d4cc });
 
   function update(dt) {
     for (let i = puffs.length - 1; i >= 0; i--) {
@@ -429,7 +503,7 @@ function createSmoke(scene, wind) {
       puff.sprite.position.y += puff.rise * dt;
       puff.sprite.position.addScaledVector(drift, dt * p); // quanto mais alto, mais o vento o leva
       puff.sprite.position.x += Math.sin(puff.age * 3 + puff.wobble) * 0.08 * dt;
-      puff.sprite.scale.setScalar(puff.size + puff.grow * p);
+      puff.sprite.scale.setScalar(Math.max(0.005, puff.size + puff.grow * p));
       puff.sprite.material.opacity = puff.opacity * Math.min(1, p * 6) * (1 - p);
     }
   }
@@ -475,9 +549,10 @@ function createCameraRig(game, route) {
   const returnFrom = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 
   // Plano do carro: ao lado do carro, do lado da berma, um pouco atrás e acima dos telhados.
+  const onFoot = route.onFoot;
   function carShot(carPosition, outPosition, outLook) {
-    outPosition.copy(carPosition).addScaledVector(left, 2.0).addScaledVector(forward, -0.8);
-    outPosition.y += 1.7;
+    outPosition.copy(carPosition).addScaledVector(left, onFoot ? 1.2 : 2.0).addScaledVector(forward, onFoot ? -0.6 : -0.8);
+    outPosition.y += onFoot ? 0.9 : 1.7;
     outLook.copy(carPosition).addScaledVector(forward, 0.5);
     outLook.y += 0.08;
   }
@@ -486,7 +561,7 @@ function createCameraRig(game, route) {
   function ignitionShot(outPosition, outLook) {
     outPosition.copy(ignitionCamera);
     outLook.copy(landing);
-    outLook.y += 0.2;
+    outLook.y += 0.08;
   }
 
   // Move a câmara para o plano desejado (quanto maior `rate`, mais depressa o segue).
@@ -554,7 +629,7 @@ function createCameraRig(game, route) {
 // De onde filmar a berma? Experimentamos 8 sítios à volta do cigarro e ficamos com o que
 // tem menos coisas altas (casas, árvores) debaixo da câmara ou entre a câmara e o cigarro.
 // Em caso de empate, ganha o mais perto do plano preferido (do lado da berma, um pouco atrás).
-const TALL_TILES = new Set(['house', 'school', 'eucalyptus', 'broadleaf']);
+const TALL_TILES = new Set(['house', 'school', 'eucalyptus', 'broadleaf', 'brush']);
 function chooseIgnitionCamera(game, route) {
   const { landing, left, forward } = route;
   const preferredAngle = Math.atan2(-0.9, 1.35); // 0 = mesmo do lado da berma; negativo = para trás
@@ -564,13 +639,14 @@ function chooseIgnitionCamera(game, route) {
     const turn = k <= 4 ? k : k - 8; // 0, 1, 2, 3, 4, -3, -2, -1 (quanto se afasta do preferido)
     const angle = preferredAngle + (turn * Math.PI) / 4;
     const camera = landing.clone()
-      .addScaledVector(left, Math.cos(angle) * 1.6)
-      .addScaledVector(forward, Math.sin(angle) * 1.6);
-    camera.y += 0.8;
+      .addScaledVector(left, Math.cos(angle) * 1.15)
+      .addScaledVector(forward, Math.sin(angle) * 1.15);
+    camera.y += 0.5; // baixa e perto: a ponta de cigarro e a primeira chama veem-se bem
     let score = Math.abs(turn);
     // Coisas altas entre a câmara e o cigarro tapam a vista: muito mau.
     for (const along of [1, 0.66, 0.33]) {
       const point = landing.clone().lerp(camera, along);
+      if (sameTile(game, point, landing)) continue; // o mato do próprio quadrado é encolhido (shrinkBushesNear)
       if (TALL_TILES.has(tileTypeAt(game, point))) score += 10;
     }
     // Coisas altas mesmo ao lado da câmara enchem metade do ecrã: mau.
@@ -584,6 +660,31 @@ function chooseIgnitionCamera(game, route) {
     }
   }
   return best;
+}
+
+// Os dois pontos do mundo estão no mesmo quadrado?
+function sameTile(game, a, b) {
+  const origin = game.view.worldPosition(0, 0);
+  return Math.round(a.x - origin.x) === Math.round(b.x - origin.x) && Math.round(a.z - origin.z) === Math.round(b.z - origin.z);
+}
+
+// Encolhe (durante a cena) os arbustos e árvores a menos de 0.45 do sítio onde a ponta cai,
+// para não taparem a câmara. Devolve uma função que os põe como estavam.
+function shrinkBushesNear(game, landing) {
+  const changed = [];
+  const here = new THREE.Vector3();
+  for (const prop of game.scene?.children ?? []) {
+    if (!prop.isGroup || prop.userData.x === undefined) continue;
+    if (Math.abs(prop.position.x - landing.x) > 1.2 || Math.abs(prop.position.z - landing.z) > 1.2) continue;
+    if (game.village.tiles[prop.userData.y][prop.userData.x] === 'house') continue;
+    for (const child of prop.children) {
+      child.getWorldPosition(here);
+      if (Math.hypot(here.x - landing.x, here.z - landing.z) > 0.45) continue;
+      changed.push([child, child.scale.clone()]);
+      child.scale.multiplyScalar(0.35);
+    }
+  }
+  return () => { for (const [child, scale] of changed) child.scale.copy(scale); };
 }
 
 // O tipo do quadrado que está debaixo de um ponto do mundo 3D (ou null, fora do mapa).
@@ -621,9 +722,13 @@ function createOverlay() {
   hint.textContent = 'Click or press Space to skip';
   hint.style.cssText = textStyle + 'right:18px; bottom:2.5vh; font-size:13px; letter-spacing:.04em; color:#bbb;';
   const caption = document.createElement('div');
-  caption.style.cssText = textStyle + 'left:0; right:0; bottom:calc(9vh + 18px); text-align:center;' +
+  caption.style.cssText = textStyle + 'left:0; right:0; bottom:calc(9vh + 30px); text-align:center;' +
     'font-size:20px; font-weight:600; font-style:italic;';
-  document.body.append(top, bottom, hint, caption);
+  // Letra pequena por baixo da legenda: "isto é uma dramatização" (a causa real nunca foi confirmada).
+  const note = document.createElement('div');
+  note.style.cssText = textStyle + 'left:16px; right:16px; bottom:calc(9vh + 8px); text-align:center;' +
+    'font-size:12px; color:#d8d8d8; letter-spacing:.02em;';
+  document.body.append(top, bottom, hint, caption, note);
 
   // Espera um desenho para a transição (barras a deslizar) funcionar.
   requestAnimationFrame(() => {
@@ -632,16 +737,25 @@ function createOverlay() {
   });
 
   return {
-    showCaption(text) {
+    showCaption(text, smallPrint = '') {
       caption.textContent = text;
       caption.style.opacity = '1';
+      note.textContent = smallPrint;
+      note.style.opacity = smallPrint ? '1' : '0';
     },
     remove() {
       top.style.height = bottom.style.height = '0';
-      hint.style.opacity = caption.style.opacity = '0';
-      setTimeout(() => { top.remove(); bottom.remove(); hint.remove(); caption.remove(); }, 600);
+      hint.style.opacity = caption.style.opacity = note.style.opacity = '0';
+      setTimeout(() => { top.remove(); bottom.remove(); hint.remove(); caption.remove(); note.remove(); }, 600);
     },
   };
+}
+
+// A letra pequena da legenda: as duas primeiras frases de level.ignitionNote
+// (ex.: "Dramatisation. The real cause was never confirmed; the police investigated arson.").
+function dramatisationNote(level) {
+  if (!level.ignitionNote) return 'Dramatisation';
+  return level.ignitionNote.split(/(?<=\.)\s+/).slice(0, 2).join(' ');
 }
 
 // Saltar a cena: um clique em qualquer lado ou a tecla Espaço.

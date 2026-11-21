@@ -7,21 +7,24 @@
 //
 // É carregado pelo index.html com a sua própria tag <script type="module">.
 import { game, onPhaseChange, onFrame, onTileClick } from './main.js';
-import { initAudio, setAmbience, setFireLevel, play, setMuted, isMuted, fireLevelFromCount } from './audio.js';
+import { initAudio, setAmbience, setFireLevel, play, setMuted, isMuted, fireLevelFromCount, getAudioDebug } from './audio.js';
 
 const MUTE_KEY = 'brace-muted';
 
 // ---------- 1. Ligar o som no primeiro gesto do jogador ----------
-// Os navegadores só deixam tocar som depois de um clique ou tecla (regra de "autoplay").
+// Os navegadores só deixam tocar som depois de um gesto que "conta" (regra de "autoplay").
+// Atenção: nos telemóveis e tablets, o pointerdown NÃO conta (só o pointerup, o touchend ou
+// o click), e a tecla Escape também não. Por isso ouvimos vários eventos e só deixamos de
+// ouvir quando o som está mesmo a tocar ('running'), ou quando o jogador o desligou.
 setMuted(loadMuted());
 setAmbience(game.phase);
+const UNLOCK_EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
 function startAudioOnce() {
-  if (!initAudio()) return;
-  removeEventListener('pointerdown', startAudioOnce, true);
-  removeEventListener('keydown', startAudioOnce, true);
+  if (!initAudio()) return; // o navegador não tem Web Audio: não há nada a fazer
+  if (getAudioDebug().state !== 'running' && !isMuted()) return; // ainda bloqueado: tenta no próximo gesto
+  for (const name of UNLOCK_EVENTS) removeEventListener(name, startAudioOnce, true);
 }
-addEventListener('pointerdown', startAudioOnce, true);
-addEventListener('keydown', startAudioOnce, true);
+for (const name of UNLOCK_EVENTS) addEventListener(name, startAudioOnce, true);
 
 // ---------- 2. Contar os quadrados a arder ----------
 // O fireFx não diz quantos fogos tem acesos, por isso "espreitamos" as suas funções:

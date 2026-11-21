@@ -9,6 +9,7 @@
 //   view.setBurned(x, y)           -> mostra o quadrado queimado (chão de carvão e objetos carbonizados)
 //   view.tileFromPointer(event, camera, canvas) -> {x, y} do quadrado clicado, ou null
 //   view.worldPosition(x, y)       -> {x, y, z} no mundo 3D: centro do quadrado, y = altura do chão
+//   view.propTop(x, y)             -> altura (y no mundo) do topo das árvores/casas do quadrado, ou null
 //   view.update(t)                 -> animações (árvores ao vento, bandeiras, água); chamar a cada desenho
 //   view.terrain                   -> o terreno (ver terrain.js), para quem precisar da altura exata
 import * as THREE from 'three';
@@ -24,13 +25,14 @@ import('./charring.js').then((m) => { if (m.charProp) charProp = m.charProp; }).
 export function createVillageView(scene, village, style, rand) {
   const halfX = (village.width - 1) / 2, halfZ = (village.height - 1) / 2;
   const terrain = createTerrain(scene, village, style.palette);
+  let shadowListener = null; // quem quer saber que as sombras mudaram (ver onShadowsChanged)
 
   // tiles[y][x] = { type, prop, swaying: [...], animated: [...] }
   const tiles = [];
   const props = []; // grupos de objetos, para o clique
   for (let y = 0; y < village.height; y++) {
     tiles.push([]);
-    for (let x = 0; x < village.width; x++) tiles[y].push({ type: null, prop: null, swaying: [], animated: [] });
+    for (let x = 0; x < village.width; x++) tiles[y].push({ type: null, prop: null, swaying: [], animated: [], top: undefined });
   }
   for (let y = 0; y < village.height; y++) {
     for (let x = 0; x < village.width; x++) setTileType(x, y, tileAt(village, x, y));
@@ -57,6 +59,8 @@ export function createVillageView(scene, village, style, rand) {
     if (type === 'brush') addBushes(prop);
     if (type === 'house') addHouse(prop, x, y);
     if (type === 'school') addSchool(prop, x, y);
+    trimShadows(prop); // desempenho: as peças pequenas não fazem sombra
+    shadowsChanged();
     prop.traverse((o) => { if (o.userData.animate) t.animated.push(o); });
     if (prop.children.length) { scene.add(prop); t.prop = prop; props.push(prop); }
   }
@@ -66,7 +70,39 @@ export function createVillageView(scene, village, style, rand) {
       scene.remove(t.prop);
       props.splice(props.indexOf(t.prop), 1);
     }
-    t.prop = null; t.swaying = []; t.animated = [];
+    t.prop = null; t.swaying = []; t.animated = []; t.top = undefined;
+  }
+
+  // O topo das coisas do quadrado (medido uma vez e guardado). null = quadrado sem objetos.
+  function propTop(x, y) {
+    const t = tiles[y]?.[x];
+    if (!t) return null;
+    if (t.top === undefined) {
+      const box = t.prop ? new THREE.Box3().setFromObject(t.prop) : null;
+      t.top = box && !box.isEmpty() ? box.max.y : null;
+    }
+    return t.top;
+  }
+
+  // ---------- Desempenho ----------
+  // Cada peça (Mesh) é um "pedido" à placa gráfica, e cada peça que faz sombra é desenhada
+  // DUAS vezes (uma para a sombra). Com ~2000 peças, um portátil fraco fica lento.
+  // Por isso o mapa das sombras só é redesenhado quando alguma coisa muda (ver main.js):
+  // a vista avisa com onShadowsChanged.
+  function onShadowsChanged(fn) { shadowListener = fn; }
+  function shadowsChanged() { shadowListener?.(); }
+
+  // As peças muito pequenas ou achatadas (janelas, flores, passeios, tocos) não fazem sombra:
+  // a sombra delas quase não se vê, mas custava um desenho a mais cada uma.
+  function trimShadows(group) {
+    const size = new THREE.Vector3(), scale = new THREE.Vector3();
+    group.updateMatrixWorld(true);
+    group.traverse((o) => {
+      if (!o.isMesh || !o.castShadow) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      o.geometry.boundingBox.getSize(size).multiply(o.getWorldScale(scale));
+      if (Math.max(size.x, size.y, size.z) < 0.1 || size.y < 0.03) o.castShadow = false;
+    });
   }
 
   // Põe um objeto dentro do quadrado, deslocado (ox, oz) do centro, assente no relevo.
@@ -149,7 +185,10 @@ export function createVillageView(scene, village, style, rand) {
   function setBurned(x, y) {
     const t = tiles[y][x];
     terrain.setSurface(x, y, 'burned');
-    if (t.prop) charProp(t.prop, t.type); // o tipo diz ao charring se são árvores, mato ou casas
+    // O tipo diz ao charring se são árvores, mato ou casas; a altura do chão serve para a cinza
+    // seguir o relevo (sem bordas a flutuar nas encostas).
+    if (t.prop) charProp(t.prop, t.type, terrain.heightAtWorld);
+    shadowsChanged();
     t.swaying = []; // árvores queimadas não balançam
   }
 
@@ -180,5 +219,5 @@ export function createVillageView(scene, village, style, rand) {
     terrain.update(t);
   }
 
-  return { setTileType, setBurned, tileFromPointer, worldPosition, update, terrain };
+  return { setTileType, setBurned, tileFromPointer, worldPosition, propTop, update, terrain, onShadowsChanged };
 }
