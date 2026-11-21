@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ignitionProbability } from '../src/sim/fire.js';
+import { ignitionProbability, runDisaster } from '../src/sim/fire.js';
+import { createVillage } from '../src/sim/village.js';
+
+// Cria uma vila de teste a partir de linhas de letras (G relva, W água, H casa, ...).
+function villageFrom(...map) {
+  return createVillage({ name: 'test', map });
+}
 
 // As 4 direções principais, como (dx, dy) na grelha: y cresce para sul.
 const NORTH = [0, -1], SOUTH = [0, 1], EAST = [1, 0], WEST = [-1, 0];
@@ -36,4 +42,19 @@ test('firebreak, road and water can never catch fire, even right downwind of a s
 test('the probability never goes above 1, even for eucalyptus in a storm', () => {
   const stormWind = { direction: 0, speed: 100 };
   assert.equal(ignitionProbability('eucalyptus', ...SOUTH, stormWind, 0.05), 1);
+});
+
+test('a lone patch of grass in a lake burns, and then the fire stops', () => {
+  const village = villageFrom(
+    'WWW',
+    'WGW',
+    'WWW',
+  );
+  const { steps, outcome } = runDisaster(village, {
+    ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1,
+  });
+  assert.deepEqual(steps[0], { step: 0, burning: [[1, 1]], burned: [] });
+  assert.deepEqual(steps.at(-1).burning, []);
+  assert.deepEqual(steps.at(-1).burned, [[1, 1]]);
+  assert.equal(outcome.burnedCount, 1);
 });

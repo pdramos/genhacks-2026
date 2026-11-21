@@ -1,5 +1,6 @@
 // O incêndio: regras de como o fogo passa de um quadrado para os vizinhos.
 // Só regras e números, sem desenho. A interface (src/render) apenas "reproduz" o resultado.
+import { createRandom } from './random.js';
 
 // Facilidade com que cada tipo de quadrado pega fogo (0 = nunca, 1 = muito fácil).
 export const FLAMMABILITY = {
@@ -37,6 +38,109 @@ export function ignitionProbability(targetType, dx, dy, wind, k) {
   const windFactor = Math.max(0.1, 1 + k * wind.speed * cosAngle);
 
   return clamp(flammability * windFactor, 0, 1);
+}
+
+// Quantos passos (de 10 minutos) cada tipo fica a arder antes de ficar queimado.
+// As árvores ardem mais tempo do que a relva.
+export const BURN_STEPS = {
+  eucalyptus: 4,
+  broadleaf: 4,
+  house: 3,
+  school: 3,
+  brush: 2,
+  grass: 1,
+  cleared: 1,
+};
+
+// Quanto o vento conta: com vento de 30 km/h, o fogo a favor do vento fica 2.2 vezes
+// mais provável e contra o vento quase não avança. Afinado a jogar.
+export const DEFAULT_K = 0.04;
+
+// Os 8 vizinhos de um quadrado: (dx, dy) a partir do quadrado do meio.
+const NEIGHBOURS = [
+  [-1, -1], [0, -1], [1, -1],
+  [-1, 0], /* meio */ [1, 0],
+  [-1, 1], [0, 1], [1, 1],
+];
+
+// Corre o incêndio do início ao fim e devolve todos os passos (snapshots) e o resultado.
+// - village: a vila (não é alterada!)
+// - ignition: { x, y } onde o fogo começa
+// - wind: { direction, speed } fixo, OU uma função (stepIndex) => { direction, speed }
+//         para o vento mudar com o tempo (stepIndex 0 = primeiros 10 minutos)
+// - seed: semente do acaso (o mesmo seed dá sempre o mesmo fogo)
+// - k: quanto o vento conta; maxSteps: número máximo de passos (144 passos = 24 horas)
+export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, maxSteps = 144 }) {
+  const rand = createRandom(seed);
+  const windAt = typeof wind === 'function' ? wind : () => wind;
+
+  // Estado do fogo, guardado à parte para não mexer em village.tiles.
+  // burning: "x,y" -> passos que ainda faltam a arder. burned: conjunto de "x,y".
+  const burning = new Map();
+  const burned = new Set();
+  burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y));
+
+  const steps = [snapshot(0, burning, burned)];
+
+  for (let step = 1; step <= maxSteps && burning.size > 0; step++) {
+    const currentWind = windAt(step - 1);
+
+    // 1) Cada quadrado a arder pode pegar fogo aos vizinhos.
+    const newFires = [];
+    for (const tileKey of burning.keys()) {
+      const [x, y] = fromKey(tileKey);
+      for (const [dx, dy] of NEIGHBOURS) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= village.width || ny >= village.height) continue;
+        const neighbourKey = key(nx, ny);
+        if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
+        const chance = ignitionProbability(village.tiles[ny][nx], dx, dy, currentWind, k);
+        if (rand() < chance) newFires.push(neighbourKey);
+      }
+    }
+
+    // 2) Os que já estavam a arder gastam um passo; quando chegam a 0 ficam queimados.
+    for (const [tileKey, left] of burning) {
+      if (left <= 1) {
+        burning.delete(tileKey);
+        burned.add(tileKey);
+      } else {
+        burning.set(tileKey, left - 1);
+      }
+    }
+
+    // 3) Os fogos novos começam a arder.
+    for (const tileKey of newFires) {
+      if (burning.has(tileKey)) continue; // dois vizinhos podem acender o mesmo quadrado
+      const [x, y] = fromKey(tileKey);
+      burning.set(tileKey, burnSteps(village, x, y));
+    }
+
+    steps.push(snapshot(step, burning, burned));
+  }
+
+  return { steps, outcome: { burnedCount: burned.size + burning.size } };
+}
+
+// "x,y" <-> [x, y]: uma forma simples de guardar quadrados num Map ou Set.
+function key(x, y) {
+  return `${x},${y}`;
+}
+function fromKey(tileKey) {
+  return tileKey.split(',').map(Number);
+}
+
+function burnSteps(village, x, y) {
+  return BURN_STEPS[village.tiles[y][x]] ?? 1;
+}
+
+// Uma "fotografia" do fogo num passo: listas de [x, y].
+function snapshot(step, burning, burned) {
+  return {
+    step,
+    burning: [...burning.keys()].map(fromKey),
+    burned: [...burned].map(fromKey),
+  };
 }
 
 // Prende um número entre min e max.
