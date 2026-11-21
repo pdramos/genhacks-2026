@@ -20,8 +20,14 @@ export const FLAMMABILITY = {
 };
 
 // Quanto o vento conta (k): com vento de 30 km/h, o fogo a favor do vento fica 2.5 vezes
-// mais provável e contra o vento quase não avança. Afinado a jogar.
+// mais provável, e de lado (flancos) ou contra o vento fica ~6 vezes mais lento do que
+// na cabeça (ver windSpreadFactor). Afinado a jogar e a medir a forma do fogo.
 export const DEFAULT_K = 0.05;
+
+// Nenhum vizinho pega fogo com CERTEZA: mesmo um eucalipto num temporal tem 15% de hipótese
+// de não arder (humidade, uma rocha, um caminho...). Sem isto, a frente avançava uma linha
+// inteira e reta por passo, como num tabuleiro.
+export const MAX_SPREAD_CHANCE = 0.85;
 
 // Probabilidade (0 a 1) de um quadrado a arder pegar fogo ao vizinho do tipo targetType,
 // durante todo o tempo em que arde (em cada passo usa-se chancePerStep, mais abaixo).
@@ -44,14 +50,45 @@ export function ignitionProbability(targetType, dx, dy, wind, k = DEFAULT_K, hei
   const length = Math.hypot(dx, dy);
   const cosAngle = (dx * downX + dy * downY) / length;
 
-  // Fator do vento: a favor do vento aumenta, contra o vento diminui (mas nunca abaixo de 0.1).
-  const windFactor = Math.max(0.1, 1 + k * wind.speed * cosAngle);
+  // Fator do vento (ver windSpreadFactor): forte na cabeça, fraco nos flancos e atrás.
+  const windFactor = windSpreadFactor(cosAngle, wind.speed, k);
 
   // Os vizinhos na diagonal estão mais longe (cerca de 1.4 quadrados), por isso
   // têm menos probabilidade. Assim o fogo não fica com forma de quadrado.
   const distanceFactor = dx !== 0 && dy !== 0 ? DIAGONAL_FACTOR : 1;
 
-  return clamp(flammability * windFactor * distanceFactor * slopeFactor(heightDiff, length), 0, 1);
+  // O limite vale para o vizinho "de frente"; a diagonal (mais longe) fica sempre abaixo dele.
+  const direct = clamp(flammability * windFactor * slopeFactor(heightDiff, length), 0, MAX_SPREAD_CHANCE);
+  return direct * distanceFactor;
+}
+
+// O fator do vento para um vizinho na direção com este cos (1 = a favor, -1 = contra).
+// - "head" (1 + k·v) é o empurrão do vento na CABEÇA do fogo;
+// - exp(WIND_SHAPE·k·v·(cos − 1)) vale 1 na cabeça e cai muito depressa para os lados:
+//   assim a diagonal da frente fica bem mais lenta do que a cabeça e o fogo cresce como uma
+//   ELIPSE comprida a favor do vento (como os incêndios reais), não como uma mancha redonda;
+// - BACKING_SHARE é a parte que não depende da direção: os flancos e a "cauda" continuam
+//   a avançar devagar (um fogo nunca morre só por ter o vento de lado).
+// Ex. com 30 km/h: cabeça x2.5, diagonal da frente x0.66, flanco x0.38, contra o vento x0.38.
+// Sem vento dá sempre 1 (o fogo cresce redondo).
+export const WIND_SHAPE = 5;
+export const BACKING_SHARE = 0.15;
+export function windSpreadFactor(cosAngle, speed, k = DEFAULT_K) {
+  const head = 1 + k * speed;
+  const shape = Math.exp(WIND_SHAPE * k * speed * (cosAngle - 1));
+  return head * ((1 - BACKING_SHARE) * shape + BACKING_SHARE);
+}
+
+// Cada quadrado tem um pouco mais ou menos combustível e humidade do que o vizinho:
+// um número fixo (pela semente e pela posição) entre 0.7 e 1.15 que multiplica a chance.
+// Não gasta o acaso da simulação (é um "hash"), por isso a mesma semente dá o mesmo fogo.
+export const FUEL_VARIATION = { min: 0.7, max: 1.15 };
+export function fuelVariation(x, y, seed) {
+  let h = Math.imul(x + 1, 374761393) ^ Math.imul(y + 1, 668265263) ^ Math.imul(seed + 7, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  const unit = (h >>> 0) / 4294967296;
+  return FUEL_VARIATION.min + unit * (FUEL_VARIATION.max - FUEL_VARIATION.min);
 }
 
 // Declive: as chamas inclinam-se para cima e aquecem o mato que está mais acima,
@@ -104,7 +141,8 @@ const NEIGHBOURS = [
 // Corre o incêndio do início ao fim e devolve todos os passos (snapshots) e o resultado.
 // - village: a vila (não é alterada!)
 // - ignition: { x, y } onde o fogo começa
-// - wind: { direction, speed } fixo, OU uma função (stepIndex) => { direction, speed }
+// - wind: { direction, speed, gust? } fixo, OU uma função (stepIndex) => { direction, speed, gust? }
+//         (gust = rajadas em km/h, opcional: levam as brasas mais longe e mais vezes)
 //         para o vento mudar com o tempo (stepIndex 0 = primeiros 10 minutos)
 // - seed: semente do acaso (o mesmo seed dá sempre o mesmo fogo)
 // - k: quanto o vento conta; maxSteps: número máximo de passos (144 passos = 24 horas)
@@ -118,7 +156,7 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
   // Estado do fogo, guardado à parte para não mexer em village.tiles.
   // burning: "x,y" -> { stepsLeft, totalSteps } (quanto falta arder e quanto arde ao todo).
   // burned: conjunto de "x,y" que já arderam.
-  const fire = { village, k, rand: createRandom(seed), burning: new Map(), burned: new Set() };
+  const fire = { village, k, seed, rand: createRandom(seed), burning: new Map(), burned: new Set() };
 
   // O fogo só começa se o quadrado da ignição puder arder.
   // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
@@ -146,7 +184,7 @@ function canBurn(village, x, y) {
 // Passo 1: cada quadrado a arder pode pegar fogo a cada um dos 8 vizinhos.
 // Devolve o conjunto (Set) de "x,y" que vão começar a arder.
 function spreadToNeighbours(fire, wind) {
-  const { village, burning, burned, rand, k } = fire;
+  const { village, burning, burned, rand, k, seed } = fire;
   const newFires = new Set();
   for (const [tileKey, { totalSteps }] of burning) {
     const [x, y] = fromKey(tileKey);
@@ -156,7 +194,8 @@ function spreadToNeighbours(fire, wind) {
       const neighbourKey = key(nx, ny);
       if (burning.has(neighbourKey) || burned.has(neighbourKey)) continue;
       const heightDiff = heightOf(village, nx, ny) - heightOf(village, x, y);
-      const wholeChance = ignitionProbability(village.tiles[ny][nx], dx, dy, wind, k, heightDiff);
+      const wholeChance = ignitionProbability(village.tiles[ny][nx], dx, dy, wind, k, heightDiff)
+        * fuelVariation(nx, ny, seed);
       if (rand() < chancePerStep(wholeChance, totalSteps)) newFires.add(neighbourKey);
     }
   }
@@ -171,20 +210,25 @@ function spreadToNeighbours(fire, wind) {
 // 0.4). Na vida real, muitas casas ardem por causa das brasas, não das chamas.
 
 // Abaixo desta velocidade do vento (km/h) não voam brasas.
+// Conta a RAJADA (gust) quando o nível a tem: são as rajadas que levantam as brasas.
 export const SPOT_MIN_WIND_KMH = 20;
 // Por cada km/h acima do mínimo, a chance de um quadrado a arder largar uma brasa num passo
-// aumenta 0.2% (vezes a força do fogo). Ex.: 40 km/h e fogo forte (1) -> 4% por passo.
-// Afinado a medir: com 30 km/h, um fogo de mato salta uma estrada de 1 quadrado em cerca
-// de 1 vez em 5; com 50 km/h, em mais de metade das vezes.
-export const SPOT_CHANCE_PER_KMH = 0.002;
+// aumenta 0.3% (vezes a força do fogo). Ex.: rajadas de 68 km/h e eucalipto (0.98) -> ~14%.
+export const SPOT_CHANCE_PER_KMH = 0.003;
 // A chance nunca passa disto, nem num temporal.
 export const SPOT_MAX_CHANCE = 0.3;
 // As brasas não vão em linha reta: desviam-se até 25 graus para cada lado do vento.
 export const SPOT_SPREAD_DEGREES = 25;
 
+// O vento que conta para as brasas: a rajada, se houver; senão a velocidade média.
+function emberWind(wind) {
+  return Math.max(wind.speed, wind.gust ?? 0);
+}
+
 // A chance (0 a 1) de um quadrado a arder com esta força (0..1) largar uma brasa num passo.
-export function spotChance(windSpeed, intensity) {
-  const extraWind = Math.max(0, windSpeed - SPOT_MIN_WIND_KMH);
+// wind = { speed, gust? } (km/h).
+export function spotChance(wind, intensity) {
+  const extraWind = Math.max(0, emberWind(wind) - SPOT_MIN_WIND_KMH);
   return Math.min(SPOT_MAX_CHANCE, extraWind * SPOT_CHANCE_PER_KMH * intensity);
 }
 
@@ -194,11 +238,11 @@ export function spotChance(windSpeed, intensity) {
 function throwEmbers(fire, wind, newFires) {
   const { village, burning, burned, rand } = fire;
   const spots = [];
-  if (wind.speed <= SPOT_MIN_WIND_KMH) return spots; // vento fraco: sem brasas (e sem gastar acaso)
+  if (emberWind(wind) <= SPOT_MIN_WIND_KMH) return spots; // vento fraco: sem brasas (e sem gastar acaso)
   for (const [tileKey, tile] of burning) {
     const [x, y] = fromKey(tileKey);
     const intensity = tileIntensity(village.tiles[y][x], tile, wind);
-    if (rand() >= spotChance(wind.speed, intensity)) continue;
+    if (rand() >= spotChance(wind, intensity)) continue;
 
     const [toX, toY] = emberLanding(x, y, wind, rand);
     if (!isInside(village, toX, toY) || !canBurn(village, toX, toY)) continue;

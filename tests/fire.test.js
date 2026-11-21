@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ignitionProbability, runDisaster } from '../src/sim/fire.js';
+import { ignitionProbability, runDisaster, spotChance, MAX_SPREAD_CHANCE } from '../src/sim/fire.js';
 import { createVillage } from '../src/sim/village.js';
 import { createBuildState, applyAction } from '../src/sim/actions.js';
 
@@ -40,9 +40,9 @@ test('firebreak, road and water can never catch fire, even right downwind of a s
   }
 });
 
-test('the probability never goes above 1, even for eucalyptus in a storm', () => {
+test('the probability never goes above MAX_SPREAD_CHANCE, even for eucalyptus in a storm', () => {
   const stormWind = { direction: 0, speed: 100 };
-  assert.equal(ignitionProbability('eucalyptus', ...SOUTH, stormWind, 0.05), 1);
+  assert.equal(ignitionProbability('eucalyptus', ...SOUTH, stormWind, 0.05), MAX_SPREAD_CHANCE);
 });
 
 test('a lone patch of grass in a lake burns, and then the fire stops', () => {
@@ -157,14 +157,20 @@ test('the wind can be a function of the step, so it can change over time', () =>
 test('with a strong wind from the west, the fire reaches further east (downwind) than west', () => {
   // Um campo de mato de 21 x 21 com o fogo a começar no meio (10, 10).
   // No fim o campo todo arde, por isso olhamos para o passo em que o fogo chega à borda leste.
+  // (Às vezes um fogo apaga-se logo no início, como na vida real: essas sementes não contam,
+  // mas a maior parte tem de chegar à borda leste.)
   const field = villageFrom(...Array(21).fill('B'.repeat(21)));
+  let reachedEast = 0;
   for (let seed = 1; seed <= 10; seed++) {
     const { steps } = runDisaster(field, { ignition: { x: 10, y: 10 }, wind: { direction: 270, speed: 30 }, seed });
     const xsAt = ({ burning, burned }) => [...burning, ...burned].map(([x]) => x);
     const atEastEdge = steps.find((snapshot) => xsAt(snapshot).includes(20));
+    if (!atEastEdge) continue;
+    reachedEast++;
     const westReach = 10 - Math.min(...xsAt(atEastEdge));
     assert.ok(westReach < 10, `seed ${seed}: the fire went ${westReach} tiles west by the time it reached the east edge`);
   }
+  assert.ok(reachedEast >= 7, `only ${reachedEast} of 10 fires reached the east edge`);
 });
 
 test('the fire stops after maxSteps even if something is still burning', () => {
@@ -396,9 +402,99 @@ test('the stronger the wind, the more embers fly', () => {
 });
 
 test('a fire with embers is still the same every time with the same seed', () => {
-  const options = { ignition: { x: 1, y: 3 }, wind: { direction: 270, speed: 60 }, seed: 9 };
+  const options = { ignition: { x: 1, y: 3 }, wind: { direction: 270, speed: 60 }, seed: 10 };
   const first = runDisaster(fieldWithRoad(), options);
   const second = runDisaster(fieldWithRoad(), options);
   assert.ok(first.steps.some(({ spots }) => spots.length > 0), 'this test needs at least one ember');
   assert.deepEqual(second, first);
+});
+
+// ---------- Realismo (ronda "qualidade"): nunca há propagação garantida ----------
+
+test('no neighbour ever catches fire with certainty: the chance is capped below 1', () => {
+  const stormWind = { direction: 0, speed: 100 };
+  for (const type of ['eucalyptus', 'brush', 'grass']) {
+    const chance = ignitionProbability(type, ...SOUTH, stormWind, 0.05);
+    assert.ok(chance <= MAX_SPREAD_CHANCE && chance < 1, `${type}: ${chance}`);
+  }
+});
+
+test('with a 30 km/h wind the flanks are at least 3 times slower than the head of the fire', () => {
+  // Vento de norte (0): a cabeça vai para sul, os flancos para leste e oeste.
+  // Usamos um tipo pouco inflamável, para o limite máximo não esconder a diferença.
+  const northWind = { direction: 0, speed: 30 };
+  const head = ignitionProbability('broadleaf', ...SOUTH, northWind, 0.05);
+  const flank = ignitionProbability('broadleaf', ...EAST, northWind, 0.05);
+  assert.ok(head / flank >= 3, `head ${head.toFixed(3)} / flank ${flank.toFixed(3)} = ${(head / flank).toFixed(2)}`);
+});
+
+test('with a strong wind, a fire in an open field grows long downwind, not round', () => {
+  // Campo de mato de 41 x 41, vento de oeste (270) a 30 km/h: o fogo deve ficar comprido para leste.
+  const field = villageFrom(...Array(41).fill('B'.repeat(41)));
+  let ratioSum = 0;
+  const seeds = 10;
+  for (let seed = 1; seed <= seeds; seed++) {
+    const { steps } = runDisaster(field, { ignition: { x: 8, y: 20 }, wind: { direction: 270, speed: 30 }, seed });
+    const tilesOf = ({ burning, burned }) => [...burning, ...burned];
+    // O primeiro passo em que a cabeça chega 15 quadrados a leste da ignição.
+    const snapshot = steps.find((s) => tilesOf(s).some(([x]) => x >= 23)) ?? steps.at(-1);
+    const tiles = tilesOf(snapshot);
+    const downwind = Math.max(...tiles.map(([x]) => x)) - 8;
+    const crosswind = (Math.max(...tiles.map(([, y]) => y)) - Math.min(...tiles.map(([, y]) => y))) / 2;
+    ratioSum += downwind / Math.max(1, crosswind);
+  }
+  const ratio = ratioSum / seeds;
+  assert.ok(ratio >= 2, `downwind reach / crosswind half-width was ${ratio.toFixed(2)}`);
+});
+
+test('the head of a grass fire does not advance exactly one tile every step (no straight "game board" front)', () => {
+  // Faixa de relva de 30 x 9, vento de oeste a 30 km/h. Num tabuleiro "certo", a coluna x
+  // seria sempre alcançada no passo x - 1. Num fogo verdadeiro há atrasos.
+  const strip = villageFrom(...Array(9).fill('G'.repeat(30)));
+  let delays = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const { steps } = runDisaster(strip, { ignition: { x: 1, y: 4 }, wind: { direction: 270, speed: 30 }, seed });
+    const reached = (column) => steps.findIndex(({ burning, burned }) => [...burning, ...burned].some(([x]) => x === column));
+    for (let column = 2; column < 30; column++) {
+      if (reached(column) !== -1 && reached(column) > column - 1) { delays++; break; }
+    }
+  }
+  assert.ok(delays >= 5, `only ${delays} of 10 fires ever slowed down`);
+});
+
+test('in a straight wind, the tiles that catch fire in the same step are not a full straight row', () => {
+  // O vento de noroeste empurrava uma "linha" inteira por passo ('666666', '777777').
+  const field = villageFrom(...Array(20).fill('G'.repeat(20)));
+  let fullRows = 0, rows = 0;
+  for (let seed = 1; seed <= 5; seed++) {
+    const { steps } = runDisaster(field, { ignition: { x: 10, y: 1 }, wind: { direction: 0, speed: 30 }, seed });
+    for (let i = 1; i < steps.length; i++) {
+      const before = new Set([...steps[i - 1].burning, ...steps[i - 1].burned].map(([x, y]) => `${x},${y}`));
+      const fresh = steps[i].burning.filter(([x, y]) => !before.has(`${x},${y}`));
+      const byRow = new Map();
+      for (const [x, y] of fresh) byRow.set(y, [...(byRow.get(y) ?? []), x]);
+      for (const xs of byRow.values()) {
+        if (xs.length < 5) continue;
+        rows++;
+        const span = Math.max(...xs) - Math.min(...xs) + 1;
+        if (span === xs.length) fullRows++; // sem buracos: uma linha reta inteira
+      }
+    }
+  }
+  assert.ok(rows === 0 || fullRows / rows < 0.5, `${fullRows} of ${rows} wide rows were perfectly straight`);
+});
+
+test('gusts throw embers even when the mean wind is below the ember minimum', () => {
+  // Vento médio de 15 km/h (sem brasas), mas rajadas de 60 km/h: as brasas saltam a estrada.
+  let embers = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(fieldWithRoad(), { ignition: { x: 1, y: 3 }, wind: { direction: 270, speed: 15, gust: 60 }, seed });
+    for (const { spots } of steps) embers += spots.length;
+  }
+  assert.ok(embers > 0, 'no ember flew with 60 km/h gusts');
+});
+
+test('spotChance uses the gust when there is one', () => {
+  assert.ok(spotChance({ speed: 30, gust: 68 }, 0.8) > spotChance({ speed: 30 }, 0.8));
+  assert.equal(spotChance({ speed: 10 }, 1), 0);
 });
