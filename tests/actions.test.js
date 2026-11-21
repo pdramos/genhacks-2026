@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage, tileAt } from '../src/sim/village.js';
-import { createBuildState, applyAction, remainingBudget } from '../src/sim/actions.js';
+import { createBuildState, applyAction, undoAction, remainingBudget } from '../src/sim/actions.js';
 
 // Uma vila pequena (5x2) com um quadrado de cada tipo:
 //   x:  0      1      2           3          4
@@ -87,4 +87,14 @@ test('an action outside the village is blocked', () => {
     assert.deepEqual(applyAction(state, x, y, 'firebreak'), { ok: false, reason: 'outside' }, `${x},${y}`);
   }
   assert.equal(remainingBudget(state), 10000);
+});
+
+test('undo restores the original tile and refunds the exact cost', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 1000);
+  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€500)
+  const result = undoAction(state, 2, 0);
+  assert.deepEqual(result, { ok: true, refund: 500, restoredType: 'eucalyptus' });
+  assert.equal(tileAt(village, 2, 0), 'eucalyptus');
+  assert.equal(remainingBudget(state), 1000);
 });

@@ -49,6 +49,19 @@ export function applyAction(state, x, y, actionName) {
   return { ok: true, newType: action.result };
 }
 
+// Desfaz a ação no quadrado (x, y): volta ao tipo original e devolve o dinheiro todo.
+// Devolve { ok: true, refund, restoredType }.
+export function undoAction(state, x, y) {
+  const key = `${x},${y}`;
+  const change = state.changes[key];
+  const refund = ACTIONS[change.actionName].cost;
+
+  state.village.tiles[y][x] = change.originalType;
+  state.budget += refund;
+  delete state.changes[key]; // o quadrado fica livre para outra ação
+  return { ok: true, refund, restoredType: change.originalType };
+}
+
 // Quanto dinheiro ainda sobra.
 export function remainingBudget(state) {
   return state.budget;
