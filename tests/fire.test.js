@@ -54,7 +54,8 @@ test('a lone patch of grass in a lake burns, and then the fire stops', () => {
   const { steps, outcome } = runDisaster(village, {
     ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1,
   });
-  assert.deepEqual(steps[0], { step: 0, burning: [[1, 1]], burned: [] });
+  const { step, burning, burned } = steps[0];
+  assert.deepEqual({ step, burning, burned }, { step: 0, burning: [[1, 1]], burned: [] });
   assert.deepEqual(steps.at(-1).burning, []);
   assert.deepEqual(steps.at(-1).burned, [[1, 1]]);
   assert.equal(outcome.burnedCount, 1);
@@ -87,14 +88,16 @@ test('the school is lost when it burns', () => {
   assert.equal(outcome.schoolSaved, false);
 });
 
-// Floresta de eucaliptos cortada por uma linha de corta-fogo, estrada e água (coluna 3).
-// O vento de oeste (270) empurra o fogo para leste, contra a linha.
+// Floresta de eucaliptos cortada por uma faixa de corta-fogo, estrada e água (colunas 3 a 5).
+// O vento de oeste (270) empurra o fogo para leste, contra a faixa.
+// A faixa tem 3 quadrados de largura: as brasas voam no máximo 3 quadrados, por isso
+// caem sempre dentro da faixa. (Uma linha de 1 quadrado pode ser saltada: ver os testes das brasas.)
 const forestWithBarrier = () => villageFrom(
-  'EEEFEEH',
-  'EEERBEE',
-  'EEEWEEH',
-  'EEEFEEE',
-  'EEERBEH',
+  'EEEFFFEEH',
+  'EEERRRBEE',
+  'EEEWWWEEH',
+  'EEEFFFEEE',
+  'EEERRRBEH',
 );
 const westWind = { direction: 270, speed: 40 };
 
@@ -189,4 +192,213 @@ test('a firebreak built on the ignition tile never burns, so the fire never star
     assert.ok(![...burning, ...burned].some(([x, y]) => x === 1 && y === 1), 'the firebreak burned');
   }
   assert.equal(outcome.burnedCount, 0);
+});
+
+// ---------- Declive: o fogo sobe a encosta mais depressa ----------
+
+test('fire is more likely to spread uphill than on flat ground, and less likely downhill', () => {
+  const noWind = { direction: 0, speed: 0 };
+  // Último argumento: quanto o vizinho está mais alto (+) ou mais baixo (-), em níveis 0-9.
+  const uphill = ignitionProbability('grass', ...EAST, noWind, 0.05, 2);
+  const flat = ignitionProbability('grass', ...EAST, noWind, 0.05, 0);
+  const downhill = ignitionProbability('grass', ...EAST, noWind, 0.05, -2);
+  assert.ok(uphill > flat, `uphill ${uphill} should be > flat ${flat}`);
+  assert.ok(downhill < flat, `downhill ${downhill} should be < flat ${flat}`);
+  assert.ok(downhill > 0, 'fire can still go downhill, only slower');
+});
+
+test('on a hillside with no wind, the fire climbs to the top faster than it runs down to the bottom', () => {
+  // Uma encosta de relva de 21 x 7 que sobe para leste (altura 0 a oeste, 9 a leste).
+  const slopeRow = '001122334455667788999';
+  const hillside = createVillage({
+    name: 'hill',
+    map: Array(7).fill('G'.repeat(21)),
+    heights: Array(7).fill(slopeRow),
+  });
+  let eastSteps = 0, westSteps = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(hillside, { ignition: { x: 10, y: 3 }, wind: { direction: 0, speed: 0 }, seed });
+    // Em que passo o fogo chega pela primeira vez à coluna pedida?
+    // Se nunca lá chegar, conta como o fim + 1 (o mais lento possível).
+    const reaches = (column) => {
+      const index = steps.findIndex(({ burning, burned }) =>
+        [...burning, ...burned].some(([x]) => x === column));
+      return index === -1 ? steps.length : index;
+    };
+    eastSteps += reaches(20);
+    westSteps += reaches(0);
+  }
+  assert.ok(eastSteps < westSteps, `uphill (east) took ${eastSteps} steps in total, downhill (west) ${westSteps}`);
+});
+
+// ---------- Duração variável: cada quadrado arde um tempo um pouco diferente ----------
+
+// Quantos passos cada quadrado passou a arder: "x,y" -> número de snapshots em que aparece em burning.
+function burnDurations(steps) {
+  const durations = new Map();
+  for (const { burning } of steps) {
+    for (const [x, y] of burning) durations.set(`${x},${y}`, (durations.get(`${x},${y}`) ?? 0) + 1);
+  }
+  return durations;
+}
+
+test('tiles of the same type burn for slightly different times, between 1 and 3 steps for brush', () => {
+  // Um campo de mato: o mato arde cerca de 2 passos (20 minutos), às vezes 1, às vezes 3.
+  const field = villageFrom(...Array(9).fill('B'.repeat(9)));
+  const { steps } = runDisaster(field, { ignition: { x: 4, y: 4 }, wind: { direction: 0, speed: 0 }, seed: 7 });
+  assert.deepEqual(steps.at(-1).burning, [], 'the fire burned out');
+
+  const values = [...burnDurations(steps).values()];
+  assert.ok(values.every((steps) => steps >= 1 && steps <= 3), `durations ${values}`);
+  assert.ok(new Set(values).size > 1, 'not every tile burned for the same time');
+});
+
+// ---------- Forma do fogo: sem vento, cresce como um círculo (nem quadrado, nem losango) ----------
+
+// O quadrado a arder (ou queimado) mais longe do centro (cx, cy) num "cone" de ±15 graus
+// à volta de angleDegrees (0 = leste, 90 = sul, porque y cresce para sul).
+function farthestInDirection(tiles, cx, cy, angleDegrees) {
+  let farthest = 0;
+  for (const [x, y] of tiles) {
+    const angle = (Math.atan2(y - cy, x - cx) * 180) / Math.PI;
+    const difference = Math.abs(((angle - angleDegrees) % 360 + 540) % 360 - 180);
+    if (difference <= 15) farthest = Math.max(farthest, Math.hypot(x - cx, y - cy));
+  }
+  return farthest;
+}
+
+for (const [letter, fuel] of [['E', 'eucalyptus'], ['B', 'brush'], ['G', 'grass']]) {
+  test(`with no wind, a fire in a ${fuel} field grows round: as far along the diagonals as along the axes`, () => {
+    // Um quadrado em losango teria rácio ~0.7; um fogo em forma de quadrado teria ~1.4.
+    const field = villageFrom(...Array(41).fill(letter.repeat(41)));
+    let ratioSum = 0;
+    const seeds = 10;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const { steps } = runDisaster(field, { ignition: { x: 20, y: 20 }, wind: { direction: 0, speed: 0 }, seed });
+      // O primeiro passo em que o fogo está a 12 quadrados (ou mais) do centro.
+      const fireTiles = ({ burning, burned }) => [...burning, ...burned];
+      const snapshot = steps.find((s) => fireTiles(s).some(([x, y]) => Math.hypot(x - 20, y - 20) >= 12));
+      const tiles = fireTiles(snapshot);
+      const axes = [0, 90, 180, 270].map((angle) => farthestInDirection(tiles, 20, 20, angle));
+      const diagonals = [45, 135, 225, 315].map((angle) => farthestInDirection(tiles, 20, 20, angle));
+      const average = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+      ratioSum += average(diagonals) / average(axes);
+    }
+    const ratio = ratioSum / seeds;
+    assert.ok(ratio > 0.9 && ratio < 1.1, `diagonal / axis reach was ${ratio.toFixed(2)}`);
+  });
+}
+
+// ---------- Intensidade: a força do fogo em cada quadrado a arder ----------
+
+// O fogo num único quadrado do tipo letter, rodeado de água.
+function loneTile(letter) {
+  return villageFrom('WWW', `W${letter}W`, 'WWW');
+}
+
+test('every snapshot gives an intensity between 0 and 1 for each burning tile, and only for those', () => {
+  const storm = { direction: 315, speed: 100 };
+  const { steps } = runDisaster(mixedVillage(), { ignition: { x: 0, y: 0 }, wind: storm, seed: 3 });
+  for (const { burning, intensity } of steps) {
+    assert.deepEqual(Object.keys(intensity).sort(), burning.map(([x, y]) => `${x},${y}`).sort());
+    for (const value of Object.values(intensity)) assert.ok(value > 0 && value <= 1, `intensity ${value}`);
+  }
+});
+
+test('eucalyptus burns with a stronger fire than grass', () => {
+  const calm = { direction: 0, speed: 0 };
+  const eucalyptus = runDisaster(loneTile('E'), { ignition: { x: 1, y: 1 }, wind: calm, seed: 1 });
+  const grass = runDisaster(loneTile('G'), { ignition: { x: 1, y: 1 }, wind: calm, seed: 1 });
+  assert.ok(eucalyptus.steps[0].intensity['1,1'] > grass.steps[0].intensity['1,1']);
+});
+
+test('a strong wind makes the same fire stronger', () => {
+  const options = { ignition: { x: 1, y: 1 }, seed: 1 };
+  const calm = runDisaster(loneTile('B'), { ...options, wind: { direction: 0, speed: 0 } });
+  const windy = runDisaster(loneTile('B'), { ...options, wind: { direction: 0, speed: 40 } });
+  assert.ok(windy.steps[0].intensity['1,1'] > calm.steps[0].intensity['1,1']);
+});
+
+test('a fire dies down in its last step before the tile is burned', () => {
+  // Um eucalipto arde 3 a 5 passos: no último passo a arder, as chamas são mais fracas.
+  const { steps } = runDisaster(loneTile('E'), { ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1 });
+  const values = steps.filter(({ burning }) => burning.length > 0).map(({ intensity }) => intensity['1,1']);
+  assert.ok(values.length >= 3);
+  assert.ok(values.at(-1) < values[0], `first ${values[0]}, last ${values.at(-1)}`);
+});
+
+// ---------- Brasas (spotting): com vento forte, o fogo salta 2-3 quadrados ----------
+
+// Um campo de mato cortado por uma estrada de 1 quadrado (coluna 4). O fogo começa a oeste.
+const fieldWithRoad = () => villageFrom(...Array(7).fill('BBBBRBBBB'));
+const roadOptions = (speed, seed) => ({ ignition: { x: 1, y: 3 }, wind: { direction: 270, speed }, seed });
+const crossedTheRoad = ({ steps }) => steps.at(-1).burned.some(([x]) => x > 4);
+
+test('with no wind, embers never fly, so the fire never crosses a 1-tile road', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const result = runDisaster(fieldWithRoad(), roadOptions(0, seed));
+    assert.equal(crossedTheRoad(result), false, `seed ${seed}`);
+    assert.ok(result.steps.every(({ spots }) => spots.length === 0), `seed ${seed}: an ember flew`);
+  }
+});
+
+test('with a strong wind, embers can jump over a 1-tile road and start a new fire on the other side', () => {
+  let crossings = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    if (crossedTheRoad(runDisaster(fieldWithRoad(), roadOptions(50, seed)))) crossings++;
+  }
+  assert.ok(crossings > 0, 'the fire never crossed the road');
+});
+
+test('each ember goes from a tile that was burning to a new fire 2 or 3 tiles away, never onto road, water or firebreak', () => {
+  let embers = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const { steps } = runDisaster(mixedVillage(), { ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 50 }, seed });
+    assert.deepEqual(steps[0].spots, []);
+    for (let i = 1; i < steps.length; i++) {
+      const has = (list, x, y) => list.some(([ax, ay]) => ax === x && ay === y);
+      for (const [fromX, fromY, toX, toY] of steps[i].spots) {
+        embers++;
+        assert.ok(has(steps[i - 1].burning, fromX, fromY), 'the ember came from a burning tile');
+        assert.ok(has(steps[i].burning, toX, toY), 'the ember started a fire');
+        assert.ok(!has(steps[i - 1].burning, toX, toY) && !has(steps[i - 1].burned, toX, toY), 'the target was not on fire before');
+        const distance = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
+        assert.ok(distance === 2 || distance === 3, `the ember flew ${distance} tiles`);
+        assert.ok(!['road', 'water', 'firebreak'].includes(mixedVillage().tiles[toY][toX]));
+      }
+    }
+  }
+  assert.ok(embers > 0, 'no ember flew in 20 windy fires');
+});
+
+test('embers fly with the wind: they land downwind of the tile they came from', () => {
+  // Vento de oeste (270): as brasas vão para leste (x maior).
+  const field = villageFrom(...Array(15).fill('E'.repeat(15)));
+  for (let seed = 1; seed <= 10; seed++) {
+    const { steps } = runDisaster(field, { ignition: { x: 2, y: 7 }, wind: { direction: 270, speed: 50 }, seed });
+    for (const { spots } of steps) {
+      for (const [fromX, , toX] of spots) assert.ok(toX > fromX, `seed ${seed}: ember went from x=${fromX} to x=${toX}`);
+    }
+  }
+});
+
+test('the stronger the wind, the more embers fly', () => {
+  const field = villageFrom(...Array(15).fill('E'.repeat(15)));
+  const countEmbers = (speed) => {
+    let count = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const { steps } = runDisaster(field, { ignition: { x: 2, y: 7 }, wind: { direction: 270, speed }, seed, maxSteps: 6 });
+      for (const { spots } of steps) count += spots.length;
+    }
+    return count;
+  };
+  assert.ok(countEmbers(60) > countEmbers(25), `60 km/h: ${countEmbers(60)} embers, 25 km/h: ${countEmbers(25)}`);
+});
+
+test('a fire with embers is still the same every time with the same seed', () => {
+  const options = { ignition: { x: 1, y: 3 }, wind: { direction: 270, speed: 60 }, seed: 9 };
+  const first = runDisaster(fieldWithRoad(), options);
+  const second = runDisaster(fieldWithRoad(), options);
+  assert.ok(first.steps.some(({ spots }) => spots.length > 0), 'this test needs at least one ember');
+  assert.deepEqual(second, first);
 });
