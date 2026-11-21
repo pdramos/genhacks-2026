@@ -17,6 +17,9 @@ export function createBuildState(village, budget) {
 // Tenta aplicar uma ação no quadrado (x, y).
 export function applyAction(state, x, y, actionName) {
   const action = ACTIONS[actionName];
+  // Não há dinheiro suficiente? Recusa, sem mexer em nada.
+  if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
+
   state.village.tiles[y][x] = action.result;
   state.budget -= action.cost;
   return { ok: true, newType: action.result };

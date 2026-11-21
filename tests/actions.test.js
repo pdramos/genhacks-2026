@@ -39,3 +39,12 @@ test('replaceTrees turns eucalyptus into broadleaf and costs 800', () => {
   assert.equal(tileAt(village, 2, 0), 'broadleaf');
   assert.equal(remainingBudget(state), 200);
 });
+
+test('an action that costs more than the budget is blocked and nothing changes', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 700);
+  const result = applyAction(state, 2, 0, 'replaceTrees'); // custa 800, só há 700
+  assert.deepEqual(result, { ok: false, reason: 'not-enough-money' });
+  assert.equal(tileAt(village, 2, 0), 'eucalyptus');
+  assert.equal(remainingBudget(state), 700);
+});
