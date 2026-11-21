@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Style gallery</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #cfe8ff; font-family: system-ui, sans-serif; }
+    #label { position: fixed; left: 12px; top: 12px; padding: 6px 10px; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="label"></div>
+  <script type="module">
+    // Galeria para ver TODAS as peças de um estilo lado a lado: gallery.html?style=portugal
+    // Linha 1: casas · Linha 2: escola · Linha 3: árvores coníferas · Linha 4: folhosas · Linha 5: arbustos
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    const name = new URLSearchParams(location.search).get('style') || 'basic';
+    const style = await import(`./styles/${name}.js`);
+    document.getElementById('label').textContent = `Style: ${name}`;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    document.body.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcfe8ff);
+    const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(5.5, 5.5, 8.5);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(3.5, 0.3, 2);
+    scene.add(new THREE.HemisphereLight(0xdfefff, 0x5a4a30, 1.2));
+    const sun = new THREE.DirectionalLight(0xfff2d6, 2.2);
+    sun.position.set(-6, 12, 8); sun.castShadow = true;
+    Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10 });
+    sun.shadow.mapSize.set(2048, 2048);
+    scene.add(sun);
+    const ground = new THREE.Mesh(new THREE.BoxGeometry(9, 0.2, 6), new THREE.MeshStandardMaterial({ color: style.palette.grass }));
+    ground.position.set(3.5, -0.1, 2); ground.receiveShadow = true; scene.add(ground);
+
+    let s = 7;
+    const rand = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    const animated = [];
+    const rows = [
+      () => style.buildHouse(rand), () => style.buildSchool(rand),
+      () => style.buildTree('conifer', rand), () => style.buildTree('broadleaf', rand), () => style.buildBush(rand),
+    ];
+    rows.forEach((make, row) => {
+      const count = row === 1 ? 2 : 8;
+      for (let i = 0; i < count; i++) {
+        const o = make();
+        o.position.set(i, 0, row * 1.0);
+        scene.add(o);
+        o.traverse((c) => { if (c.userData.animate) animated.push(c); });
+      }
+    });
+    renderer.setAnimationLoop((t) => {
+      animated.forEach((o) => o.userData.animate(t / 1000));
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>
