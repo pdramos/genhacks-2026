@@ -1,5 +1,8 @@
 // O incêndio: regras de como o fogo passa de um quadrado para os vizinhos.
 // Só regras e números, sem desenho. A interface (src/render) apenas "reproduz" o resultado.
+// As regras: inflamabilidade de cada tipo, vento (a favor = mais depressa), declive
+// (a subir = mais depressa), brasas que saltam 2-3 quadrados com vento forte, e cada
+// quadrado arde um número de passos com um pouco de acaso.
 import { createRandom } from './random.js';
 
 // Facilidade com que cada tipo de quadrado pega fogo (0 = nunca, 1 = muito fácil).
@@ -77,8 +80,9 @@ export function chancePerStep(wholeChance, totalSteps) {
   return 1 - Math.pow(1 - wholeChance, 1 / totalSteps);
 }
 
-// Quantos passos (de 10 minutos) cada tipo fica a arder antes de ficar queimado.
-// As árvores ardem mais tempo do que a relva.
+// Quantos passos (de 10 minutos) cada tipo fica a arder antes de ficar queimado, em média.
+// As árvores ardem mais tempo do que a relva. Cada quadrado arde 1 passo a menos,
+// igual ou 1 passo a mais (ver burnSteps), nunca menos de 1.
 export const BURN_STEPS = {
   eucalyptus: 4,
   broadleaf: 4,
@@ -104,6 +108,10 @@ const NEIGHBOURS = [
 //         para o vento mudar com o tempo (stepIndex 0 = primeiros 10 minutos)
 // - seed: semente do acaso (o mesmo seed dá sempre o mesmo fogo)
 // - k: quanto o vento conta; maxSteps: número máximo de passos (144 passos = 24 horas)
+// Cada passo (snapshot) é { step, burning: [[x,y]...], burned: [[x,y]...],
+//   intensity: { "x,y": 0..1 } (força do fogo em cada quadrado a arder),
+//   spots: [[fromX, fromY, toX, toY]...] (brasas que saltaram neste passo) }.
+// village.heights (opcional) dá o relevo; sem ele, o terreno é plano.
 export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, maxSteps = 144 }) {
   const windAt = typeof wind === 'function' ? wind : () => wind;
 
