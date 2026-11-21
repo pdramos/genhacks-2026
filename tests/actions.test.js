@@ -107,3 +107,19 @@ test('undo on a tile that was never changed fails and gives no money', () => {
   assert.equal(tileAt(village, 4, 1), 'firebreak');
   assert.equal(remainingBudget(state), 1000);
 });
+
+test('after an undo, the tile cannot be undone again but can take a new action', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 1000);
+  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€500)
+  undoAction(state, 2, 0); // volta a eucalyptus, devolve €500
+
+  // Desfazer outra vez não pode dar dinheiro a dobrar.
+  assert.deepEqual(undoAction(state, 2, 0), { ok: false, reason: 'nothing-to-undo' });
+  assert.equal(remainingBudget(state), 1000);
+
+  // O quadrado ficou livre: aceita uma ação nova e paga o preço dela.
+  assert.deepEqual(applyAction(state, 2, 0, 'replaceTrees'), { ok: true, newType: 'broadleaf' });
+  assert.equal(tileAt(village, 2, 0), 'broadleaf');
+  assert.equal(remainingBudget(state), 200);
+});
