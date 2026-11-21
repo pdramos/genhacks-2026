@@ -16,18 +16,21 @@ import * as THREE from 'three';
 // =====================================================================================
 const COLORS = {
   // pedra e paredes
-  schist: 0x5b5148, quartzite: 0x7a6a58, quoin: 0x8c8378, lintel: 0x9a9287,
-  dryStone: 0x6e6458, dryStoneLight: 0x847a6c,
+  // (as pedras usam uma textura A CORES; estes valores só "tingem" a textura: branco = sem mudança)
+  schist: 0xe4e6ea, quartzite: 0xe8d8c0, quoin: 0x8c8378, lintel: 0x9a9287,
+  dryStone: 0xd8d0c4, dryStoneLight: 0xf2ece4,
   lime: 0xf2efe6, render: 0xefece3, schoolWhite: 0xf3f0e8,
-  granite: 0xa39d92, plinth: 0x9a948a,
+  paleOchre: 0xf0dca0, palePink: 0xf2d3c8,                    // casas caiadas pintadas de cor
+  granite: 0xa39d92, plinth: 0x9a948a, yardEarth: 0xcdbb96,
   // telhados
-  tile: 0xb4532f, tileSun: 0xc46a3f, tileMoss: 0x8e4a30, ridge: 0x9a4329, marseille: 0xb85a35,
-  slate: 0x45413e, slateRidge: 0x3a3735, metal: 0x7e7f7a, rust: 0x8a4b2a,
+  tile: 0xb4532f, tileSun: 0xcf8458, tileMoss: 0x86523c, ridge: 0x8a3a24, marseille: 0xb85a35,
+  slate: 0x6a6560, slateRidge: 0x4a4745, metal: 0x7e7f7a, rust: 0x8a4b2a,
   // barras pintadas (à volta da base e das janelas)
   ochre: 0xd9a441, cobalt: 0x2f6ea5, slateGrey: 0x8d8f8e,
   // madeiras, portas, ferro, vidro
   woodDark: 0x5a3a22, doorPlank: 0x4e3420, shutterTeal: 0x3e6b66, bottleGreen: 0x2e5e3a,
-  brownShutter: 0x6b3e22, balconyWood: 0x6b4a2e, iron: 0x2b2b2b, glass: 0x2b3340, hole: 0x2a2522,
+  brownShutter: 0x6b3e22, balconyWood: 0x6b4a2e, iron: 0x2b2b2b, glass: 0x4a6478, hole: 0x2a2522,
+  oxblood: 0x7a2e22, woodLintel: 0x4a3424, geranium: 0xc8283c,
   // casa de emigrante
   cream: 0xede0c4, salmon: 0xe8b9a0, paleYellow: 0xf1d98b, cladding: 0xc9b9a3,
   rollerBox: 0x5a4636, garage: 0x7a6a58, brick: 0xa0522d, alu: 0xdadada, concrete: 0xb8b4ac,
@@ -53,8 +56,8 @@ const COLORS = {
 // O aceiro (firebreak) e o terreno limpo (cleared) são as defesas do jogador, por isso
 // têm de se ver bem: aceiro = terra raspada clara; limpo = restolho baixo verde-acinzentado.
 export const palette = {
-  grass: 0xb9a35a, brush: 0x7c7448, dirt: 0x8a6e52, road: 0x4a4a4c,
-  cleared: 0x8a9a5c, firebreak: 0xd6c7a6, water: 0x3b6b70, burned: 0x2a2522,
+  grass: 0xb0a46c, brush: 0x6e6a3c, dirt: 0x8a6e52, road: 0x4a4a4c,
+  cleared: 0x9aa86a, firebreak: 0xe2d5b4, water: 0x4a8f98, burned: 0x2a2522,
 };
 
 // =====================================================================================
@@ -75,7 +78,7 @@ function canvasTexture(width, height, draw, isColor = false) {
   draw(canvas.getContext('2d'), width, height);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 4;
+  tex.anisotropy = 8;                                 // textura nítida mesmo vista de lado
   if (isColor) tex.colorSpace = THREE.SRGBColorSpace; // imagem com cores "a sério" (bandeira, azulejo)
   return tex;
 }
@@ -103,7 +106,7 @@ function jagged(radius, detail, amount, salt) {
 
 // Caixa com a textura de pedra SEMPRE do mesmo tamanho (uma chaminé fina e uma parede comprida
 // mostram pedras iguais). A textura repete-se a cada STONE_TILE unidades. Guardadas em memória.
-const STONE_TILE = 0.7;
+const STONE_TILE = 0.6;
 const stoneBoxCache = new Map();
 function stoneBoxGeometry(sx, sy, sz) {
   const key = [sx, sy, sz].map((n) => n.toFixed(4)).join(',');
@@ -218,51 +221,164 @@ const gray = (v) => {
   return `rgb(${n},${n},${n})`;
 };
 
-// Pedra de xisto: lajes compridas e MUITO finas, deitadas, com juntas escuras de barro.
-// Umas lajes são muito escuras, outras claras. A imagem repete-se sem se notar a costura.
-const stoneTex = canvasTexture(128, 128, (ctx, w, h) => {
+// Um cinzento meio transparente (a = 0 invisível, 1 tapa tudo).
+const grayA = (v, a) => {
+  const n = Math.round(v * 255);
+  return `rgba(${n},${n},${n},${a})`;
+};
+
+// Desenha um polígono fechado a partir de uma lista de cantos [[x, y], ...].
+function polygon(ctx, corners, dx = 0) {
+  ctx.beginPath();
+  corners.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x + dx, y) : ctx.lineTo(x + dx, y)));
+  ctx.closePath();
+}
+
+// Desenha uma linha de A até B (para as arestas claras/escuras das lajes).
+function line(ctx, [ax, ay], [bx, by], color, dx = 0) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(ax + dx, ay);
+  ctx.lineTo(bx + dx, by);
+  ctx.stroke();
+}
+
+// Pedra de xisto A CORES: lajes deitadas, tortas e de tamanhos diferentes, com juntas escuras.
+// Há lajes cinzentas, castanhas, cor de ferrugem e cinzento-azuladas (como o xisto a sério).
+// A imagem repete-se sem se notar a costura.
+const SCHIST_TONES = ['#6f655a', '#7d7062', '#8f8274', '#6a5a4a', '#a58566', '#5e5a5c'];
+const stoneTex = canvasTexture(256, 256, (ctx, w, h) => {
   const r = seeded(11);
-  ctx.fillStyle = gray(0.22);
+  ctx.fillStyle = '#3a322c';
   ctx.fillRect(0, 0, w, h);                                  // juntas de barro (escuras)
+  const jitter = () => (r() - 0.5) * 3;                      // mexe um canto até 1.5 px
   let y = 0;
   while (y < h) {
-    let rowH = 4 + Math.floor(r() * 5);                      // altura da fiada: 4 a 8 píxeis
-    if (h - y < 10) rowH = h - y;                            // a última fiada fecha a imagem certinha
+    let rowH = 10 + Math.floor(r() * 9);                     // fiada normal: 10 a 18 px
+    if (r() < 0.15) rowH = 18 + Math.floor(r() * 9);         // às vezes uma laje grossa: 18 a 26 px
+    if (h - y - rowH < 10) rowH = h - y;                     // a última fiada fecha a imagem certinha
     const start = Math.floor(r() * w);
     let x = start;
     while (x < start + w) {
-      const stoneW = Math.min(18 + Math.floor(r() * 43), start + w - x);   // 18 a 60 píxeis
-      const v = r();
-      let tone;
-      if (v < 0.1) tone = 0.35;                              // laje muito escura
-      else if (v < 0.7) tone = 0.62 + r() * 0.13;            // laje normal
-      else tone = 0.85 + r() * 0.15;                         // laje clara
-      ctx.fillStyle = gray(tone);
-      ctx.fillRect(x + 1, y + 1, stoneW - 1, rowH - 1);
-      ctx.fillRect(x + 1 - w, y + 1, stoneW - 1, rowH - 1);  // a parte que dá a volta à imagem
+      const stoneW = Math.min(16 + Math.floor(r() * 65), start + w - x);   // 16 a 80 px
+      const gap = 1 + Math.floor(r() * 2);                   // junta de 1 a 2 px
+      const tilt = (r() - 0.5) * 4;                          // a aresta de cima fica torta (±2 px)
+      const top = y + gap;
+      const bottom = y + rowH - 1;
+      const corners = [
+        [x + gap + jitter(), top + tilt + jitter()],         // cima-esquerda
+        [x + stoneW + jitter(), top - tilt + jitter()],      // cima-direita
+        [x + stoneW + jitter(), bottom + jitter()],          // baixo-direita
+        [x + gap + jitter(), bottom + jitter()],             // baixo-esquerda
+      ];
+      ctx.fillStyle = SCHIST_TONES[Math.floor(r() * SCHIST_TONES.length)];   // um tom ao calhas
+      for (const dx of [0, -w]) {                            // dx = -w: a parte que dá a volta
+        polygon(ctx, corners, dx);
+        ctx.fill();
+        line(ctx, corners[0], corners[1], 'rgba(255,240,220,0.25)', dx);   // luz na aresta de cima
+        line(ctx, corners[3], corners[2], 'rgba(0,0,0,0.35)', dx);         // sombra na aresta de baixo
+      }
       x += stoneW;
     }
     y += rowH;
   }
+}, true);
+
+// Cal: uma máscara cinzenta quase branca, com manchas suaves e escorridos da chuva.
+// Não tem faixa de humidade em baixo, porque a imagem repete-se pela parede acima.
+const limewashTex = canvasTexture(128, 128, (ctx, w, h) => {
+  const r = seeded(17);
+  ctx.fillStyle = gray(0.97);
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 40; i++) {                             // 40 manchas redondas e suaves
+    const cx = r() * w, cy = r() * h;
+    const radius = 6 + r() * 14;
+    const tone = 0.9 + r() * 0.1;
+    for (const [dx, dy] of [[0, 0], [-w, 0], [w, 0], [0, -h], [0, h]]) {   // repete nas bordas
+      const grad = ctx.createRadialGradient(cx + dx, cy + dy, 0, cx + dx, cy + dy, radius);
+      grad.addColorStop(0, grayA(tone, 0.8));
+      grad.addColorStop(1, grayA(tone, 0));
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx + dx - radius, cy + dy - radius, radius * 2, radius * 2);
+    }
+  }
+  ctx.fillStyle = gray(0.92);
+  for (let i = 0; i < 6; i++) {                              // 6 escorridos finos ao alto
+    const x = Math.floor(r() * w);
+    const top = Math.floor(r() * h);
+    const len = 30 + Math.floor(r() * 60);
+    const width = 1 + Math.floor(r() * 2);
+    ctx.fillRect(x, top, width, len);
+    ctx.fillRect(x, top - h, width, len);                    // a parte que dá a volta (em cima)
+  }
 });
 
-// Telha: canais redondos (telha de canudo) que descem o telhado, e filas de telhas.
+// Telha de canudo: alternam "capas" (telhas viradas para cima, redondas e claras) com
+// "canais" (telhas côncavas, mais escuras). Cada fila fica desencontrada meia telha.
 const roofTex = canvasTexture(128, 64, (ctx, w) => {
   const r = seeded(23);
-  const channel = 8;                                         // largura de cada canal (px)
+  const channel = 8;                                         // 4 px de capa + 4 px de canal
   for (let row = 0; row < 4; row++) {
+    const shift = (row % 2) * (channel / 2);                 // desencontrar as filas
     for (let c = 0; c < w / channel; c++) {
-      const age = 0.86 + r() * 0.14;                         // cada telha é um pouco diferente
+      const capTone = 0.95 + r() * 0.05;
+      const panTone = 0.65 + r() * 0.1;
       for (let px = 0; px < channel; px++) {
-        const round = 0.6 + 0.4 * Math.sin((Math.PI * (px + 0.5)) / channel);
-        ctx.fillStyle = gray(round * age);
-        ctx.fillRect(c * channel + px, row * 16, 1, 16);
+        const isCap = px < channel / 2;
+        const k = px % (channel / 2);
+        const round = Math.sin((Math.PI * (k + 0.5)) / (channel / 2));   // 0 nas bordas, 1 no meio
+        const tone = isCap ? capTone * (0.75 + 0.25 * round) : panTone * (1 - 0.1 * round);
+        ctx.fillStyle = gray(tone);
+        ctx.fillRect((c * channel + px + shift) % w, row * 16, 1, 16);
       }
     }
     ctx.fillStyle = gray(0.42);
     ctx.fillRect(0, row * 16 + 14, w, 2);                    // sombra da fila de cima
   }
+  ctx.fillStyle = grayA(0.55, 0.6);
+  for (let i = 0; i < 4; i++) {                              // 4 manchas escorridas (sujidade, líquenes)
+    const x = Math.floor(r() * w);
+    ctx.fillRect(x, Math.floor(r() * 20), 1 + Math.floor(r() * 2), 20 + Math.floor(r() * 30));
+  }
 });
+
+// Lousa (telhado de serra): placas escuras desencontradas, com a aresta de baixo mais clara.
+const slateTex = canvasTexture(128, 64, (ctx, w, h) => {
+  const r = seeded(41);
+  ctx.fillStyle = gray(0.45);
+  ctx.fillRect(0, 0, w, h);                                  // juntas entre placas
+  const rows = Math.round(h / 10);                           // fiadas de ~10 px
+  for (let row = 0; row < rows; row++) {
+    const y0 = Math.round((row * h) / rows);
+    const y1 = Math.round(((row + 1) * h) / rows);
+    const start = Math.floor(r() * w);
+    let x = start;
+    while (x < start + w) {
+      const plateW = Math.min(12 + Math.floor(r() * 13), start + w - x);  // 12 a 24 px
+      const tone = 0.7 + r() * 0.25;
+      for (const dx of [0, -w]) {
+        ctx.fillStyle = gray(tone);
+        ctx.fillRect(x + dx, y0, plateW - 2, y1 - y0 - 1);    // a placa (2 px de junta ao lado)
+        ctx.fillStyle = gray(1.0);
+        ctx.fillRect(x + dx, y1 - 2, plateW - 2, 1);           // aresta de baixo, mais clara
+      }
+      x += plateW;
+    }
+  }
+});
+
+// Azulejo de fachada (casa de emigrante): quadradinhos de 7 px com 1 px de junta.
+function claddingTex(tileColor, groutColor) {
+  return canvasTexture(128, 128, (ctx, w, h) => {
+    ctx.fillStyle = groutColor;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = tileColor;
+    for (let y = 0; y < h; y += 8) {
+      for (let x = 0; x < w; x += 8) ctx.fillRect(x, y, 7, 7);
+    }
+  }, true);
+}
 
 // Casca do pinheiro-bravo: laranja-avermelhada com fendas escuras ao comprido.
 const pineBarkTex = canvasTexture(32, 64, (ctx, w, h) => {
@@ -333,10 +449,23 @@ const flagTex = canvasTexture(120, 80, (ctx, w, h) => {
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...opts });
 
-// Materiais com textura cinzenta: a textura escurece, por isso clareamos a cor antes.
+// Pedra: a textura já tem as cores; a cor do material só a "tinge" (branco = cores originais).
 // userData.stone = true avisa o ajudante box() para usar pedras sempre do mesmo tamanho.
-function stoneMat(color) {
-  const m = mat(new THREE.Color(color).multiplyScalar(1.5), { map: stoneTex, roughness: 0.95 });
+function stoneMat(tint) {
+  const m = mat(tint, { map: stoneTex, roughness: 0.95 });
+  m.userData.stone = true;
+  return m;
+}
+// Parede caiada ou pintada: a textura de cal (cinzenta) escurece um bocadinho, por isso
+// clareamos a cor 6%. Também usa userData.stone para as manchas terem sempre o mesmo tamanho.
+function limeMat(color) {
+  const m = mat(new THREE.Color(color).multiplyScalar(1.06), { map: limewashTex });
+  m.userData.stone = true;
+  return m;
+}
+// Fachada de azulejo (casa de emigrante): brilha um pouco, como o azulejo verdadeiro.
+function claddingMat(tileColor, groutColor) {
+  const m = mat(0xffffff, { map: claddingTex(tileColor, groutColor), roughness: 0.35 });
   m.userData.stone = true;
   return m;
 }
@@ -346,25 +475,28 @@ const MATERIALS = {
   // pedra e paredes
   schist: stoneMat(COLORS.schist), quartzite: stoneMat(COLORS.quartzite),
   dryStone: stoneMat(COLORS.dryStone), dryStoneLight: stoneMat(COLORS.dryStoneLight),
-  quoin: mat(COLORS.quoin), lintel: mat(COLORS.lintel),
-  lime: mat(COLORS.lime), render: mat(COLORS.render), schoolWhite: mat(COLORS.schoolWhite),
-  granite: mat(COLORS.granite), plinth: mat(COLORS.plinth),
+  quoin: mat(COLORS.quoin), lintel: mat(COLORS.lintel), woodLintel: mat(COLORS.woodLintel),
+  lime: limeMat(COLORS.lime), render: limeMat(COLORS.render), schoolWhite: limeMat(COLORS.schoolWhite),
+  paleOchre: limeMat(COLORS.paleOchre), palePink: limeMat(COLORS.palePink),
+  granite: mat(COLORS.granite), plinth: mat(COLORS.plinth), yardEarth: mat(COLORS.yardEarth),
   // telhados
   tile: roofMat(COLORS.tile), tileSun: roofMat(COLORS.tileSun), tileMoss: roofMat(COLORS.tileMoss),
-  marseille: roofMat(COLORS.marseille), slate: roofMat(COLORS.slate),
+  marseille: roofMat(COLORS.marseille), slate: mat(COLORS.slate, { map: slateTex }),
   metal: roofMat(COLORS.metal), rust: roofMat(COLORS.rust),
   ridge: mat(COLORS.ridge), slateRidge: mat(COLORS.slateRidge),
   // barras, madeiras, ferro, vidro
   ochre: mat(COLORS.ochre), cobalt: mat(COLORS.cobalt), slateGrey: mat(COLORS.slateGrey),
   woodDark: mat(COLORS.woodDark), doorPlank: mat(COLORS.doorPlank), shutterTeal: mat(COLORS.shutterTeal),
   bottleGreen: mat(COLORS.bottleGreen), brownShutter: mat(COLORS.brownShutter),
-  balconyWood: mat(COLORS.balconyWood),
+  balconyWood: mat(COLORS.balconyWood), oxblood: mat(COLORS.oxblood),
   iron: mat(COLORS.iron, { roughness: 0.6, metalness: 0.4 }),
-  glass: mat(COLORS.glass, { roughness: 0.25, metalness: 0.2 }),
+  glass: mat(COLORS.glass, { roughness: 0.15, metalness: 0.1 }),   // reflete o céu
   hole: mat(COLORS.hole),
+  geranium: mat(COLORS.geranium),
   // casa de emigrante
-  cream: mat(COLORS.cream), salmon: mat(COLORS.salmon), paleYellow: mat(COLORS.paleYellow),
-  cladding: mat(COLORS.cladding), rollerBox: mat(COLORS.rollerBox), garage: mat(COLORS.garage),
+  cream: limeMat(COLORS.cream), salmon: limeMat(COLORS.salmon), paleYellow: limeMat(COLORS.paleYellow),
+  claddingBeige: claddingMat('#d8cbb5', '#b8a088'), claddingBlue: claddingMat('#e8eef5', '#6a8fc0'),
+  rollerBox: mat(COLORS.rollerBox), garage: mat(COLORS.garage),
   brick: mat(COLORS.brick), alu: mat(COLORS.alu, { metalness: 0.3 }), concrete: mat(COLORS.concrete),
   // escola
   white: mat(COLORS.white), pole: mat(COLORS.pole, { metalness: 0.3 }),
@@ -417,7 +549,28 @@ const GEOMETRIES = {
   chestnutTrunk: new THREE.CylinderGeometry(0.08, 0.11, 1, 6, 1, true),
   oliveTrunk: new THREE.CylinderGeometry(0.022, 0.038, 1, 5, 1, true),
   flagPole: new THREE.CylinderGeometry(0.008, 0.011, 1, 6),
+  // pormenores à volta das casas
+  vase: new THREE.CylinderGeometry(0.022, 0.016, 0.04, 6),          // vaso de barro
+  geranium: new THREE.IcosahedronGeometry(0.014, 0),                // flor de sardinheira
+  log: new THREE.CylinderGeometry(0.014, 0.014, 0.14, 5).rotateX(Math.PI / 2),   // lenha, deitada ao longo de z
+  finial: new THREE.SphereGeometry(0.015, 6, 4),                    // bola dourada do portão
+  // sombra suave no chão debaixo da casa: um quadrado deitado
+  contactShadow: new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
 };
+
+// Sombra de contacto: uma mancha escura no meio que desaparece nas bordas.
+// Faz a casa "assentar" no chão em vez de parecer que flutua.
+const contactShadowTex = canvasTexture(64, 64, (ctx, w, h) => {
+  const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+  grad.addColorStop(0, 'rgba(0,0,0,0.45)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+});
+const contactShadowMat = new THREE.MeshBasicMaterial({
+  map: contactShadowTex, transparent: true, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,   // fica sempre por cima do chão
+});
 
 // =====================================================================================
 // 6. AJUDANTES
@@ -425,10 +578,10 @@ const GEOMETRIES = {
 const pick = (rand, list) => list[Math.floor(rand() * list.length)];
 const UP = new THREE.Vector3(0, 1, 0);
 
-// Liga sombras em todas as peças do grupo.
+// Liga sombras em todas as peças do grupo (menos nas marcadas com userData.noShadow).
 function shadows(group) {
   group.traverse((o) => {
-    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    if (o.isMesh && !o.userData.noShadow) { o.castShadow = true; o.receiveShadow = true; }
   });
   return group;
 }
@@ -495,16 +648,55 @@ function onWall(g, wall, face, along, y, w, h, out, material) {
   return box(g, material, depth, h, w, -side, y, along);
 }
 
-// Janela ou porta: moldura (opcional) + enchimento (vidro, portada fechada ou porta)
-// + verga de granito por cima (opcional) + grade de ferro (opcional).
+// Janela ou porta. Peças (quase todas opcionais):
+//   moldura de 4 barras à volta (opts.frame), que sai MAIS da parede do que o enchimento,
+//   por isso a janela parece "funda"; enchimento (vidro, portada fechada ou porta);
+//   peitoril por baixo (só janelas); cruz de caixilhos (só vidro); portadas abertas
+//   (opts.openShutters); verga por cima (opts.lintel); grade de ferro (opts.grille).
+//   Portas (opts.door): uma frincha ao meio (porta de 2 folhas) e uma soleira de granito.
 function opening(g, wall, face, along, y, w, h, fill, opts = {}) {
+  const f = opts.frame ? (opts.frameSize ?? 0.02) : 0;
   if (opts.frame) {
-    const f = opts.frameSize ?? 0.02;
-    onWall(g, wall, face, along, y, w + 2 * f, h + 2 * f, 0.009, opts.frame);
+    onWall(g, wall, face, along, y + (h / 2 + f / 2), w + 2 * f, f, 0.022, opts.frame);   // cima
+    onWall(g, wall, face, along, y - (h / 2 + f / 2), w + 2 * f, f, 0.022, opts.frame);   // baixo
+    onWall(g, wall, face, along - (w / 2 + f / 2), y, f, h, 0.022, opts.frame);           // esquerda
+    onWall(g, wall, face, along + (w / 2 + f / 2), y, f, h, 0.022, opts.frame);           // direita
   }
-  onWall(g, wall, face, along, y, w, h, 0.016, fill);
+  onWall(g, wall, face, along, y, w, h, opts.frame ? 0.006 : 0.016, fill);
+  const isGlass = fill === MATERIALS.glass;
+  if (!opts.door) {
+    // peitoril: uma laje que sai da parede por baixo da janela
+    const sill = opts.sill ?? opts.frame ?? MATERIALS.granite;
+    onWall(g, wall, face, along, y - h / 2 - 0.012, w + 0.04, 0.014, 0.035, sill);
+  }
+  if (isGlass) {
+    // cruz de caixilhos a dividir o vidro em 4
+    const bars = opts.frame ?? MATERIALS.white;
+    onWall(g, wall, face, along, y, 0.007, h, 0.02, bars);
+    onWall(g, wall, face, along, y, w, 0.007, 0.02, bars);
+  }
+  if (opts.openShutters && isGlass && shuttersFit(wall, face, along, w, f)) {
+    // 2 portadas abertas, encostadas à parede de cada lado da janela
+    for (const side of [-1, 1]) {
+      const leafAlong = along + side * (w / 2 + w / 4 + f + 0.004);
+      onWall(g, wall, face, leafAlong, y, w / 2, h, 0.012, opts.openShutters);
+    }
+  }
+  if (opts.door) {
+    onWall(g, wall, face, along, y, 0.004, h * 0.9, 0.02, MATERIALS.hole);               // frincha
+    const bottom = y - h / 2;
+    if (bottom < 0.05) {                                                                  // só portas do rés-do-chão
+      onWall(g, wall, face, along, bottom + 0.01, w + 0.04, 0.02, 0.04, MATERIALS.granite);   // soleira
+    }
+  }
   if (opts.lintel) onWall(g, wall, face, along, y + h / 2 + 0.018, w + 0.05, 0.03, 0.02, opts.lintel);
   if (opts.grille) onWall(g, wall, face, along, y, 0.012, h, 0.022, opts.grille);
+}
+
+// As portadas abertas cabem na parede? (não podem passar da esquina da casa)
+function shuttersFit(wall, face, along, w, f) {
+  const halfWall = (face === 'front' || face === 'back' ? wall.w : wall.d) / 2;
+  return Math.abs(along) + w + f + 0.004 <= halfWall - 0.005;
 }
 
 // Paredes = uma caixa só.
@@ -535,7 +727,7 @@ function gableRoof(g, wall, eave, pitchDeg, overhang, roofMaterial, gableMateria
   const gable = new THREE.Mesh(gableGeo, gableMaterial);
   gable.position.y = eave;
   g.add(gable);
-  const thick = 0.025;
+  const thick = 0.04;
   const run = wall.d / 2 + overhang;                     // distância na horizontal da cumeeira ao beiral
   const L = run / Math.cos(a);                           // comprimento da água (a descer)
   const len = wall.w + 2 * overhang;
@@ -544,8 +736,11 @@ function gableRoof(g, wall, eave, pitchDeg, overhang, roofMaterial, gableMateria
     const z = side * ((L / 2) * Math.cos(a) + (thick / 2) * Math.sin(a));
     const slab = box(g, roofMaterial, len, thick, L, 0, y, z);
     slab.rotation.x = side * a;
+    // beirado: a faixa branca de cal mesmo por baixo da ponta do telhado
+    const eaveY = eave - overhang * Math.tan(a) - 0.012;
+    box(g, MATERIALS.lime, len, 0.025, 0.03, 0, eaveY, side * (wall.d / 2 + overhang - 0.012));
   }
-  box(g, ridgeMaterial, len, 0.03, 0.05, 0, eave + rise + thick * 0.8, 0);
+  box(g, ridgeMaterial, len, 0.045, 0.07, 0, eave + rise + thick * 0.8, 0);
   const surfaceY = (x, z) => eave + rise * (1 - Math.abs(z) / (wall.d / 2)) + thick / Math.cos(a);
   return { eave, surfaceY };
 }
@@ -559,6 +754,12 @@ function hipRoof(g, wall, eave, pitchDeg, overhang, roofMaterial, ridgeMaterial)
   roof.position.y = eave;
   g.add(roof);
   if (r > 0) box(g, ridgeMaterial, 2 * r + 0.03, 0.025, 0.035, 0, eave + h, 0);
+  // faixa branca (beirado) à volta, logo por baixo da ponta do telhado
+  const o = overhang, fasciaY = eave - 0.015;
+  for (const s of [-1, 1]) {
+    box(g, MATERIALS.lime, wall.w + 2 * o, 0.03, 0.02, 0, fasciaY, s * (wall.d / 2 + o - 0.01));
+    box(g, MATERIALS.lime, 0.02, 0.03, wall.d + 2 * o, s * (wall.w / 2 + o - 0.01), fasciaY, 0);
+  }
   const surfaceY = (x, z) => eave + h * (1 - Math.max(Math.abs(z), Math.abs(x) - r) / run);
   return { eave, surfaceY };
 }
@@ -603,9 +804,94 @@ export function buildHouse(rand) {
   else if (r < 0.73) house = graniteTrimHouse(rand); // casa rebocada com cantaria de granito
   else if (r < 0.9) house = emigrantHouse(rand);     // casa de emigrante (anos 70-90)
   else house = ruinedShed(rand);                     // palheiro abandonado
+  groundHouse(house, house.userData.lot);
   mergeByMaterial(house);
   house.rotation.y = Math.floor(rand() * 4) * (Math.PI / 2);
   return shadows(house);
+}
+
+// "Assenta" a casa no chão: um quintal de terra batida, um caminho de lajes até à porta
+// e uma sombra suave por baixo. lot = { w, d, doorX, frontZ } (e noPath = sem caminho).
+function groundHouse(house, lot) {
+  box(house, MATERIALS.yardEarth, 0.84, 0.012, 0.84, 0, 0.006, 0);         // terra batida
+  if (!lot.noPath) {
+    for (const dz of [0.07, 0.17, 0.27]) {                                  // lajes de granito
+      const z = lot.frontZ + dz;
+      if (z <= 0.42) box(house, MATERIALS.granite, 0.1, 0.01, 0.08, lot.doorX, 0.015, z);
+    }
+  }
+  const shadow = new THREE.Mesh(GEOMETRIES.contactShadow, contactShadowMat);
+  shadow.position.y = 0.014;
+  shadow.scale.set(lot.w + 0.2, 1, lot.d + 0.2);
+  shadow.renderOrder = 1;                       // desenhada depois do chão
+  shadow.userData.keepSeparate = true;          // não juntar com as outras peças
+  shadow.userData.noShadow = true;              // uma sombra não faz sombra
+  house.add(shadow);
+}
+
+// Pormenores à volta da casa (também mostram que há "combustível" junto às casas: a lenha!).
+// Escolhe 2 coisas diferentes ao calhas. O estendal só aparece se não houver socalco atrás.
+function props(g, rand, lot) {
+  const choices = ['vases', 'woodpile', 'bench'];
+  if (!lot.terrace) choices.push('laundry');
+  for (let i = 0; i < 2; i++) {
+    const index = Math.floor(rand() * choices.length);
+    const choice = choices.splice(index, 1)[0];       // tira-a da lista: não se repete
+    if (choice === 'vases') vases(g, lot);
+    if (choice === 'woodpile') woodpile(g, lot);
+    if (choice === 'bench') stoneBench(g, lot);
+    if (choice === 'laundry') laundryLine(g, lot);
+  }
+}
+
+// Um objeto com geometria própria (vaso, flor, lenha...) no ponto (x, y, z).
+function place(g, geo, material, x, y, z) {
+  const m = new THREE.Mesh(geo, material);
+  m.position.set(x, y, z);
+  g.add(m);
+  return m;
+}
+
+// 2 vasos de barro com sardinheiras vermelhas, um de cada lado da porta.
+function vases(g, lot) {
+  for (const side of [-1, 1]) {
+    const x = lot.doorX + side * 0.13;
+    const z = lot.frontZ + 0.03;
+    place(g, GEOMETRIES.vase, MATERIALS.tile, x, 0.02, z);
+    place(g, GEOMETRIES.geranium, MATERIALS.geranium, x - 0.007, 0.047, z);
+    place(g, GEOMETRIES.geranium, MATERIALS.geranium, x + 0.008, 0.05, z + 0.004);
+  }
+}
+
+// Monte de lenha encostado à parede da esquerda: 3 camadas de troncos deitados.
+// Só pomos os troncos que cabem entre a parede e a borda do quadrado.
+function woodpile(g, lot) {
+  const outer = Math.max(-(lot.w / 2 + 0.03), -0.43);   // tronco mais afastado da parede
+  for (let layer = 0; layer < 3; layer++) {
+    for (let i = 0; i < 4 - layer; i++) {               // em cima há menos troncos (monte)
+      const x = outer + i * 0.028;
+      if (x + 0.014 > -lot.w / 2) break;                 // já ia entrar na parede
+      place(g, GEOMETRIES.log, MATERIALS.woodDark, x, 0.026 + layer * 0.025, 0.05);
+    }
+  }
+}
+
+// Banco de pedra ao lado da porta (assento de granito em 2 pés).
+function stoneBench(g, lot) {
+  let x = lot.doorX + 0.23;
+  if (x > 0.3) x = lot.doorX - 0.23;                     // não cabe à direita: vai para a esquerda
+  const z = lot.frontZ + 0.035;
+  box(g, MATERIALS.granite, 0.14, 0.025, 0.04, x, 0.045, z);
+  for (const dx of [-0.05, 0.05]) box(g, MATERIALS.granite, 0.02, 0.035, 0.035, x + dx, 0.0175, z);
+}
+
+// Estendal atrás da casa: 2 postes, um fio e 3 peças de roupa.
+function laundryLine(g, lot) {
+  const z = -(lot.d / 2 + 0.08);
+  for (const x of [-0.22, 0.22]) box(g, MATERIALS.woodDark, 0.01, 0.25, 0.01, x, 0.125, z);
+  box(g, MATERIALS.iron, 0.44, 0.003, 0.003, 0, 0.24, z);
+  const clothes = [MATERIALS.white, MATERIALS.cobalt, MATERIALS.salmon];
+  clothes.forEach((cloth, i) => box(g, cloth, 0.04, 0.05, 0.004, -0.1 + i * 0.1, 0.21, z));
 }
 
 // H1 — Casa de xisto: pedra escura à vista, janelas pequeninas, escada de pedra por fora.
@@ -621,29 +907,42 @@ function schistCottage(rand) {
     ? MATERIALS.slate
     : pick(rand, [MATERIALS.tile, MATERIALS.tileSun, MATERIALS.tileMoss]);
   const ridge = mountain ? MATERIALS.slateRidge : MATERIALS.ridge;
-  const roof = gableRoof(g, wall, eave, mountain ? 22 : 25, 0.04, roofMaterial, stone, ridge);
+  const overhang = Math.min(0.07, (0.9 - wall.w) / 2);           // o telhado nunca passa de 0.9
+  const roof = gableRoof(g, wall, eave, mountain ? 22 : 25, overhang, roofMaterial, stone, ridge);
   const shutter = pick(rand, [MATERIALS.woodDark, MATERIALS.shutterTeal]);
-  const small = { lintel: MATERIALS.lintel };
+  const door = pick(rand, [MATERIALS.doorPlank, MATERIALS.oxblood, MATERIALS.cobalt, MATERIALS.bottleGreen]);
+  // verga de madeira escura por cima e peitoril de pedra clara por baixo
+  const small = { lintel: MATERIALS.woodLintel, sill: MATERIALS.dryStoneLight };
+  const doorOpts = { ...small, door: true };
+  let doorX;
 
   if (tall) {
     outsideStair(g, wall, stone);
-    opening(g, wall, 'front', -0.04, 0.525, 0.14, 0.24, MATERIALS.doorPlank, small);   // porta de cima
-    opening(g, wall, 'front', 0.2, 0.13, 0.14, 0.26, MATERIALS.doorPlank, small);      // loja/curral
+    opening(g, wall, 'front', -0.04, 0.525, 0.14, 0.24, door, doorOpts);              // porta de cima
+    opening(g, wall, 'front', 0.2, 0.13, 0.14, 0.26, MATERIALS.doorPlank, doorOpts);  // loja/curral
     opening(g, wall, 'front', 0.2, 0.62, 0.1, 0.12, shutter, small);
     opening(g, wall, 'back', 0, 0.62, 0.1, 0.12, shutter, small);
     opening(g, wall, 'right', 0, 0.62, 0.1, 0.12, shutter, small);
+    opening(g, wall, 'left', 0, 0.62, 0.1, 0.12, shutter, small);
+    doorX = 0.2;
   } else {
     quoins(g, wall, eave, MATERIALS.quoin, 0.05);
     const sideWindow = rand() < 0.5 ? MATERIALS.glass : shutter;
-    opening(g, wall, 'front', -0.12, 0.13, 0.14, 0.26, MATERIALS.doorPlank, small);
+    const openShutters = rand() < 0.4 ? shutter : null;          // portadas abertas (só se for vidro)
+    opening(g, wall, 'front', -0.12, 0.13, 0.14, 0.26, door, doorOpts);
     opening(g, wall, 'front', 0.16, 0.36, 0.1, 0.12, shutter, small);
     opening(g, wall, 'back', 0.1, 0.36, 0.1, 0.12, shutter, small);
-    opening(g, wall, 'right', 0, 0.38, 0.1, 0.12, sideWindow, small);
+    opening(g, wall, 'right', 0, 0.38, 0.1, 0.12, sideWindow, { ...small, openShutters });
+    opening(g, wall, 'left', 0, 0.38, 0.1, 0.12, shutter, small);
+    doorX = -0.12;
   }
   const side = rand() < 0.5 ? 1 : -1;
-  const chimneyCap = mountain ? MATERIALS.slate : MATERIALS.dryStone;
-  chimney(g, roof, side * 0.22, -0.1, 0.08, 0.12, stone, 'slab', chimneyCap);
-  if (rand() < 0.5) terraceWall(g, rand, 0.84, -0.4);
+  if (mountain) chimney(g, roof, side * 0.22, -0.1, 0.08, 0.12, stone, 'slab', MATERIALS.slate);
+  else chimney(g, roof, side * 0.22, -0.1, 0.08, 0.12, stone, 'hat', MATERIALS.tile);
+  const terrace = rand() < 0.5;
+  if (terrace) terraceWall(g, rand, 0.84, -0.4);
+  g.userData.lot = { w: wall.w, d: wall.d, doorX, frontZ: wall.d / 2, terrace };
+  props(g, rand, g.userData.lot);
   return g;
 }
 
@@ -654,10 +953,14 @@ function outsideStair(g, wall, stone) {
     const h = (i + 1) * 0.078;                        // cada degrau sobe 0.078
     box(g, stone, 0.05, h, 0.12, -0.33 + i * 0.05, h / 2, front);
   }
+  const edge = wall.d / 2 + 0.125;                                                        // borda da varanda
   box(g, MATERIALS.balconyWood, 0.16, 0.03, 0.13, -0.03, 0.375, wall.d / 2 + 0.065);    // estrado
-  box(g, MATERIALS.balconyWood, 0.16, 0.08, 0.012, -0.03, 0.43, wall.d / 2 + 0.125);     // guarda
+  box(g, MATERIALS.balconyWood, 0.16, 0.012, 0.012, -0.03, 0.47, edge);                  // corrimão
+  for (const x of [-0.09, -0.05, -0.01, 0.03]) {                                         // balaústres
+    box(g, MATERIALS.balconyWood, 0.008, 0.07, 0.008, x, 0.425, edge);
+  }
   for (const x of [-0.08, 0.04]) {                                                       // pilares
-    box(g, MATERIALS.balconyWood, 0.02, 0.36, 0.02, x, 0.18, wall.d / 2 + 0.115);
+    box(g, MATERIALS.balconyWood, 0.025, 0.36, 0.025, x, 0.18, wall.d / 2 + 0.115);
   }
 }
 
@@ -666,37 +969,55 @@ function bandedHouse(rand) {
   const g = new THREE.Group();
   const wall = { w: 0.8, d: 0.6 };
   const eave = 0.75;
-  const band = pick(rand, [MATERIALS.ochre, MATERIALS.cobalt, MATERIALS.slateGrey]);
+  // 1 em cada 4 casas é pintada (ocre clarinho ou rosa) com a barra branca; as outras são caiadas
+  const painted = rand() < 0.25;
+  let wallMaterial = MATERIALS.lime;
+  let band;
+  if (painted) {
+    wallMaterial = rand() < 0.5 ? MATERIALS.paleOchre : MATERIALS.palePink;
+    band = MATERIALS.white;
+  } else {
+    band = pick(rand, [MATERIALS.ochre, MATERIALS.cobalt, MATERIALS.slateGrey]);
+  }
   const shutter = pick(rand, [MATERIALS.bottleGreen, MATERIALS.brownShutter]);
-  const door = pick(rand, [MATERIALS.woodDark, MATERIALS.bottleGreen]);
-  walls(g, wall, eave, MATERIALS.lime);
+  const door = pick(rand, [MATERIALS.woodDark, MATERIALS.bottleGreen, MATERIALS.oxblood, MATERIALS.cobalt]);
+  walls(g, wall, eave, wallMaterial);
   box(g, band, wall.w + 0.008, 0.08, wall.d + 0.008, 0, 0.04, 0);   // a barra à volta da base
   const roofMaterial = pick(rand, [MATERIALS.tile, MATERIALS.tileSun, MATERIALS.tileMoss]);
-  const roof = hipRoof(g, wall, eave, 22, 0.04, roofMaterial, MATERIALS.ridge);
+  const roof = hipRoof(g, wall, eave, 22, Math.min(0.07, (0.9 - wall.w) / 2), roofMaterial, MATERIALS.ridge);
   const framed = { frame: band, frameSize: 0.02 };
+  // às vezes as portadas das janelas de vidro estão abertas, encostadas à parede
+  const openShutters = rand() < 0.4 ? shutter : null;
+  const framedOpen = { ...framed, openShutters };
   // janelas: umas com a portada fechada (por causa do calor), outras com o vidro à vista
   const fill = () => (rand() < 0.55 ? shutter : MATERIALS.glass);
 
-  opening(g, wall, 'front', 0, 0.14, 0.14, 0.28, door, framed);
-  opening(g, wall, 'front', -0.25, 0.24, 0.13, 0.18, fill(), framed);
-  opening(g, wall, 'front', 0.25, 0.24, 0.13, 0.18, fill(), framed);
+  opening(g, wall, 'front', 0, 0.14, 0.14, 0.28, door, { ...framed, door: true });
+  opening(g, wall, 'front', -0.24, 0.24, 0.13, 0.18, fill(), framedOpen);
+  opening(g, wall, 'front', 0.24, 0.24, 0.13, 0.18, fill(), framedOpen);
   const balcony = rand() < 0.5;
-  opening(g, wall, 'front', -0.25, 0.56, 0.13, 0.18, fill(), framed);
-  opening(g, wall, 'front', 0.25, 0.56, 0.13, 0.18, fill(), framed);
+  opening(g, wall, 'front', -0.24, 0.56, 0.13, 0.18, fill(), framedOpen);
+  opening(g, wall, 'front', 0.24, 0.56, 0.13, 0.18, fill(), framedOpen);
   if (balcony) {
     // porta-janela com varandim de ferro por cima da porta
     opening(g, wall, 'front', 0, 0.54, 0.13, 0.24, shutter, framed);
     box(g, MATERIALS.iron, 0.2, 0.015, 0.06, 0, 0.415, wall.d / 2 + 0.03);
     box(g, MATERIALS.iron, 0.2, 0.07, 0.008, 0, 0.46, wall.d / 2 + 0.058);
   } else {
+    // a janela do meio fica sem portadas abertas: não haveria espaço entre as janelas
     opening(g, wall, 'front', 0, 0.56, 0.13, 0.18, fill(), framed);
   }
-  opening(g, wall, 'back', -0.2, 0.56, 0.13, 0.18, fill());
-  opening(g, wall, 'back', 0.2, 0.56, 0.13, 0.18, fill());
-  opening(g, wall, 'right', 0, 0.56, 0.13, 0.18, fill(), framed);
+  opening(g, wall, 'back', -0.2, 0.56, 0.13, 0.18, fill(), framed);
+  opening(g, wall, 'back', 0.2, 0.56, 0.13, 0.18, fill(), framed);
+  opening(g, wall, 'back', 0.25, 0.14, 0.12, 0.26, door, { ...framed, door: true });   // porta das traseiras
+  opening(g, wall, 'right', 0, 0.56, 0.13, 0.18, fill(), framedOpen);
+  opening(g, wall, 'left', 0, 0.56, 0.13, 0.18, fill(), framedOpen);
   const chimneyX = (rand() < 0.5 ? 1 : -1) * 0.1;
-  chimney(g, roof, chimneyX, -0.12, 0.07, 0.16, MATERIALS.lime, 'hat', MATERIALS.tile);
-  if (rand() < 0.4) terraceWall(g, rand, 0.84, -0.4);
+  chimney(g, roof, chimneyX, -0.12, 0.07, 0.16, wallMaterial, 'hat', MATERIALS.tile);
+  const terrace = rand() < 0.4;
+  if (terrace) terraceWall(g, rand, 0.84, -0.4);
+  g.userData.lot = { w: wall.w, d: wall.d, doorX: 0, frontZ: wall.d / 2, terrace };
+  props(g, rand, g.userData.lot);
   return g;
 }
 
@@ -708,20 +1029,27 @@ function graniteTrimHouse(rand) {
   const eave = 0.7;
   walls(g, wall, eave, MATERIALS.render);
   quoins(g, wall, eave, MATERIALS.granite, 0.04);
+  box(g, MATERIALS.plinth, wall.w + 0.008, 0.05, wall.d + 0.008, 0, 0.025, 0);   // soco de granito
   const roofMaterial = pick(rand, [MATERIALS.tile, MATERIALS.tileSun, MATERIALS.tileMoss]);
-  const roof = gableRoof(g, wall, eave, 25, 0.04, roofMaterial, MATERIALS.render, MATERIALS.ridge);
-  const stone = { frame: MATERIALS.granite, frameSize: 0.03 };
-  const withGrille = { frame: MATERIALS.granite, frameSize: 0.03, grille: MATERIALS.iron };
+  const overhang = Math.min(0.07, (0.9 - wall.w) / 2);
+  const roof = gableRoof(g, wall, eave, 25, overhang, roofMaterial, MATERIALS.render, MATERIALS.ridge);
   const shutter = rand() < 0.5 ? MATERIALS.brownShutter : MATERIALS.glass;
+  const openShutters = rand() < 0.4 ? MATERIALS.brownShutter : null;
+  const stone = { frame: MATERIALS.granite, frameSize: 0.03, openShutters };
+  const withGrille = { frame: MATERIALS.granite, frameSize: 0.03, grille: MATERIALS.iron };
 
-  opening(g, wall, 'front', -0.2, 0.15, 0.14, 0.3, MATERIALS.brownShutter, stone);   // porta
+  opening(g, wall, 'front', -0.2, 0.15, 0.14, 0.3, MATERIALS.brownShutter, { ...stone, door: true });   // porta
   onWall(g, wall, 'front', 0, 0.32, 0.12, 0.16, 0.012, MATERIALS.azulejo);            // azulejos
   opening(g, wall, 'front', 0.22, 0.24, 0.13, 0.17, MATERIALS.glass, withGrille);
-  opening(g, wall, 'front', -0.2, 0.54, 0.13, 0.17, shutter, stone);
-  opening(g, wall, 'front', 0.22, 0.54, 0.13, 0.17, shutter, stone);
-  opening(g, wall, 'back', 0.1, 0.54, 0.13, 0.17, MATERIALS.glass, stone);
-  opening(g, wall, 'left', 0, 0.54, 0.13, 0.17, shutter, stone);
+  opening(g, wall, 'front', -0.2, 0.51, 0.13, 0.17, shutter, stone);
+  opening(g, wall, 'front', 0.22, 0.51, 0.13, 0.17, shutter, stone);
+  opening(g, wall, 'back', 0.1, 0.51, 0.13, 0.17, MATERIALS.glass, stone);
+  opening(g, wall, 'back', -0.15, 0.24, 0.13, 0.17, MATERIALS.glass, stone);
+  opening(g, wall, 'left', 0, 0.51, 0.13, 0.17, shutter, stone);
+  opening(g, wall, 'right', 0, 0.51, 0.13, 0.17, shutter, stone);
   if (rand() < 0.5) chimney(g, roof, 0.2, -0.1, 0.07, 0.14, MATERIALS.render, 'hat', MATERIALS.tile);
+  g.userData.lot = { w: wall.w, d: wall.d, doorX: -0.2, frontZ: wall.d / 2, terrace: false };
+  props(g, rand, g.userData.lot);
   return g;
 }
 
@@ -733,20 +1061,28 @@ function emigrantHouse(rand) {
   const wall = { w: 0.8, d: 0.62 };
   const eave = 0.8;
   walls(g, wall, eave, pick(rand, [MATERIALS.cream, MATERIALS.salmon, MATERIALS.paleYellow]));
-  const clad = { w: wall.w + 0.012, d: wall.d + 0.012 };       // rés-do-chão forrado
-  box(g, MATERIALS.cladding, clad.w, 0.38, clad.d, 0, 0.19, 0);
-  const roof = hipRoof(g, wall, eave, 20, 0.05, MATERIALS.marseille, MATERIALS.ridge);
+  const clad = { w: wall.w + 0.012, d: wall.d + 0.012 };       // rés-do-chão forrado a azulejo
+  const cladding = rand() < 0.3 ? MATERIALS.claddingBlue : MATERIALS.claddingBeige;
+  box(g, cladding, clad.w, 0.38, clad.d, 0, 0.19, 0);
+  const roof = hipRoof(g, wall, eave, 20, Math.min(0.07, (0.9 - wall.w) / 2), MATERIALS.marseille, MATERIALS.ridge);
 
-  // rés-do-chão: garagem + porta
+  // rés-do-chão: garagem (com as ripas da porta de enrolar) + porta
   onWall(g, clad, 'front', 0.19, 0.14, 0.26, 0.28, 0.012, MATERIALS.garage);
-  opening(g, clad, 'front', -0.2, 0.135, 0.13, 0.27, MATERIALS.woodDark);
-  // varanda corrida
+  for (const y of [0.06, 0.12, 0.18, 0.24]) {
+    onWall(g, clad, 'front', 0.19, y, 0.26, 0.006, 0.02, MATERIALS.rollerBox);
+  }
+  opening(g, clad, 'front', -0.2, 0.135, 0.13, 0.27, MATERIALS.woodDark, { door: true });
+  // varanda corrida, com grade de alumínio (corrimão + barrinhas ao alto)
   const front = wall.d / 2;
   box(g, MATERIALS.concrete, wall.w + 0.02, 0.025, 0.09, 0, 0.4, front + 0.045);
-  box(g, MATERIALS.alu, wall.w + 0.02, 0.012, 0.012, 0, 0.5, front + 0.084);
+  box(g, MATERIALS.alu, wall.w + 0.02, 0.018, 0.018, 0, 0.5, front + 0.084);
   for (const sx of [-1, 1]) {
     box(g, MATERIALS.alu, 0.012, 0.09, 0.012, sx * (wall.w / 2 + 0.004), 0.455, front + 0.084);
   }
+  for (let x = -0.4; x <= 0.401; x += 0.04) {
+    box(g, MATERIALS.alu, 0.006, 0.09, 0.006, x, 0.455, front + 0.084);
+  }
+  gardenWall(g);
   // 1.º andar: porta-janela e janela, cada uma com a caixa do estore por cima
   const alu = { frame: MATERIALS.alu, frameSize: 0.015 };
   opening(g, wall, 'front', -0.18, 0.55, 0.14, 0.26, MATERIALS.glass, alu);
@@ -757,8 +1093,27 @@ function emigrantHouse(rand) {
   onWall(g, wall, 'back', 0, 0.71, 0.19, 0.04, 0.025, MATERIALS.rollerBox);
   opening(g, clad, 'back', 0.2, 0.22, 0.13, 0.15, MATERIALS.glass);
   opening(g, wall, 'right', 0, 0.6, 0.16, 0.18, MATERIALS.glass);
+  opening(g, wall, 'left', 0, 0.6, 0.16, 0.18, MATERIALS.glass, alu);
+  onWall(g, wall, 'left', 0, 0.71, 0.19, 0.04, 0.025, MATERIALS.rollerBox);
   chimney(g, roof, -0.2, -0.15, 0.08, 0.15, MATERIALS.brick, 'slab', MATERIALS.concrete);
+  // sem caminho de lajes (o muro do jardim já tem portão); só vasos à porta
+  g.userData.lot = { w: wall.w, d: clad.d, doorX: -0.2, frontZ: clad.d / 2, noPath: true };
+  vases(g, g.userData.lot);
   return g;
+}
+
+// Muro baixo de betão à frente da casa de emigrante, com um portão (2 pilares com bolas
+// douradas) em frente à porta e uma abertura para o carro em frente à garagem.
+function gardenWall(g) {
+  const z = 0.43;
+  // troços de muro: [início, fim] em x. Buracos: portão (-0.28 a -0.12) e garagem (0.06 a 0.32)
+  for (const [a, b] of [[-0.42, -0.28], [-0.12, 0.06], [0.32, 0.42]]) {
+    box(g, MATERIALS.concrete, b - a, 0.06, 0.03, (a + b) / 2, 0.03, z);
+  }
+  for (const x of [-0.2925, -0.1075]) {                     // pilares do portão
+    box(g, MATERIALS.concrete, 0.025, 0.09, 0.025, x, 0.045, z);
+    place(g, GEOMETRIES.finial, MATERIALS.gold, x, 0.105, z);
+  }
 }
 
 // H5 — Palheiro/curral abandonado: paredes de xisto sem janelas, telhado meio caído ou de zinco.
@@ -766,7 +1121,7 @@ function ruinedShed(rand) {
   const g = new THREE.Group();
   const W = 0.5, D = 0.4, t = 0.045;
   const stone = MATERIALS.schist;
-  box(g, MATERIALS.hole, W - 0.02, 0.01, D - 0.02, 0, 0.005, 0);              // chão escuro lá dentro
+  box(g, MATERIALS.hole, W - 0.02, 0.01, D - 0.02, 0, 0.0135, 0);             // chão escuro lá dentro
   box(g, stone, W, 0.4, t, 0, 0.2, D / 2 - t / 2);                             // parede da frente (alta)
   box(g, stone, W, 0.3, t, 0, 0.15, -D / 2 + t / 2);                           // parede de trás (baixa)
   for (const sx of [-1, 1]) box(g, stone, t, 0.34, D - 2 * t, sx * (W / 2 - t / 2), 0.17, 0);
@@ -787,6 +1142,7 @@ function ruinedShed(rand) {
   // pedras soltas no chão
   box(g, MATERIALS.dryStone, 0.07, 0.04, 0.05, -0.33, 0.02, 0.15);
   box(g, MATERIALS.dryStone, 0.05, 0.03, 0.06, -0.31, 0.015, 0.26);
+  g.userData.lot = { w: W, d: D, doorX: 0.1, frontZ: D / 2, noPath: true };   // sem caminho, sem enfeites
   return g;
 }
 
@@ -822,24 +1178,32 @@ function schoolBuilding(body, rand) {
   const frame = rand() < 0.5 ? MATERIALS.white : MATERIALS.bottleGreen;
   const door = rand() < 0.5 ? MATERIALS.bottleGreen : MATERIALS.woodDark;
   const front = wall.d / 2;
-  const windowFrame = { frame, frameSize: 0.007 };
-  const backFrame = { frame: MATERIALS.white, frameSize: 0.008 };
+  // as janelas têm peitoril de granito (como as escolas a sério)
+  const windowFrame = { frame, frameSize: 0.007, sill: MATERIALS.granite };
+  const backFrame = { frame: MATERIALS.white, frameSize: 0.008, sill: MATERIALS.granite };
+  const doorFrame = { frame: MATERIALS.granite, frameSize: 0.012, door: true };
   for (const side of [-1, 1]) {
     // 3 janelas altas por sala de aula
     for (const x of [0.1, 0.17, 0.24]) {
       opening(body, wall, 'front', side * x, 0.25, 0.048, 0.16, MATERIALS.glass, windowFrame);
     }
-    // porta perto da ponta, com alpendre: 2 pilares de granito e um telhadinho
+    // porta perto da ponta, com alpendre: 2 pilares de granito e um telhadinho de 2 águas
     const dx = side * 0.33;
-    opening(body, wall, 'front', dx, 0.135, 0.07, 0.21, door, { frame: MATERIALS.granite, frameSize: 0.012 });
+    opening(body, wall, 'front', dx, 0.135, 0.07, 0.21, door, doorFrame);
     for (const px of [-0.045, 0.045]) {
-      box(body, MATERIALS.granite, 0.02, 0.3, 0.02, dx + px, 0.15, front + 0.09);
+      box(body, MATERIALS.granite, 0.03, 0.3, 0.03, dx + px, 0.15, front + 0.09);       // pilar
+      box(body, MATERIALS.granite, 0.04, 0.015, 0.04, dx + px, 0.2925, front + 0.09);   // capitel
     }
-    const porchRoof = box(body, MATERIALS.tile, 0.13, 0.014, 0.12, dx, 0.31, front + 0.055);
-    porchRoof.rotation.x = 0.25;
-    // janelas de trás
-    opening(body, wall, 'back', side * 0.2, 0.25, 0.05, 0.14, MATERIALS.glass, backFrame);
+    const porchRoof = new THREE.Mesh(wedgeGeometry(0.13, 0.14, 0.045, 0.065), MATERIALS.tile);
+    porchRoof.rotation.y = Math.PI / 2;                    // a cumeeira sai da parede para a frente
+    porchRoof.position.set(dx, 0.3, front + 0.06);
+    body.add(porchRoof);
+    // janelas de trás (4) com a porta das traseiras ao meio
+    for (const x of [0.12, 0.24]) {
+      opening(body, wall, 'back', side * x, 0.25, 0.05, 0.14, MATERIALS.glass, backFrame);
+    }
   }
+  opening(body, wall, 'back', 0, 0.135, 0.07, 0.21, door, doorFrame);
   // frontão ao meio, mais alto que o beiral, com a placa "ESCOLA PRIMÁRIA"
   box(body, MATERIALS.schoolWhite, 0.12, 0.18, 0.06, 0, 0.47, front + 0.02);
   const cap = new THREE.Mesh(wedgeGeometry(0.06, 0.13, 0.05, 0.03), MATERIALS.granite);
@@ -857,11 +1221,23 @@ function schoolYard(g, rand) {
     box(g, MATERIALS.lime, 0.33, 0.08, 0.035, sx * 0.26, 0.04, 0.425);          // muro da frente
     box(g, MATERIALS.lime, 0.035, 0.08, 0.45, sx * 0.4075, 0.04, 0.2);          // muros dos lados
   }
-  box(g, MATERIALS.iron, 0.19, 0.065, 0.01, 0, 0.04, 0.425);                    // portão
+  schoolGate(g, 0.425);
   const tree = chestnut(rand);
   tree.scale.setScalar(0.45);
   tree.position.set(-0.22, 0, 0.22);
   g.add(tree);
+}
+
+// Portão do recreio: 2 pilares de granito com capa, e um portão de grades de ferro.
+function schoolGate(g, z) {
+  for (const sx of [-1, 1]) {
+    box(g, MATERIALS.granite, 0.04, 0.12, 0.04, sx * 0.115, 0.06, z);           // pilar
+    box(g, MATERIALS.granite, 0.05, 0.008, 0.05, sx * 0.115, 0.124, z);         // capa do pilar
+  }
+  for (let i = 0; i < 5; i++) {                                                  // 5 grades
+    box(g, MATERIALS.iron, 0.006, 0.07, 0.006, -0.08 + i * 0.04, 0.045, z);
+  }
+  for (const y of [0.075, 0.015]) box(g, MATERIALS.iron, 0.19, 0.008, 0.008, 0, y, z);   // travessas
 }
 
 // Mastro com a bandeira de Portugal. Devolve a função que a faz ondular ao vento.

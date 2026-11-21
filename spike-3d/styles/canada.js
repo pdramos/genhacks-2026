@@ -45,14 +45,18 @@ const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughn
 // =====================================================================================
 // 2. Texturas desenhadas por código (num <canvas>), criadas UMA vez e reutilizadas
 // =====================================================================================
-function makeTexture(width, height, draw, repeat = true) {
+// isColor = true só para texturas com CORES de verdade (janelas, portas, cascas, bandeira).
+// As texturas cinzentas são "máscaras" (só dizem onde escurecer): ficam em espaço linear.
+// Se as marcássemos como sRGB, a placa gráfica escurecia-as outra vez e as casas ficavam quase pretas.
+function makeTexture(width, height, draw, repeat = true, isColor = false) {
   if (typeof document === 'undefined') return null;   // fora do navegador não há canvas
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   draw(canvas.getContext('2d'), width, height);
   const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;   // texturas nítidas mesmo quando vistas de lado (telhados, paredes ao longe)
   if (repeat) tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
 }
@@ -71,18 +75,19 @@ function roundedRect(ctx, x, y, w, h, r) {
 
 // As texturas são cinzentas: a cor verdadeira vem do material (cinzento x cor = cor com detalhes).
 const TEX = {
-  // Tábuas horizontais sobrepostas ("lap siding"): cada tábua tem um sulco escuro em baixo.
+  // Tábuas horizontais sobrepostas ("lap siding"): 8 tábuas finas, cada uma com um sulco escuro em baixo.
+  // (Com tábuas mais largas pareciam troncos.)
   siding: makeTexture(64, 64, (ctx, w, h) => {
-    const board = h / 6;
-    for (let i = 0; i < 6; i++) {
+    const board = h / 8;
+    for (let i = 0; i < 8; i++) {
       const y = i * board;
       const grad = ctx.createLinearGradient(0, y, 0, y + board);
       grad.addColorStop(0, grey(255));
-      grad.addColorStop(1, grey(205));
+      grad.addColorStop(1, grey(215));
       ctx.fillStyle = grad;
       ctx.fillRect(0, y, w, board);
-      ctx.fillStyle = grey(130);
-      ctx.fillRect(0, y + board - 2, w, 2);
+      ctx.fillStyle = grey(120);
+      ctx.fillRect(0, y + board - 1, w, 1);
     }
   }),
   // Tábua e ripa ("board-and-batten"): ripas verticais claras com sombra ao lado.
@@ -152,6 +157,23 @@ const TEX = {
       ctx.fillRect(0, r * rowH + rowH - 1, w, 1);
     }
   }),
+  // Telhas de cedro rachadas à mão ("shakes"): como as telhas acima, mas mais pequenas e estreitas.
+  shakes: makeTexture(64, 64, (ctx, w, h) => {
+    const rowH = 4;
+    for (let r = 0; r < h / rowH; r++) {
+      let x = (r % 2) * -3;
+      while (x < w) {
+        const sw = 4 + Math.floor(texRand() * 4);   // 4 a 7 píxeis de largura
+        ctx.fillStyle = grey(205 + Math.floor(texRand() * 50));
+        ctx.fillRect(x, r * rowH, sw, rowH);
+        ctx.fillStyle = grey(120);
+        ctx.fillRect(x, r * rowH, 1, rowH);
+        x += sw;
+      }
+      ctx.fillStyle = grey(105);
+      ctx.fillRect(0, r * rowH + rowH - 1, w, 1);
+    }
+  }),
   // Telhas em "escama de peixe" (meias-luas), no bico da empena do bungalow.
   // Desenhamos de baixo para cima: cada fiada tapa um bocadinho a fiada de baixo, como nas telhas reais.
   fishScale: makeTexture(64, 64, (ctx, w, h) => {
@@ -208,14 +230,14 @@ const TEX = {
       ctx.ellipse(texRand() * w, 10 + texRand() * (h - 34), 4 + texRand() * 3, 1.5 + texRand() * 1.5, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, false),
+  }, false, true),
   // Casca da bétula: branca com riscos horizontais escuros.
   birchBark: makeTexture(32, 128, (ctx, w, h) => {
     ctx.fillStyle = '#EDEBE3';
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#3A3632';
     for (let k = 0; k < 26; k++) ctx.fillRect(texRand() * w, texRand() * h, 3 + texRand() * 7, 1 + Math.floor(texRand() * 2));
-  }, false),
+  }, false, true),
   // Bandeira do Canadá: vermelho | branco com a folha de ácer | vermelho (faixas 1:2:1).
   flag: makeTexture(128, 64, (ctx, w, h) => {
     ctx.fillStyle = '#D52B1E';
@@ -224,7 +246,7 @@ const TEX = {
     ctx.fillRect(32, 0, 64, h);
     ctx.fillStyle = '#D52B1E';
     drawMapleLeaf(ctx, 64, 33, 24);
-  }, false),
+  }, false, true),
 };
 
 // Folha de ácer simplificada: metade direita (x, y), de cima para baixo; a esquerda é o espelho.
@@ -260,9 +282,9 @@ function windowMaterial(frame, cols = 2, rows = 2) {
       for (let c = 0; c < cols; c++) {
         for (let r = 0; r < rows; r++) {
           const x = border + c * (pw + bar), y = border + r * (ph + bar);
-          ctx.fillStyle = '#2C3A44';
+          ctx.fillStyle = '#3E5566';
           ctx.fillRect(x, y, pw, ph);
-          ctx.fillStyle = 'rgba(255,255,255,0.18)';   // reflexo
+          ctx.fillStyle = 'rgba(190,220,255,0.35)';   // reflexo do céu
           ctx.beginPath();
           ctx.moveTo(x, y + ph * 0.55);
           ctx.lineTo(x + pw * 0.55, y);
@@ -271,8 +293,9 @@ function windowMaterial(frame, cols = 2, rows = 2) {
           ctx.fill();
         }
       }
-    }, false);
-    windowCache.set(key, new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : 0x2c3a44, roughness: 0.4, ...DECAL }));
+    }, false, true);
+    // vidro: pouco áspero e um nadinha metálico, para brilhar um pouco ao sol
+    windowCache.set(key, new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : 0x3e5566, roughness: 0.25, metalness: 0.1, ...DECAL }));
   }
   return windowCache.get(key);
 }
@@ -286,14 +309,14 @@ function doorMaterial(color) {
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = color;
       ctx.fillRect(3, 3, w - 6, h - 3);
-      ctx.fillStyle = '#2C3A44';
+      ctx.fillStyle = '#3E5566';
       ctx.fillRect(9, 8, w - 18, 13);
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fillRect(8, 27, w - 16, 12);
       ctx.fillRect(8, 44, w - 16, 12);
       ctx.fillStyle = '#D4AF37';
       ctx.fillRect(w - 10, 38, 3, 3);
-    }, false);
+    }, false, true);
     doorCache.set(color, new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : color, roughness: 0.7, ...DECAL }));
   }
   return doorCache.get(color);
@@ -381,6 +404,70 @@ function mergeCopies(base, parts) {
   return geo;
 }
 
+// Dá a todos os pontos de uma geometria a MESMA coordenada de textura (u, v).
+// Serve para usar um material com textura numa forma que não tem UVs (ex.: troncos redondos):
+// a forma fica com a cor de um só sítio da textura (escolhemos um sítio claro).
+function flatUV(geo, u, v) {
+  const count = geo.attributes.position.count;
+  const uv = new Float32Array(count * 2);
+  for (let i = 0; i < count; i++) { uv[i * 2] = u; uv[i * 2 + 1] = v; }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return geo;
+}
+
+// JUNTAR PEÇAS para o computador desenhar mais depressa (igual ao portugal.js).
+// Uma casa tem ~60 peças; desenhar cada uma é um "pedido" à placa gráfica (draw call).
+// Aqui juntamos todas as peças com o MESMO material numa só peça: a casa passa a ~15 pedidos.
+// Peças com userData.keepSeparate (ex.: a bandeira, que se mexe) ficam de fora.
+// Se todas as peças de um material eram "decal" (janelas, portas), a peça junta também é decal (sem sombra).
+function mergeByMaterial(root) {
+  root.updateMatrixWorld(true);
+  const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const groups = new Map();          // material -> { geos: geometrias já na posição certa, decal }
+  const kept = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const matrix = new THREE.Matrix4().multiplyMatrices(toRoot, o.matrixWorld);
+    if (o.userData.keepSeparate) { kept.push({ mesh: o, matrix }); return; }
+    const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    geo.applyMatrix4(matrix);
+    if (!groups.has(o.material)) groups.set(o.material, { geos: [], decal: true });
+    const entry = groups.get(o.material);
+    entry.geos.push(geo);
+    entry.decal = entry.decal && !!o.userData.decal;
+  });
+  root.clear();
+  for (const [material, { geos, decal }] of groups) {
+    const merged = new THREE.Mesh(joinGeometries(geos), material);
+    merged.userData.decal = decal;
+    root.add(merged);
+    for (const geo of geos) geo.dispose();
+  }
+  for (const { mesh, matrix } of kept) {
+    matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+    root.add(mesh);
+  }
+  return root;
+}
+
+// Cola várias geometrias (sem índices) numa só: põe as listas de pontos umas a seguir às outras.
+function joinGeometries(geos) {
+  const out = new THREE.BufferGeometry();
+  let total = 0;
+  for (const geo of geos) total += geo.attributes.position.count;
+  for (const [name, size] of [['position', 3], ['normal', 3], ['uv', 2]]) {
+    const array = new Float32Array(total * size);
+    let offset = 0;
+    for (const geo of geos) {
+      const attr = geo.attributes[name];
+      if (attr) array.set(attr.array.subarray(0, attr.count * size), offset);
+      offset += geo.attributes.position.count * size;
+    }
+    out.setAttribute(name, new THREE.BufferAttribute(array, size));
+  }
+  return out;
+}
+
 const G = {
   plane: new THREE.PlaneGeometry(1, 1),                                   // janelas e portas
   unitBox: new THREE.BoxGeometry(1, 1, 1),
@@ -388,6 +475,7 @@ const G = {
   pyramid: new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0), // telhado da torre
   post: new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0),     // poste reto, base em y=0
   log: new THREE.CylinderGeometry(1, 1, 1, 6),                           // tronco deitado (centrado)
+  log8: new THREE.CylinderGeometry(1, 1, 1, 8),                          // tronco mais redondo (paredes da cabana)
   trunk: new THREE.CylinderGeometry(0.65, 1, 1, 6).translate(0, 0.5, 0), // tronco (mais fino em cima)
   blob: new THREE.IcosahedronGeometry(1, 0),                              // copas
   rock: new THREE.DodecahedronGeometry(1, 0),                             // arbustos
@@ -448,6 +536,41 @@ G.logCorners = mergeCopies(G.log, [-1, 1].flatMap((sx) => [-1, 1].flatMap((sz) =
       ? { at: [sx * (CABIN.W / 2 - 0.015), y, sz * CABIN.D / 2], s: [0.026, 0.1, 0.026], rot: [0, 0, Math.PI / 2] }
       : { at: [sx * CABIN.W / 2, y, sz * (CABIN.D / 2 - 0.015)], s: [0.026, 0.1, 0.026], rot: [Math.PI / 2, 0, 0] };
   }))));
+
+// Paredes de troncos VERDADEIROS da cabana: 6 troncos redondos por parede.
+// Os troncos dos lados ficam meio tronco mais acima, para se "encaixarem" com os da frente e de trás.
+function makeCabinLogs() {
+  const { W, D, base } = CABIN;
+  const r = 0.026, parts = [];
+  for (let k = 0; k < 6; k++) {
+    for (const s of [-1, 1]) {
+      // frente e trás: troncos ao longo de X
+      parts.push({ at: [0, base + 0.025 + k * 0.05, s * (D / 2 - 0.012)], s: [r, W + 0.04, r], rot: [0, 0, Math.PI / 2] });
+      // lados: troncos ao longo de Z
+      parts.push({ at: [s * (W / 2 - 0.012), base + 0.05 + k * 0.05, 0], s: [r, D + 0.04, r], rot: [Math.PI / 2, 0, 0] });
+    }
+  }
+  // Os troncos não têm UVs: usamos um sítio claro da textura de troncos (o meio de um tronco).
+  return flatUV(mergeCopies(G.log8, parts), 0.5, 0.91);
+}
+G.cabinLogs = makeCabinLogs();
+
+// ---- Coisas do quintal (feitas uma vez e partilhadas por todas as casas) ----
+// Pilha de lenha: 3 filas de 4 toros deitados (ao longo de Z), com um telhadinho por cima.
+G.woodpile = mergeCopies(G.log8, [0, 1, 2].flatMap((row) => [0, 1, 2, 3].map((i) => ({
+  at: [-0.0375 + i * 0.025, 0.012 + row * 0.022, 0], s: [0.012, 0.1, 0.012], rot: [Math.PI / 2, 0, 0],
+}))));
+G.woodshedPosts = mergeCopies(G.unitBox, [-1, 1].map((sx) => ({ at: [sx * 0.065, 0.045, -0.055], s: [0.01, 0.09, 0.01] })));
+// Cavaletes para a canoa (2 tábuas ao alto)
+G.sawhorses = mergeCopies(G.unitBox, [-1, 1].map((sx) => ({ at: [sx * 0.07, 0.025, 0], s: [0.01, 0.05, 0.06] })));
+// Mesa de piquenique: tampo, 2 bancos e 2 pernas
+G.picnic = mergeCopies(G.unitBox, [
+  { at: [0, 0.06, 0], s: [0.14, 0.01, 0.07] },
+  { at: [0, 0.034, 0.055], s: [0.14, 0.008, 0.025] },
+  { at: [0, 0.034, -0.055], s: [0.14, 0.008, 0.025] },
+  { at: [0.055, 0.0275, 0], s: [0.01, 0.055, 0.09] },
+  { at: [-0.055, 0.0275, 0], s: [0.01, 0.055, 0.09] },
+]);
 
 // Ramos secos partidos no tronco nu do pinheiro (o tronco tem altura 1 aqui; depois estica-se).
 G.pineStubs = [0, 1, 2].map(() => mergeCopies(G.unitBox, Array.from({ length: 5 }, (_, i) => {
@@ -551,7 +674,9 @@ function texturedMat(texName, color) {
   if (!matCache.has(key)) matCache.set(key, mat(color, { map: TEX[texName] }));
   return matCache.get(key);
 }
-// As cores aqui são um pouco mais claras do que as reais, porque a textura cinzenta escurece-as.
+// A textura cinzenta é uma "máscara" quase branca (fica em espaço linear, ver makeTexture),
+// por isso a cor do material é a cor que se vê, só com sulcos e juntas um pouco mais escuros.
+// Escolhemos tons de madeira com valores médios, para as casas se lerem bem ao sol.
 const sidingMat = (c) => texturedMat('siding', c);
 const battenMat = (c) => texturedMat('batten', c);
 const logMat = (c) => texturedMat('logs', c);
@@ -561,14 +686,16 @@ const seamMat = (c) => texturedMat('seams', c);
 const vinylMat = (c) => texturedMat('vinyl', c);
 
 const M = {
-  stone: stoneMat(0xa6a193), stoneDark: stoneMat(0x9c978a), veneer: stoneMat(0xb7b1a6), schoolStone: stoneMat(0xb2ab9c),
+  stone: stoneMat(0xa6a193), stoneDark: stoneMat(0x9c978a), veneer: stoneMat(0xb7b1a6), schoolStone: stoneMat(0xc2bba9),
   chimneyCap: mat(0x5e5a52), trim: mat(0xe8dcc0), trimRust: mat(0x8c3b2a), darkTrim: mat(0x2b2b2b),
-  deck: mat(0x4a3426), deckPlanks: sidingMat(0x5a4030), logPost: mat(0xa07a50), rafter: mat(0x3a2a1e), fence: mat(0x6b4a32),
+  deck: mat(0x4a3426), deckPlanks: sidingMat(0x7a5840), logPost: mat(0xa07a50), rafter: mat(0x3a2a1e), fence: mat(0x6b4a32),
   logEnds: mat(0x8a5e3c), awning: mat(0x8c8a80),
   skirting: mat(0x6b6458), propane: mat(0xe8e8e2), metal: mat(0x3a3d42), concrete: mat(0x9c988e),
-  // Centro de Informação: piso de cima em troncos escuros (não telhas: em vermelho pareciam tijolo)
-  schoolWood: logMat(0x6e4a32), schoolRoof: shingleMat(0x55554a), fishScale: texturedMat('fishScale', 0xe6d9b4),
-  lawn: mat(0x6f9a4a), soil: mat(0x4a3a2c), gravel: mat(0x9a9488),
+  // Centro de Informação: piso de cima em troncos cor de mel, telhado de telhas de cedro (quentes)
+  schoolWood: logMat(0x8a5c3a), schoolRoof: texturedMat('shakes', 0x8f6c4a), fishScale: texturedMat('fishScale', 0xe6d9b4),
+  lawn: mat(0x648550), soil: mat(0x4a3a2c), gravel: mat(0x9a9488),
+  // quintal: lenha, canoas e mesa de piquenique
+  firewood: mat(0x9a6842), canoeRed: mat(0xb0392b), canoeGreen: mat(0x2f5d3a), picnic: mat(0x8a6a4a),
   flowerRed: mat(0xc0392b), flowerYellow: mat(0xe8c440), pole: mat(0xf4f4f0), poleBall: mat(0xd4af37),
   flag: new THREE.MeshStandardMaterial({ map: TEX.flag, color: TEX.flag ? 0xffffff : 0xd52b1e, side: THREE.DoubleSide, roughness: 0.8 }),
   // árvores
@@ -576,19 +703,42 @@ const M = {
   pineRed: [mat(0xa0522d), mat(0xb5652e)],          // pinheiros mortos pelo escaravelho (agulhas vermelhas)
   pineBark: [mat(0x8a5a3a), mat(0x6e5a4a)], deadBranch: mat(0x5a4636),
   spruce: [mat(0x2e4a3a), mat(0x253d30)], fir: [mat(0x2c4632), mat(0x33503a)], spruceBark: mat(0x4a3828),
-  aspenLeaf: [mat(0x8db04a), mat(0xa3bf5a)], aspenGold: mat(0xe2b93b),
+  aspenLeaf: [mat(0xa8c65a), mat(0xc2cf62)], aspenGold: mat(0xe2b93b),
   aspenBark: mat(TEX.aspenBark ? 0xffffff : 0xd8d6c8, { map: TEX.aspenBark }),
-  poplarLeaf: mat(0x4f7a3a), poplarSilver: mat(0xa9b896), poplarBark: mat(0x7d7a70),
-  birchLeaf: mat(0x7fa548), birchBark: mat(TEX.birchBark ? 0xffffff : 0xedebe3, { map: TEX.birchBark }),
+  poplarLeaf: mat(0x3f6a3a), poplarSilver: mat(0xa9b896), poplarBark: mat(0x7d7a70),
+  birchLeaf: mat(0x9cbf58), birchBark: mat(TEX.birchBark ? 0xffffff : 0xedebe3, { map: TEX.birchBark }),
   // arbustos
   buffalo: mat(0x4e6a3e), buffaloSilver: mat(0xa4ae94), berryRed: mat(0xc8321e, { roughness: 0.4 }),
   juniper: mat(0x4d6b5a), juniperBerry: mat(0x5b6e8c),
   willowStem: mat(0x7a3e2a), willowLeaf: mat(0x7e9466), roseLeaf: mat(0x5e7a45), rosePink: mat(0xe07a9a), roseHip: mat(0xb22a1e),
 };
 
+// Telhados das casas: metal vermelho ou verde, telhas de cedro ou cinzentas (cores bem diferentes entre si,
+// para a vila não parecer toda igual vista de cima).
+const ROOF = {
+  red: seamMat(0xa8452f), green: seamMat(0x4f7a5c), cedar: shingleMat(0x8a6a4a), grey: shingleMat(0x7a7870),
+};
+const ROOFS = [ROOF.red, ROOF.green, ROOF.cedar, ROOF.grey];
+
+// Sombra suave por baixo de cada casa ("sombra de contacto"): um quadrado com um degradê redondo,
+// preto no meio e transparente nas pontas. Faz a casa parecer assente no chão.
+const CONTACT_SHADOW = {
+  geo: new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+  mat: new THREE.MeshBasicMaterial({
+    map: makeTexture(64, 64, (ctx, w, h) => {
+      const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      grad.addColorStop(0, 'rgba(0,0,0,0.4)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }, false, true),
+    color: 0xffffff, transparent: true, depthWrite: false, ...DECAL,
+  }),
+};
+
 // Cores do chão: prado de montanha, mato baixo, chão de floresta com agulhas, rio glaciar turquesa.
 export const palette = {
-  grass: 0x7a9a4e, brush: 0x5e7344, dirt: 0x6b5a44, road: 0x4a4b4d,
+  grass: 0x72915a, brush: 0x5a6a42, dirt: 0x6b5a44, road: 0x4a4b4d,
   cleared: 0xb4a57a, firebreak: 0x8e7b5c, water: 0x5fb3b0, burned: 0x2a2420,
 };
 
@@ -597,8 +747,11 @@ export const palette = {
 // =====================================================================================
 // Liga as sombras em todas as peças. As janelas/portas (marcadas como "decal") não fazem sombra:
 // estão coladas à parede, a sombra delas não se via e só dava trabalho extra à placa gráfica.
+// A sombra de contacto (userData.noReceiveShadow) também não RECEBE sombras: é só uma mancha escura.
 function shadows(group) {
-  group.traverse((o) => { if (o.isMesh) { o.castShadow = !o.userData.decal; o.receiveShadow = true; } });
+  group.traverse((o) => {
+    if (o.isMesh) { o.castShadow = !o.userData.decal; o.receiveShadow = !o.userData.noReceiveShadow; }
+  });
   return group;
 }
 
@@ -632,6 +785,48 @@ function addPanel(group, material, w, h, x, y, z, face) {
   return panel;
 }
 
+// Aro de janela/porta: 4 ripas (cima, baixo, esquerda, direita) à volta de um buraco de w x h,
+// com 0.012 de espessura e 0.012 de fundo. As portas não têm a ripa de baixo (seria a soleira).
+// Guardado por tamanho, porque há muitas janelas iguais.
+const frameCache = new Map();
+function frameGeo(w, h, withBottom) {
+  const key = `${w},${h},${withBottom}`;
+  if (!frameCache.has(key)) {
+    const t = 0.012;
+    const bars = [
+      { at: [0, h / 2 + t / 2, 0], s: [w + 2 * t, t, t] },     // cima
+      { at: [-(w / 2 + t / 2), 0, 0], s: [t, h, t] },          // esquerda
+      { at: [w / 2 + t / 2, 0, 0], s: [t, h, t] },             // direita
+    ];
+    if (withBottom) bars.push({ at: [0, -(h / 2 + t / 2), 0], s: [w + 2 * t, t, t] });   // baixo
+    frameCache.set(key, mergeCopies(G.unitBox, bars));
+  }
+  return frameCache.get(key);
+}
+
+// Janela "a sério": o vidro (addPanel) + um aro saliente + um peitoril por baixo.
+// Para portas: sill = false (sem peitoril e sem ripa de baixo).
+function addWindow(group, material, w, h, x, y, z, face, frameMat = M.trim, sill = true) {
+  addPanel(group, material, w, h, x, y, z, face);
+  const [ox, oz] = FACE_OUT[face];
+  const frame = addMesh(group, frameGeo(w, h, sill), frameMat, x + ox * 0.006, y, z + oz * 0.006);
+  frame.rotation.y = FACE_TURN[face];
+  if (sill) {
+    const ledge = addMesh(group, boxGeo(w + 0.03, 0.012, 0.025), frameMat, x + ox * 0.0125, y - h / 2 - 0.006, z + oz * 0.0125);
+    ledge.rotation.y = FACE_TURN[face];
+  }
+}
+
+// Floreira debaixo de uma janela da frente (parede em z): caixa escura com 3 flores vermelhas/amarelas.
+function addFlowerBox(group, w, h, x, y, z) {
+  const boxY = y - h / 2 - 0.012 - 0.02;   // logo abaixo do peitoril
+  addBox(group, M.rafter, w + 0.01, 0.02, 0.02, x, boxY, z + 0.012);
+  [-1, 0, 1].forEach((i) => {
+    const flower = addMesh(group, G.bit, i === 0 ? M.flowerYellow : M.flowerRed, x + i * (w / 3), boxY + 0.026, z + 0.012);
+    flower.scale.setScalar(0.012);
+  });
+}
+
 // Telhado de duas águas. A cumeeira (linha do topo) vai ao longo de X; com alongZ: true vai ao longo de Z.
 //   span = largura debaixo do telhado, length = comprimento da cumeeira, wallTop = altura onde o telhado começa,
 //   pitch = inclinação em graus, overhang = beiral (quanto o telhado sai para fora das paredes).
@@ -641,7 +836,8 @@ function addGableRoof(group, o) {
   const rise = (o.span / 2) * Math.tan(pitch);           // quanto o telhado sobe
   const overhang = o.overhang;
   const overhangFront = o.overhangFront ?? overhang;
-  const thick = o.thick ?? 0.03;
+  const thick = o.thick ?? 0.04;
+  const trimMat = o.trimMat ?? M.trim;
   const roof = new THREE.Group();
   roof.position.set(o.x ?? 0, o.wallTop, o.z ?? 0);
   if (o.alongZ) roof.rotation.y = Math.PI / 2;
@@ -657,10 +853,33 @@ function addGableRoof(group, o) {
     slab.rotation.x = side * pitch;
     const lift = 0.01 - thick / 2;   // a placa fica por cima do sótão (assim não há faces sobrepostas)
     slab.position.set(0, rise - (reach / 2) * Math.tan(pitch) + lift * Math.cos(pitch), side * (reach / 2 + lift * Math.sin(pitch)));
+
+    // Remates de madeira nas beiras (as trapeiras pequenas não levam):
+    if (o.span >= 0.2) {
+      // tábua da beira ("fascia") ao longo da parte de baixo do telhado.
+      // Com fascia: false não se põe (ex.: o bungalow mostra as pontas das vigas debaixo da beira).
+      if (o.fascia !== false) {
+        addMesh(roof, boxGeo(o.length + 2 * overhang, 0.035, 0.012), trimMat,
+          0, rise - reach * Math.tan(pitch) - 0.0175, side * reach);
+      }
+      // tábuas da empena ("barge boards") nas duas pontas, com a mesma inclinação da água
+      for (const end of [-1, 1]) {
+        const barge = addMesh(roof, boxGeo(0.012, 0.035, reach / Math.cos(pitch)), trimMat,
+          end * (o.length / 2 + overhang + 0.006), slab.position.y, slab.position.z);
+        barge.rotation.x = slab.rotation.x;
+      }
+    }
   }
-  // cobre-junta da cumeeira
-  addMesh(roof, boxGeo(o.length + 2 * overhang, 0.02, 0.035), o.roofMat, 0, rise + 0.008, 0);
+  // cobre-junta da cumeeira, um pouco mais escuro do que o telhado
+  addMesh(roof, boxGeo(o.length + 2 * overhang, 0.03, 0.05), o.ridgeMat ?? ridgeMaterial(o.roofMat), 0, rise + 0.008, 0);
   return { ridgeY: o.wallTop + rise };
+}
+
+// Cópia mais escura (70%) da cor de um telhado, para a cumeeira. Guardada para não repetir.
+const ridgeCache = new Map();
+function ridgeMaterial(roofMat) {
+  if (!ridgeCache.has(roofMat.uuid)) ridgeCache.set(roofMat.uuid, mat(roofMat.color.clone().multiplyScalar(0.7)));
+  return ridgeCache.get(roofMat.uuid);
 }
 
 // Telhado de uma água (alpendres, trapeiras "shed"): desce de (zBack, yBack) para a frente (zFront, yFront).
@@ -682,15 +901,31 @@ function addPost(group, x, z, y0, y1, radius = 0.012, material = M.logPost) {
   addMesh(group, G.post, material, x, y0, z).scale.set(radius, y1 - y0, radius);
 }
 
-// Estrado de alpendre: uma placa fina de tábuas (topo em y=top), apoiada em 4 postes pequenos.
-// Se stepX não for null, põe um degrau à frente (do lado +z) nessa posição x.
+// Estrado de alpendre: uma placa fina de tábuas (topo em y=top), assente numa "saia" escura até ao chão
+// (assim não parece flutuar). Se stepX não for null, põe 2 degraus à frente (do lado +z) nessa posição x.
 function addDeck(group, w, d, x, z, top, stepX = null) {
   const thick = 0.025;
   addBox(group, M.deckPlanks, w, thick, d, x, top - thick, z);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    addBox(group, M.rafter, 0.015, top - thick, 0.015, x + sx * (w / 2 - 0.02), 0, z + sz * (d / 2 - 0.02));
+  addBox(group, M.rafter, w - 0.01, top - thick, d - 0.01, x, 0, z);   // saia
+  if (stepX !== null) {
+    addMesh(group, boxGeo(0.12, top * 0.66, 0.03), M.deckPlanks, stepX, (top * 0.66) / 2, z + d / 2 + 0.015);   // degrau de cima
+    addMesh(group, boxGeo(0.12, top * 0.33, 0.03), M.deckPlanks, stepX, (top * 0.33) / 2, z + d / 2 + 0.045);   // degrau de baixo
   }
-  if (stepX !== null) addBox(group, M.deckPlanks, 0.12, top / 2, 0.045, stepX, 0, z + d / 2 + 0.0225);
+}
+
+// Corrimão da frente do alpendre (de x0 a x1, em z), com 2 barras e um poste em cada ponta.
+function addRail(group, x0, x1, z, top) {
+  const len = x1 - x0, cx = (x0 + x1) / 2;
+  for (const h of [0.05, 0.09]) addMesh(group, boxGeo(len, 0.008, 0.008), M.logPost, cx, top + h, z);
+  for (const x of [x0, x1]) addPost(group, x, z, top, top + 0.1, 0.008);
+}
+
+// Corrimão ao longo da frente de um alpendre (largura w, centro x), com uma abertura de 0.14 para o degrau.
+function addPorchRail(group, w, x, z, top, stepX) {
+  const left = x - w / 2 + 0.01, right = x + w / 2 - 0.01;
+  const gap0 = stepX - 0.07, gap1 = stepX + 0.07;
+  if (gap0 - left > 0.02) addRail(group, left, gap0, z, top);
+  if (right - gap1 > 0.02) addRail(group, gap1, right, z, top);
 }
 
 // Mísula: pequeno suporte de madeira escura debaixo do beiral (típico do estilo rústico do parque).
@@ -705,6 +940,52 @@ function addCornerBoards(group, material, w, d, y0, h) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(group, material, 0.028, h, 0.028, (sx * w) / 2, y0, (sz * d) / 2);
 }
 
+// ---- Coisas do quintal (as traseiras e os lados das casas veem-se muito na vista de cima) ----
+// Cada função recebe um grupo pequeno já colocado no sítio certo e desenha à volta de (0, 0, 0).
+function addWoodpile(prop) {
+  addMesh(prop, G.woodpile, M.firewood);
+  addMesh(prop, G.woodshedPosts, M.rafter);
+  addMesh(prop, boxGeo(0.14, 0.008, 0.12), M.rafter, 0, 0.09, 0);   // telhadinho
+}
+function addCanoe(prop, rand) {
+  addMesh(prop, G.sawhorses, M.rafter);
+  addMesh(prop, G.blob, rand() < 0.5 ? M.canoeRed : M.canoeGreen, 0, 0.06, 0).scale.set(0.14, 0.025, 0.035);   // de barriga para cima
+}
+function addPicnicTable(prop) {
+  addMesh(prop, G.picnic, M.picnic);
+}
+const YARD_PROPS = [addWoodpile, addCanoe, addPicnicTable];
+
+// Põe 0 a 2 coisas do quintal (diferentes) numa faixa da casa.
+//   slots = os 2 sítios possíveis [[x, z], [x, z]]; turn = rotação (para as faixas dos lados).
+function addYardProps(group, rand, slots, turn = 0) {
+  const count = Math.floor(rand() * 3);
+  const kinds = [...YARD_PROPS];
+  const freeSlots = [...slots];
+  for (let i = 0; i < count; i++) {
+    const kind = kinds.splice(Math.floor(rand() * kinds.length), 1)[0];
+    const [x, z] = freeSlots.splice(Math.floor(rand() * freeSlots.length), 1)[0];
+    const prop = new THREE.Group();
+    prop.position.set(x, 0, z);
+    prop.rotation.y = turn;
+    group.add(prop);
+    kind(prop, rand);
+  }
+}
+
+// O terreno da casa: relva aparada, entrada de gravilha para o carro (do lado da rua, +z)
+// e uma sombra suave por baixo. footprint = { W, D, z } = tamanho das paredes da casa.
+function addLot(group, footprint) {
+  addBox(group, M.lawn, 0.86, 0.01, 0.86, 0, 0, 0);
+  addBox(group, M.gravel, 0.1, 0.012, 0.17, 0.36, 0, 0.36);
+  const shadow = addMesh(group, CONTACT_SHADOW.geo, CONTACT_SHADOW.mat, 0, 0.012, footprint.z ?? 0);
+  shadow.scale.set(footprint.W + 0.2, 1, footprint.D + 0.2);
+  shadow.renderOrder = 1;
+  shadow.userData.keepSeparate = true;   // não juntar com as outras peças (é transparente)
+  shadow.userData.decal = true;          // não faz sombra
+  shadow.userData.noReceiveShadow = true;
+}
+
 // =====================================================================================
 // 6. Casas (5 tipos de Jasper). A frente da casa olha para +z.
 // =====================================================================================
@@ -714,9 +995,11 @@ function addCornerBoards(group, material, w, d, y0, h) {
 function buildCottage(rand) {
   const g = new THREE.Group();
   const W = 0.7, D = 0.55, base = 0.08, wallTop = 0.42;
-  const walls = sidingMat(pick(rand, [0x65412f, 0x65412f, 0x74503a, 0x4d6247]));
-  const roofMat = pick(rand, [seamMat(0x36523f), shingleMat(0x4a4a46)]);
+  const walls = sidingMat(pick(rand, [0x8a5c42, 0x8a5c42, 0x9a6a4c, 0x6a8560]));
+  const roofMat = pick(rand, ROOFS);
   const win = windowMaterial(pick(rand, ['#E8DCC0', '#E8DCC0', '#3E5B3A']));
+  const door = doorMaterial(pick(rand, ['#8C3B2A', '#2F4A3A', '#6B4A32']));
+  g.userData.footprint = { W, D };
 
   addPlinth(g, M.stone, W + 0.06, base, D + 0.06);
   addBox(g, walls, W, wallTop - base, D, 0, base, 0);
@@ -727,29 +1010,37 @@ function buildCottage(rand) {
   const dx = -0.15;
   addBox(g, walls, 0.16, 0.16, 0.26, dx, 0.44, 0.15);
   addGableRoof(g, { span: 0.16, length: 0.26, wallTop: 0.6, pitch: 50, overhang: 0.02, roofMat, gableMat: walls, alongZ: true, x: dx, z: 0.15 });
-  addPanel(g, win, 0.07, 0.09, dx, 0.53, 0.28, 'front');
+  addWindow(g, win, 0.07, 0.09, dx, 0.53, 0.28, 'front');
 
-  // porta e janelas
-  addPanel(g, doorMaterial(pick(rand, ['#8C3B2A', '#2F4A3A', '#6B4A32'])), 0.09, 0.19, 0.05, base + 0.095, D / 2, 'front');
-  addPanel(g, win, 0.08, 0.12, -0.22, 0.26, D / 2, 'front');
-  addPanel(g, win, 0.08, 0.12, 0.26, 0.26, D / 2, 'front');
-  addPanel(g, win, 0.08, 0.12, 0, 0.26, -D / 2, 'back');
+  // porta e janelas (com aro e peitoril)
+  addWindow(g, door, 0.09, 0.19, 0.05, base + 0.095, D / 2, 'front', M.trim, false);
+  const flowers = rand() < 0.5;   // metade dos chalés tem floreiras nas janelas da frente
+  for (const x of [-0.22, 0.26]) {
+    addWindow(g, win, 0.08, 0.12, x, 0.26, D / 2, 'front');
+    if (flowers) addFlowerBox(g, 0.08, 0.12, x, 0.26, D / 2);
+  }
+  addWindow(g, win, 0.08, 0.12, 0, 0.26, -D / 2, 'back');
   for (const face of ['left', 'right']) {
     const x = face === 'left' ? -W / 2 : W / 2;
-    addPanel(g, win, 0.08, 0.12, x, 0.26, 0.08, face);     // piso de baixo
-    addPanel(g, win, 0.07, 0.09, x, 0.53, 0.06, face);     // sótão (na empena)
+    addWindow(g, win, 0.08, 0.12, x, 0.26, 0.08, face);     // piso de baixo
+    addWindow(g, win, 0.07, 0.09, x, 0.53, 0.06, face);     // sótão (na empena)
   }
+  // porta das traseiras com um degrau de betão
+  addWindow(g, door, 0.09, 0.19, 0.2, base + 0.095, -D / 2, 'back', M.trim, false);
+  addBox(g, M.concrete, 0.14, 0.03, 0.08, 0.2, 0, -D / 2 - 0.04);
 
   // chaminé de pedra encostada à empena direita
   addChimney(g, W / 2 + 0.04, -0.12, ridgeY + 0.12);
 
-  // alpendre: estrado de tábuas escuras, 2 postes de tronco e um telhadinho
+  // alpendre: estrado de tábuas, 2 postes de tronco, corrimão e um telhadinho
   addDeck(g, 0.3, 0.13, 0.05, D / 2 + 0.065, 0.07, 0.05);
+  addPorchRail(g, 0.3, 0.05, D / 2 + 0.12, 0.07, 0.05);
   addPost(g, -0.08, D / 2 + 0.115, 0.07, 0.31);
   addPost(g, 0.18, D / 2 + 0.115, 0.07, 0.31);
   addShedRoof(g, roofMat, 0.32, 0.05, D / 2 - 0.01, 0.35, D / 2 + 0.15, 0.3);
 
   if (rand() < 0.35) addMesh(g, G.fence, M.fence, -0.44, 0, 0);   // vedação do quintal
+  addYardProps(g, rand, [[-0.27, -0.37], [-0.03, -0.37]]);         // só do lado esquerdo (à direita está a porta de trás)
   return g;
 }
 
@@ -760,24 +1051,26 @@ function buildBungalow(rand) {
   const W = 0.6, base = 0.06, wallTop = 0.38;
   const zBack = -0.39, zFront = 0.21, zPorch = 0.37;     // parede de trás, parede da frente, beira do alpendre
   const wallD = zFront - zBack, wallZ = (zFront + zBack) / 2;
-  const walls = battenMat(pick(rand, [0x45583f, 0x45583f, 0x4f6247, 0x6a777d]));   // verde-floresta discreto
+  const walls = battenMat(pick(rand, [0x5f7a55, 0x5f7a55, 0x6b8660, 0x8a979c]));   // verde-floresta discreto
   const useRust = rand() < 0.7;
   const trim = useRust ? M.trimRust : M.trim;
   const trimCss = useRust ? '#8C3B2A' : '#E8DCC0';
-  const roofMat = shingleMat(pick(rand, [0x6a6a66, 0x55554f]));
+  const roofMat = pick(rand, [shingleMat(0x86847c), shingleMat(0x74726a), ROOF.cedar]);
+  g.userData.footprint = { W, D: wallD, z: wallZ };
 
   addPlinth(g, M.stoneDark, W + 0.05, base, wallD + 0.05, wallZ);
   addBox(g, walls, W, wallTop - base, wallD, 0, base, wallZ);
   const { ridgeY } = addGableRoof(g, {
     span: W, length: zPorch - zBack, wallTop, pitch: 40, overhang: 0.05, roofMat, gableMat: walls,
     alongZ: true, z: (zPorch + zBack) / 2,
+    fascia: false,   // sem tábua na beira: assim vêem-se as pontas das vigas (marca do estilo Craftsman)
   });
   const rise = ridgeY - wallTop;
   // escamas creme no bico da empena da frente
   const peak = addMesh(g, prismGeo(W * 0.52, rise * 0.52), M.fishScale, 0, wallTop + rise * 0.48, zPorch + 0.002);
   peak.rotation.y = Math.PI / 2;
   peak.scale.x = 0.012;
-  addPanel(g, windowMaterial(trimCss), 0.06, 0.07, 0, 0.45, zPorch, 'front');
+  addWindow(g, windowMaterial(trimCss), 0.06, 0.07, 0, 0.45, zPorch, 'front');
 
   // alpendre aberto: estrado, viga e 2 postes quadrados
   addDeck(g, W, zPorch - zFront, 0, (zFront + zPorch) / 2, base, 0.13);
@@ -785,17 +1078,19 @@ function buildBungalow(rand) {
   for (const sx of [-1, 1]) addBox(g, trim, 0.03, wallTop - 0.03 - base, 0.03, sx * (W / 2 - 0.02), base, zPorch - 0.02);
 
   // porta, janela dupla na frente, janelas dos lados
-  addPanel(g, doorMaterial(pick(rand, ['#8C3B2A', '#6B4A32'])), 0.09, 0.19, 0.13, base + 0.095, zFront, 'front');
-  addPanel(g, windowMaterial(trimCss, 4, 2), 0.15, 0.12, -0.13, 0.24, zFront, 'front');
+  addWindow(g, doorMaterial(pick(rand, ['#8C3B2A', '#6B4A32'])), 0.09, 0.19, 0.13, base + 0.095, zFront, 'front', M.trim, false);
+  addWindow(g, windowMaterial(trimCss, 4, 2), 0.15, 0.12, -0.13, 0.24, zFront, 'front');
   const sideWin = windowMaterial(trimCss);
   for (const z of [-0.24, 0.04]) {
-    addPanel(g, sideWin, 0.08, 0.12, W / 2, 0.24, z, 'right');
-    addPanel(g, sideWin, 0.08, 0.12, -W / 2, 0.24, z, 'left');
+    addWindow(g, sideWin, 0.08, 0.12, W / 2, 0.24, z, 'right');
+    addWindow(g, sideWin, 0.08, 0.12, -W / 2, 0.24, z, 'left');
   }
 
   addMesh(g, G.rafters, M.rafter);                                           // pontas das vigas
   if (rand() < 0.5) addPost(g, 0.12, -0.2, 0.5, 0.66, 0.012, M.metal);      // chaminé de salamandra (tubo)
   if (rand() < 0.35) addMesh(g, G.fence, M.fence, -0.44, 0, 0);
+  // coisas do quintal na faixa da esquerda (só se não houver vedação)
+  else addYardProps(g, rand, [[-0.37, -0.17], [-0.37, 0.17]], Math.PI / 2);
   return g;
 }
 
@@ -806,30 +1101,38 @@ function buildLogCabin(rand) {
   const g = new THREE.Group();
   const { W, D, base, wallTop } = CABIN;   // medidas definidas lá em cima, junto dos cantos de troncos
   const logs = logMat(pick(rand, [0x9a6842, 0x8e5e3a, 0xa8764a]));
-  const roofMat = seamMat(pick(rand, [0x86342a, 0x86342a, 0x36523f]));
+  const roofMat = pick(rand, [ROOF.red, ROOF.red, ROOF.green]);
   const win = windowMaterial(pick(rand, ['#E8DCC0', '#3E5B3A']));
+  g.userData.footprint = { W, D };
 
   addPlinth(g, M.stone, W + 0.05, base, D + 0.05);
-  addBox(g, logs, W, wallTop - base, D, 0, base, 0);
+  // "miolo" da parede (tapa os buracos entre os troncos) + os troncos redondos à volta
+  addBox(g, logs, W - 0.03, wallTop - base, D - 0.03, 0, base, 0);
+  addMesh(g, G.cabinLogs, logs);
   // pontas dos troncos cruzados nos 4 cantos (já feitas numa só geometria, G.logCorners)
   addMesh(g, G.logCorners, M.logEnds);
-  // telhado sem beiral à frente: o alpendre continua-o
-  const { ridgeY } = addGableRoof(g, { span: D, length: W, wallTop, pitch: 55, overhang: 0.06, overhangFront: 0, roofMat, gableMat: logs });
+  // telhado sem beiral à frente: o alpendre continua-o. Remates escuros (fica bem com os troncos).
+  const { ridgeY } = addGableRoof(g, { span: D, length: W, wallTop, pitch: 55, overhang: 0.06, overhangFront: 0, roofMat, gableMat: logs, trimMat: M.rafter });
 
-  // alpendre a toda a largura
+  // alpendre a toda a largura, com corrimão
   addDeck(g, W, 0.16, 0, D / 2 + 0.08, base, -0.1);
+  addPorchRail(g, W, 0, D / 2 + 0.15, base, -0.1);
   addShedRoof(g, roofMat, W + 0.12, 0, D / 2 - 0.02, 0.38, D / 2 + 0.17, 0.31);
   addPost(g, -0.28, D / 2 + 0.14, base, 0.32, 0.014);
   addPost(g, 0.28, D / 2 + 0.14, base, 0.32, 0.014);
 
-  addPanel(g, doorMaterial(pick(rand, ['#5A3B26', '#2F4A3A'])), 0.09, 0.18, -0.1, base + 0.09, D / 2, 'front');
-  addPanel(g, win, 0.09, 0.11, 0.15, 0.22, D / 2, 'front');
-  addPanel(g, win, 0.08, 0.1, W / 2 + 0.003, 0.22, -0.05, 'right');
-  addPanel(g, win, 0.06, 0.08, W / 2, 0.46, 0, 'right');       // sótão
-  addPanel(g, win, 0.06, 0.08, -W / 2, 0.46, 0.08, 'left');
-  addPanel(g, win, 0.08, 0.1, 0, 0.22, -D / 2, 'back');
+  // janelas e porta à face dos troncos (que saem 0.012 para fora da parede)
+  const front = D / 2 + 0.012, side = W / 2 + 0.012;
+  addWindow(g, doorMaterial(pick(rand, ['#5A3B26', '#2F4A3A'])), 0.09, 0.18, -0.1, base + 0.09, front, 'front', M.trim, false);
+  addWindow(g, win, 0.09, 0.11, 0.15, 0.22, front, 'front');
+  if (rand() < 0.5) addFlowerBox(g, 0.09, 0.11, 0.15, 0.22, front);
+  addWindow(g, win, 0.08, 0.1, side, 0.22, -0.05, 'right');
+  addWindow(g, win, 0.06, 0.08, W / 2, 0.46, 0, 'right');       // sótão (na empena, que não tem troncos)
+  addWindow(g, win, 0.06, 0.08, -W / 2, 0.46, 0.08, 'left');
+  addWindow(g, win, 0.08, 0.1, 0, 0.22, -front, 'back');
 
   addChimney(g, -(W / 2 + 0.045), -0.1, ridgeY + 0.09, 0.09);
+  addYardProps(g, rand, [[-0.17, -0.37], [0.17, -0.37]]);
   return g;
 }
 
@@ -841,11 +1144,13 @@ function buildDuplex(rand) {
   const g = new THREE.Group();
   const W = 0.76, D = 0.52, stoneTop = 0.12, wallTop = 0.4;
   const siding = sidingMat(pick(rand, [0xb4a386, 0x6a767c, 0x9c8e78]));
-  const roofMat = seamMat(0x45484c);
+  const roofMat = seamMat(0x5f6368);
   const win = windowMaterial('#2B2B2B');
   const wideWin = windowMaterial('#2B2B2B', 3, 1);
   const door = doorMaterial(pick(rand, ['#2F5D5A', '#6B4F2E']));
   const front = D / 2 + 0.006;
+  const dark = M.darkTrim;   // aros pretos (estilo moderno)
+  g.userData.footprint = { W, D };
 
   addBox(g, M.veneer, W + 0.012, stoneTop, D + 0.012, 0, 0, 0);                // faixa de pedra
   addBox(g, siding, W, wallTop - stoneTop, D, 0, stoneTop, 0);
@@ -859,20 +1164,21 @@ function buildDuplex(rand) {
     addBox(g, siding, 0.22, 0.22, 0.22, dx, 0.385, 0.14);
     addMesh(g, prismGeo(0.22, 0.072, -0.5), siding, dx, 0.605, 0.14).scale.x = 0.22;
     addShedRoof(g, roofMat, 0.26, dx, 0, 0.7, 0.31, 0.6);
-    addPanel(g, wideWin, 0.15, 0.1, dx, 0.5, 0.25, 'front');          // janela do piso de cima
+    addWindow(g, wideWin, 0.15, 0.1, dx, 0.5, 0.25, 'front', dark);          // janela do piso de cima
     // porta, alpendre (2 postes + telhadinho) e degrau de betão
     const doorX = sx * 0.12;
-    addPanel(g, door, 0.09, 0.2, doorX, 0.1, front, 'front');
+    addWindow(g, door, 0.09, 0.2, doorX, 0.1, front, 'front', dark, false);
     addShedRoof(g, roofMat, 0.16, doorX, D / 2, 0.26, D / 2 + 0.1, 0.235, 0.015);
     addBox(g, M.concrete, 0.16, 0.025, 0.1, doorX, 0, D / 2 + 0.05);
     for (const px of [-0.065, 0.065]) addPost(g, doorX + px, D / 2 + 0.085, 0.025, 0.24, 0.012);
     // janelas do rés-do-chão
-    addPanel(g, win, 0.09, 0.11, sx * 0.27, 0.19, D / 2, 'front');
-    addPanel(g, win, 0.08, 0.11, sx * (W / 2), 0.2, -0.1, sx === 1 ? 'right' : 'left');
-    addPanel(g, win, 0.07, 0.09, sx * (W / 2), 0.5, 0, sx === 1 ? 'right' : 'left');   // sótão, na empena
-    addPanel(g, win, 0.09, 0.11, dx, 0.2, -D / 2, 'back');
+    addWindow(g, win, 0.09, 0.11, sx * 0.27, 0.19, D / 2, 'front', dark);
+    addWindow(g, win, 0.08, 0.11, sx * (W / 2), 0.2, -0.1, sx === 1 ? 'right' : 'left', dark);
+    addWindow(g, win, 0.07, 0.09, sx * (W / 2), 0.5, 0, sx === 1 ? 'right' : 'left', dark);   // sótão, na empena
+    addWindow(g, win, 0.09, 0.11, dx, 0.2, -D / 2, 'back', dark);
   }
   addPost(g, 0.25, -0.12, 0.55, 0.76, 0.014, M.darkTrim);    // tubo de exaustão em metal
+  addYardProps(g, rand, [[-0.17, -0.37], [0.17, -0.37]]);
   return g;
 }
 
@@ -885,6 +1191,8 @@ function buildMobileHome(rand) {
   const walls = vinylMat(pick(rand, [0xd6c7a4, 0xa6b496, 0xc4bdab]));   // bege, verde-claro, cinzento-bege
   const roofMat = seamMat(pick(rand, [0xc4c2b8, 0x9a9a92]));
   const win = windowMaterial('#D8D8D0', 2, 1);
+  const dark = M.darkTrim;
+  g.userData.footprint = { W, D, z: z0 };
 
   addBox(g, M.skirting, W - 0.02, skirt, D - 0.02, 0, 0, z0);
   addBox(g, walls, W, wallTop - skirt, D, 0, skirt, z0);
@@ -897,19 +1205,20 @@ function buildMobileHome(rand) {
   addPost(g, 0.06, front + 0.13, skirt, 0.23, 0.007, M.trim);
   addPost(g, 0.28, front + 0.13, skirt, 0.23, 0.007, M.trim);
 
-  addPanel(g, doorMaterial(pick(rand, ['#F2EEE2', '#6B4A32'])), 0.07, 0.15, 0.17, skirt + 0.075, front, 'front');
-  addPanel(g, win, 0.11, 0.07, -0.28, 0.165, front, 'front');
-  addPanel(g, win, 0.11, 0.07, -0.08, 0.165, front, 'front');
+  addWindow(g, doorMaterial(pick(rand, ['#F2EEE2', '#6B4A32'])), 0.07, 0.15, 0.17, skirt + 0.075, front, 'front', dark, false);
+  addWindow(g, win, 0.11, 0.07, -0.28, 0.165, front, 'front', dark);
+  addWindow(g, win, 0.11, 0.07, -0.08, 0.165, front, 'front', dark);
   // palas de alumínio por cima das janelas da frente (muito típicas das casas móveis)
-  for (const x of [-0.28, -0.08]) addBox(g, M.awning, 0.13, 0.01, 0.03, x, 0.205, front + 0.015);
-  addPanel(g, win, 0.08, 0.07, W / 2, 0.165, z0, 'right');
-  addPanel(g, win, 0.08, 0.07, -W / 2, 0.165, z0, 'left');
-  addPanel(g, win, 0.11, 0.07, 0, 0.165, z0 - D / 2, 'back');
+  for (const x of [-0.28, -0.08]) addBox(g, M.awning, 0.13, 0.01, 0.03, x, 0.212, front + 0.015);
+  addWindow(g, win, 0.08, 0.07, W / 2, 0.165, z0, 'right', dark);
+  addWindow(g, win, 0.08, 0.07, -W / 2, 0.165, z0, 'left', dark);
+  addWindow(g, win, 0.11, 0.07, 0, 0.165, z0 - D / 2, 'back', dark);
 
   // botija de gás (propano) deitada ao lado da casa
   const tank = addMesh(g, G.post, M.propane, -0.33, 0.035, front + 0.04);
   tank.rotation.z = Math.PI / 2;
   tank.scale.set(0.032, 0.1, 0.032);
+  addYardProps(g, rand, [[-0.17, -0.37], [0.17, -0.37]]);
   return g;
 }
 
@@ -923,6 +1232,8 @@ export function buildHouse(rand) {
   else house = buildMobileHome(rand);
   // Não rodamos a casa ao acaso: em Jasper as casas olham todas para a rua, por isso a frente
   // (porta e alpendre) fica sempre virada para +z. Quem monta a vila pode rodá-la para a estrada.
+  addLot(house, house.userData.footprint);   // relva, entrada de gravilha e sombra suave
+  mergeByMaterial(house);                    // juntar peças iguais = desenhar mais depressa
   return shadows(house);
 }
 
@@ -941,20 +1252,20 @@ export function buildSchool(rand) {
   const upperFront = MD / 2 - 0.01;   // a parede de cima é um bocadinho mais estreita
   addBox(g, M.schoolStone, MW, 0.28, MD, 0, 0, 0);
   addBox(g, M.trim, MW + 0.012, 0.02, MD + 0.012, 0, 0.28, 0);
-  addBox(g, M.schoolWood, MW - 0.02, 0.2, MD - 0.02, 0, 0.3, 0);
-  const { ridgeY } = addGableRoof(g, { span: MD - 0.02, length: MW - 0.02, wallTop: 0.5, pitch: 55, overhang: 0.05, roofMat: M.schoolRoof, gableMat: M.schoolWood });
+  addBox(g, M.schoolWood, MW - 0.02, 0.14, MD - 0.02, 0, 0.3, 0);   // meio piso de troncos (baixo, para o telhado dominar)
+  const { ridgeY } = addGableRoof(g, { span: MD - 0.02, length: MW - 0.02, wallTop: 0.44, pitch: 55, overhang: 0.05, roofMat: M.schoolRoof, gableMat: M.schoolWood });
 
   // 2 trapeiras com bico + 1 trapeira "shed" no meio (os "bicos de montanha" do telhado)
   const dormerZ = upperFront - 0.0875;   // trapeira com 0.175 de fundo, a face rente à parede
   const dormerWin = windowMaterial('#E5D8B8');
   for (const dx of [-0.17, 0.17]) {
-    addBox(g, M.schoolWood, 0.11, 0.13, 0.175, dx, 0.48, dormerZ);
-    addGableRoof(g, { span: 0.11, length: 0.175, wallTop: 0.61, pitch: 55, overhang: 0.015, roofMat: M.schoolRoof, gableMat: M.schoolWood, alongZ: true, x: dx, z: dormerZ });
-    addPanel(g, dormerWin, 0.06, 0.07, dx, 0.545, upperFront, 'front');
+    addBox(g, M.schoolWood, 0.11, 0.13, 0.175, dx, 0.42, dormerZ);
+    addGableRoof(g, { span: 0.11, length: 0.175, wallTop: 0.55, pitch: 55, overhang: 0.015, roofMat: M.schoolRoof, gableMat: M.schoolWood, alongZ: true, x: dx, z: dormerZ });
+    addWindow(g, dormerWin, 0.06, 0.07, dx, 0.485, upperFront, 'front');
   }
-  addBox(g, M.schoolWood, 0.13, 0.125, 0.175, 0, 0.48, dormerZ);
-  addShedRoof(g, M.schoolRoof, 0.16, 0, -0.01, 0.66, upperFront + 0.03, 0.6);
-  addPanel(g, windowMaterial('#E5D8B8', 3, 1), 0.1, 0.06, 0, 0.545, upperFront, 'front');
+  addBox(g, M.schoolWood, 0.13, 0.125, 0.175, 0, 0.42, dormerZ);
+  addShedRoof(g, M.schoolRoof, 0.16, 0, -0.01, 0.6, upperFront + 0.03, 0.54);
+  addWindow(g, windowMaterial('#E5D8B8', 3, 1), 0.1, 0.06, 0, 0.485, upperFront, 'front');
 
   // Ala de 2 pisos a noroeste, com telhado em pirâmide baixa (mesma inclinação do telhado principal)
   const tx = -0.29, tz = -0.2;
@@ -967,8 +1278,8 @@ export function buildSchool(rand) {
     addBracket(g, tx - 0.135, 0.56, tz + d, 'x');      // lado esquerdo da ala
     addBracket(g, tx + d, 0.56, tz - 0.135, 'z');      // traseira da ala
   }
-  addBracket(g, MW / 2 + 0.005, 0.55, 0.15, 'x');       // empena direita
-  addBracket(g, -MW / 2 - 0.005, 0.55, 0.15, 'x');      // empena esquerda
+  addBracket(g, MW / 2 + 0.005, 0.49, 0.15, 'x');       // empena direita
+  addBracket(g, -MW / 2 - 0.005, 0.49, 0.15, 'x');      // empena esquerda
 
   // Ala de 1 piso a sudeste, com bico virado para a frente
   const wx = 0.3, wz = 0.19;
@@ -978,32 +1289,36 @@ export function buildSchool(rand) {
   // Janelas todas diferentes (aros verde-escuro e creme, muitos vidrinhos)
   const green33 = windowMaterial('#2F4A3A', 3, 3), green32 = windowMaterial('#2F4A3A', 3, 2);
   const cream = windowMaterial('#E5D8B8'), green = windowMaterial('#2F4A3A');
-  addPanel(g, green33, 0.11, 0.13, 0.1, 0.15, MD / 2, 'front');
-  addPanel(g, cream, 0.07, 0.12, -0.27, 0.15, MD / 2, 'front');
-  addPanel(g, cream, 0.07, 0.09, -0.19, 0.4, upperFront, 'front');
-  addPanel(g, green32, 0.12, 0.08, 0, 0.4, upperFront, 'front');
-  addPanel(g, cream, 0.07, 0.09, 0.19, 0.4, upperFront, 'front');
-  addPanel(g, green32, 0.12, 0.1, wx, 0.13, wz + 0.11, 'front');       // ala sudeste
-  addPanel(g, green, 0.08, 0.1, wx + 0.11, 0.13, wz, 'right');
-  addPanel(g, green, 0.07, 0.12, MW / 2, 0.15, 0.025, 'right');        // entre a chaminé e a ala
-  addPanel(g, cream, 0.07, 0.09, MW / 2 - 0.01, 0.4, 0.025, 'right');
-  addPanel(g, green, 0.08, 0.12, -MW / 2, 0.15, 0.08, 'left');
-  addPanel(g, cream, 0.07, 0.09, -MW / 2 + 0.01, 0.4, 0.08, 'left');
-  addPanel(g, green33, 0.11, 0.13, 0.05, 0.15, -MD / 2, 'back');
-  addPanel(g, green, 0.07, 0.1, tx - 0.12, 0.15, tz, 'left');          // ala noroeste
-  addPanel(g, cream, 0.06, 0.1, tx - 0.115, 0.43, tz, 'left');
-  addPanel(g, cream, 0.06, 0.1, tx, 0.43, tz - 0.115, 'back');
+  addWindow(g, green33, 0.11, 0.13, 0.1, 0.15, MD / 2, 'front');
+  addWindow(g, cream, 0.07, 0.12, -0.27, 0.15, MD / 2, 'front');
+  // (o piso de cima da frente não leva janelas: ficavam escondidas pela beira do telhado;
+  //  as janelas desse piso estão nas trapeiras)
+  addWindow(g, green32, 0.12, 0.1, wx, 0.13, wz + 0.11, 'front');       // ala sudeste
+  addWindow(g, green, 0.08, 0.1, wx + 0.11, 0.13, wz, 'right');
+  addWindow(g, green, 0.07, 0.12, MW / 2, 0.15, 0.025, 'right');        // entre a chaminé e a ala
+  addWindow(g, cream, 0.07, 0.09, MW / 2 - 0.01, 0.37, 0.025, 'right');
+  addWindow(g, green, 0.08, 0.12, -MW / 2, 0.15, 0.08, 'left');
+  addWindow(g, cream, 0.07, 0.09, -MW / 2 + 0.01, 0.37, 0.08, 'left');
+  addWindow(g, green33, 0.11, 0.13, 0.05, 0.15, -MD / 2, 'back');
+  addWindow(g, green, 0.07, 0.1, tx - 0.12, 0.15, tz, 'left');          // ala noroeste
+  addWindow(g, cream, 0.06, 0.1, tx - 0.115, 0.43, tz, 'left');
+  addWindow(g, cream, 0.06, 0.1, tx, 0.43, tz - 0.115, 'back');
 
   // Grande chaminé de pedra (lá dentro há uma lareira de pedra enorme)
-  addChimney(g, 0.36, -0.08, ridgeY + 0.13, 0.1);
+  addChimney(g, 0.36, -0.08, ridgeY + 0.08, 0.08);
 
   // Alpendre de troncos descascados com a porta de entrada
   addDeck(g, 0.22, 0.12, -0.09, MD / 2 + 0.06, 0.04, -0.09);
   addPost(g, -0.19, MD / 2 + 0.105, 0.04, 0.27, 0.013);
   addPost(g, 0.01, MD / 2 + 0.105, 0.04, 0.27, 0.013);
   addShedRoof(g, M.schoolRoof, 0.26, -0.09, MD / 2 - 0.01, 0.31, MD / 2 + 0.14, 0.26);
-  addPanel(g, doorMaterial('#5A3B26'), 0.09, 0.19, -0.09, 0.135, MD / 2, 'front');
+  addWindow(g, doorMaterial('#5A3B26'), 0.09, 0.19, -0.09, 0.135, MD / 2, 'front', M.trim, false);
   addBox(g, M.gravel, 0.09, 0.008, 0.08, -0.09, 0.012, 0.4);          // caminho de gravilha
+
+  // Placa junto ao caminho: 2 postes, tabuleta creme com moldura escura por trás
+  for (const x of [0.18, 0.32]) addPost(g, x, 0.4, 0, 0.1, 0.008);
+  addMesh(g, boxGeo(0.17, 0.055, 0.008), M.rafter, 0.25, 0.075, 0.4);
+  addMesh(g, boxGeo(0.16, 0.045, 0.012), M.trim, 0.25, 0.075, 0.41);
 
   // Canteiros de flores vermelhas e amarelas
   addBox(g, M.soil, 0.16, 0.02, 0.05, 0.1, 0.012, MD / 2 + 0.035);
@@ -1016,7 +1331,7 @@ export function buildSchool(rand) {
   addPost(g, px, pz, 0.012, 1.1, 0.009, M.pole);
   addMesh(g, G.blob, M.poleBall, px, 1.11, pz).scale.setScalar(0.016);
   const flagGeo = new THREE.PlaneGeometry(0.22, 0.11, 10, 1).translate(0.11, 0, 0);   // cada escola tem a sua (porque mexe)
-  addMesh(g, flagGeo, M.flag, px + 0.009, 1.03, pz);
+  addMesh(g, flagGeo, M.flag, px + 0.009, 1.03, pz).userData.keepSeparate = true;   // mexe: não se junta
   const flagPos = flagGeo.attributes.position;
   const phase = rand() * 6;
   g.userData.animate = (t) => {
@@ -1026,6 +1341,7 @@ export function buildSchool(rand) {
     }
     flagPos.needsUpdate = true;
   };
+  mergeByMaterial(g);   // juntar peças iguais (a bandeira fica de fora)
   return shadows(g);
 }
 
