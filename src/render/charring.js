@@ -16,6 +16,7 @@
 //   casa   -> paredes enegrecidas; o telhado fica preto, afundado, com vigas queimadas
 //   e, por baixo de tudo, uma "mancha" de cinza cinzenta e carvão desenhada em código.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Cores neutras (sem castanho!): preto de carvão e cinzentos de cinza.
 export const CHAR_COLORS = {
@@ -47,6 +48,7 @@ export function charProp(group, tileType) {
     else if (kind === 'bush') charBush(group, child, random);
     else charBuilding(group, child, random);
   }
+  mergeWood(group);
   addAsh(group, random);
 }
 
@@ -121,7 +123,7 @@ function addStick(group, x, y, z, length, thickness, turn, tilt) {
   stick.position.set(x, y, z);
   stick.scale.set(thickness, length, thickness);
   stick.rotation.set(0, turn, tilt, 'YXZ');
-  stick.castShadow = true;
+  stick.userData.woodPiece = true; // no fim, todos os paus do quadrado juntam-se numa peça só
   group.add(stick);
   return stick;
 }
@@ -137,9 +139,25 @@ function charBush(group, bush, random) {
     stub.scale.set(r, h, r);
     stub.position.set(foot.x + (random() - 0.5) * 0.16, foot.y, foot.z + (random() - 0.5) * 0.16);
     stub.rotation.set((random() - 0.5) * 0.6, 0, (random() - 0.5) * 0.6);
-    stub.castShadow = true;
+    stub.userData.woodPiece = true;
     group.add(stub);
   }
+}
+
+// JUNTAR os paus e tocos de um quadrado numa só peça: um eucaliptal queimado tem
+// dezenas de paus, e cada peça é um "pedido" à placa gráfica (o jogo ficava lento).
+function mergeWood(group) {
+  const pieces = group.children.filter((o) => o.userData.woodPiece);
+  if (pieces.length === 0) return;
+  const geometries = pieces.map((piece) => {
+    piece.updateMatrix();
+    return piece.geometry.clone().applyMatrix4(piece.matrix); // o pau já no sítio certo
+  });
+  for (const piece of pieces) group.remove(piece);
+  const wood = new THREE.Mesh(mergeGeometries(geometries), WOOD);
+  wood.castShadow = true;
+  group.add(wood);
+  for (const geometry of geometries) geometry.dispose();
 }
 
 // ---------- Casa: paredes enegrecidas, telhado preto e afundado, vigas queimadas ----------

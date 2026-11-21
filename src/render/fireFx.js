@@ -41,7 +41,7 @@ export function createFireFx(scene, view, options = {}) {
     smoke: createLayer(scene, { capacity: 1400, texture: makeSmokeTexture(), frames: 4, additive: false, order: 1 }),
     glow: createLayer(scene, { capacity: 500, texture: makeGlowTexture(), frames: 1, additive: true, order: 2 }),
     flame: createLayer(scene, { capacity: 3000, texture: makeFlameTexture(), frames: FLAME_FRAMES, additive: true, order: 3 }),
-    ember: createLayer(scene, { capacity: 2500, texture: makeEmberTexture(), frames: 1, additive: true, order: 4 }),
+    ember: createLayer(scene, { capacity: 4000, texture: makeEmberTexture(), frames: 1, additive: true, order: 4 }),
   };
   const lights = createLights(scene);
 
@@ -68,7 +68,7 @@ export function createFireFx(scene, view, options = {}) {
   function smolder(x, y) {
     const p = groundPosition(x, y);
     const dots = [];
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 6; i++) {
       dots.push({ ox: (Math.random() - 0.5) * 0.8, oz: (Math.random() - 0.5) * 0.8,
         phase: Math.random() * 10, size: 0.05 + Math.random() * 0.06 });
     }
@@ -121,9 +121,31 @@ export function createFireFx(scene, view, options = {}) {
     const p = groundPosition(x, y);
     const tongues = [];  // chamas baixas (fogo no chão)
     for (let i = 0; i < 4; i++) tongues.push(newTongue(0.32));
-    const crown = [];    // chamas altas (fogo de copas, só com intensidade alta)
+    const crown = [];    // chamas altas (fogo de copas, só com árvores altas e fogo forte)
     for (let i = 0; i < 3; i++) crown.push(newTongue(0.22));
-    return { ...p, target: intensity, intensity: 0, grow: 0, dying: false, tongues, crown, sparkTimer: 0 };
+    const fuelHeight = measureFuelHeight(p);
+    return { ...p, target: intensity, intensity: 0, grow: 0, dying: false, tongues, crown, fuelHeight, sparkTimer: 0 };
+  }
+
+  // Que altura têm as coisas (árvores, casas) neste quadrado? Procuramos na cena os grupos
+  // que estão no centro do quadrado e medimos o topo. Devolve null se não encontrar nada
+  // (aí decidimos só pela intensidade).
+  function measureFuelHeight(p) {
+    let top = null;
+    for (const object of scene.children) {
+      if (!object.isGroup) continue;
+      if (Math.abs(object.position.x - p.x) > 0.3 || Math.abs(object.position.z - p.z) > 0.3) continue;
+      const box = new THREE.Box3().setFromObject(object);
+      if (!box.isEmpty()) top = Math.max(top ?? -Infinity, box.max.y);
+    }
+    return top === null ? null : top - p.y;
+  }
+
+  // Este fogo é um fogo de copas? (árvores altas OU, sem medida, fogo muito forte)
+  function crownPowerOf(fire, p) {
+    if (fire.fuelHeight === null) return (p - 0.8) / 0.2;
+    if (fire.fuelHeight < 0.9) return 0;            // relva, mato, árvores baixas: só chamas baixas
+    return (p - 0.5) / 0.5;
   }
 
   // Uma "língua" de fogo: posição dentro do quadrado e o seu ritmo próprio.
@@ -180,8 +202,11 @@ export function createFireFx(scene, view, options = {}) {
       smokeSpawn.set(c.key, toSpawn);
     }
     // smolders: fumo fino que vai acabando
+    // (só se houver espaço: o fumo dos incêndios tem prioridade)
+    const roomForThin = smoke.length < layers.smoke.capacity * 0.6;
     for (const s of smolders) {
-      s.smokeToSpawn += dt * 1.6 * (1 - s.age / SMOLDER_SECONDS);
+      if (!roomForThin) break;
+      s.smokeToSpawn += dt * 0.5 * (1 - s.age / SMOLDER_SECONDS);
       while (s.smokeToSpawn >= 1) { addThinSmoke(s); s.smokeToSpawn -= 1; }
     }
   }
@@ -193,10 +218,10 @@ export function createFireFx(scene, view, options = {}) {
     smoke.push({
       x: fire.x + (Math.random() - 0.5) * 0.6, y: fire.y + 0.4 + p * 0.9, z: fire.z + (Math.random() - 0.5) * 0.6,
       rise: 0.55 + Math.random() * 0.3 + columnStrength * 0.35,
-      age: 0, life: 7 + Math.random() * 4,
+      age: 0, life: 6 + Math.random() * 3,
       size: 0.6 + p * 0.5, growth: 0.35 + columnStrength * 0.25,
       spin: Math.random() * 6, spinSpeed: (Math.random() - 0.5) * 0.6,
-      frame: Math.floor(Math.random() * 4), alpha: 0.42, thin: false,
+      frame: Math.floor(Math.random() * 4), alpha: 0.36, thin: false,
     });
   }
 
@@ -207,7 +232,7 @@ export function createFireFx(scene, view, options = {}) {
       x: s.x + (Math.random() - 0.5) * 0.7, y: s.y + 0.05, z: s.z + (Math.random() - 0.5) * 0.7,
       rise: 0.3 + Math.random() * 0.15, age: 0, life: 4 + Math.random() * 2,
       size: 0.15, growth: 0.22, spin: Math.random() * 6, spinSpeed: (Math.random() - 0.5) * 0.8,
-      frame: Math.floor(Math.random() * 4), alpha: 0.22 * (1 - s.age / SMOLDER_SECONDS), thin: true,
+      frame: Math.floor(Math.random() * 4), alpha: 0.18 * (1 - s.age / SMOLDER_SECONDS), thin: true,
     });
   }
 
@@ -304,18 +329,19 @@ export function createFireFx(scene, view, options = {}) {
     const flicker = 0.85 + 0.15 * Math.sin(t * 13 + fire.x * 3) * Math.sin(t * 7.3 + fire.z);
     // Brilho: um halo laranja grande e suave à volta das chamas.
     layers.glow.push(fire.x, fire.y + 0.3 + p * 0.3, fire.z, 1.2 + p * 2.4, 1, 0.42, 0.12, 0.33 * flicker, 0, 0);
-    // Chamas baixas: a altura depende da força (relva ~0.5, mato forte ~1.3).
+    // Chamas baixas: a altura depende da força (relva ~0.5, mato forte ~1).
     const redder = 1 - p; // fogos fracos são mais vermelhos, fortes mais amarelos
     for (const tongue of fire.tongues) {
-      const height = (0.35 + p * 0.95) * tongue.scale * (1 + 0.1 * Math.sin(t * 6 + tongue.phase));
+      const height = (0.3 + p * 0.8) * tongue.scale * (1 + 0.1 * Math.sin(t * 6 + tongue.phase));
       drawTongue(fire, tongue, fire.y - 0.04, height, redder, t);
     }
-    // Fogo de copas: com força alta, chamas muito mais altas por cima das árvores.
-    const crownPower = (p - 0.55) / 0.45;
+    // Fogo de copas: árvores altas com fogo forte = chamas muito mais altas do que as árvores.
+    const crownPower = crownPowerOf(fire, p);
     if (crownPower <= 0) return;
+    const treeHeight = fire.fuelHeight ?? 1.2;
     for (const tongue of fire.crown) {
-      const height = (0.8 + crownPower * 1.6) * tongue.scale * (1 + 0.12 * Math.sin(t * 5 + tongue.phase));
-      drawTongue(fire, tongue, fire.y + 0.3, height, 0, t);
+      const height = (0.6 + crownPower * 1.3) * treeHeight * tongue.scale * (1 + 0.12 * Math.sin(t * 5 + tongue.phase));
+      drawTongue(fire, tongue, fire.y + treeHeight * 0.35, height, 0, t);
     }
   }
 
