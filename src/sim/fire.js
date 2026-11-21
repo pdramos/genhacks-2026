@@ -16,11 +16,15 @@ export const FLAMMABILITY = {
   water: 0,
 };
 
+// Quanto o vento conta (k): com vento de 30 km/h, o fogo a favor do vento fica 2.5 vezes
+// mais provável e contra o vento quase não avança. Afinado a jogar.
+export const DEFAULT_K = 0.05;
+
 // Probabilidade (0 a 1) de um quadrado a arder pegar fogo ao vizinho do tipo targetType.
 // (dx, dy) = direção do quadrado a arder até ao vizinho (um dos 8 vizinhos).
 // wind = { direction, speed }: de onde o vento vem (graus) e a força (km/h).
-// k = quanto o vento conta (um número pequeno, por exemplo 0.05).
-export function ignitionProbability(targetType, dx, dy, wind, k) {
+// k = quanto o vento conta (se faltar, usa DEFAULT_K).
+export function ignitionProbability(targetType, dx, dy, wind, k = DEFAULT_K) {
   const flammability = FLAMMABILITY[targetType] ?? 0;
 
   // Para onde o vento empurra o fogo (downwind), na grelha (y cresce para sul).
@@ -37,8 +41,15 @@ export function ignitionProbability(targetType, dx, dy, wind, k) {
   // Fator do vento: a favor do vento aumenta, contra o vento diminui (mas nunca abaixo de 0.1).
   const windFactor = Math.max(0.1, 1 + k * wind.speed * cosAngle);
 
-  return clamp(flammability * windFactor, 0, 1);
+  // Os vizinhos na diagonal estão mais longe (cerca de 1.4 quadrados), por isso
+  // têm menos probabilidade. Assim o fogo não fica com forma de quadrado.
+  const distanceFactor = dx !== 0 && dy !== 0 ? DIAGONAL_FACTOR : 1;
+
+  return clamp(flammability * windFactor * distanceFactor, 0, 1);
 }
+
+// Quanto conta um vizinho na diagonal, comparado com um vizinho ao lado.
+export const DIAGONAL_FACTOR = 0.7;
 
 // Quantos passos (de 10 minutos) cada tipo fica a arder antes de ficar queimado.
 // As árvores ardem mais tempo do que a relva.
@@ -52,9 +63,6 @@ export const BURN_STEPS = {
   cleared: 1,
 };
 
-// Quanto o vento conta: com vento de 30 km/h, o fogo a favor do vento fica 2.2 vezes
-// mais provável e contra o vento quase não avança. Afinado a jogar.
-export const DEFAULT_K = 0.04;
 
 // Os 8 vizinhos de um quadrado: (dx, dy) a partir do quadrado do meio.
 const NEIGHBOURS = [

@@ -150,6 +150,19 @@ test('the wind can be a function of the step, so it can change over time', () =>
   assert.deepEqual(withFunction, withObject);
 });
 
+test('with a strong wind from the west, the fire reaches further east (downwind) than west', () => {
+  // Um campo de mato de 21 x 21 com o fogo a começar no meio (10, 10).
+  // No fim o campo todo arde, por isso olhamos para o passo em que o fogo chega à borda leste.
+  const field = villageFrom(...Array(21).fill('B'.repeat(21)));
+  for (let seed = 1; seed <= 10; seed++) {
+    const { steps } = runDisaster(field, { ignition: { x: 10, y: 10 }, wind: { direction: 270, speed: 30 }, seed });
+    const xsAt = ({ burning, burned }) => [...burning, ...burned].map(([x]) => x);
+    const atEastEdge = steps.find((snapshot) => xsAt(snapshot).includes(20));
+    const westReach = 10 - Math.min(...xsAt(atEastEdge));
+    assert.ok(westReach < 10, `seed ${seed}: the fire went ${westReach} tiles west by the time it reached the east edge`);
+  }
+});
+
 test('the fire stops after maxSteps even if something is still burning', () => {
   const { steps, outcome } = runDisaster(mixedVillage(), {
     ignition: { x: 0, y: 0 }, wind: { direction: 315, speed: 30 }, seed: 42, maxSteps: 3,
