@@ -59,8 +59,10 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const tile = view.tileFromPointer(e, camera, renderer.domElement);
   for (const fn of clickListeners) fn(tile);
 });
-// Por agora: mostra o tipo do quadrado clicado.
+// Na fase de construção: mostra o tipo do quadrado clicado.
+// Depois disso, #info mostra o relógio do fogo e a mensagem final, que um clique não pode apagar.
 onTileClick((tile) => {
+  if (game.phase !== 'build') return;
   document.getElementById('info').textContent = tile
     ? `Tile (${tile.x}, ${tile.y}): ${village.tiles[tile.y][tile.x]}`
     : 'Outside the village';
