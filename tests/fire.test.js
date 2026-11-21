@@ -11,3 +11,17 @@ test('with zero wind, grass is equally likely to catch fire in the 4 main direct
     ignitionProbability('grass', dx, dy, noWind, 0.05));
   assert.deepEqual(chances, [0.5, 0.5, 0.5, 0.5]);
 });
+
+test('a strong wind from the north makes fire more likely to jump south (downwind) than north', () => {
+  const northWind = { direction: 0, speed: 30 };
+  const downwind = ignitionProbability('grass', ...SOUTH, northWind, 0.05);
+  const upwind = ignitionProbability('grass', ...NORTH, northWind, 0.05);
+  assert.ok(downwind > upwind, `downwind ${downwind} should be > upwind ${upwind}`);
+});
+
+test('a wind from the north-west (315 degrees) pushes fire towards the south-east', () => {
+  const nwWind = { direction: 315, speed: 30 };
+  const southEast = ignitionProbability('grass', 1, 1, nwWind, 0.05);
+  const northWest = ignitionProbability('grass', -1, -1, nwWind, 0.05);
+  assert.ok(southEast > northWest, `south-east ${southEast} should be > north-west ${northWest}`);
+});
