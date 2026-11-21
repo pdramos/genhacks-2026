@@ -37,7 +37,16 @@ const view = createVillageView(scene, village, style, rand);
 const fireFx = createFireFx(scene, view);
 
 // Exposto para os outros módulos do jogo (fase de construção, desastre) se ligarem.
-export const game = { level, village, view, fireFx, camera, renderer };
+// game.village é a MESMA vila que a fase de construção altera e que o fogo lê.
+export const game = { level, village, view, fireFx, camera, renderer, phase: 'build' };
+
+// ---------- Fases do jogo: 'build' (construir) -> 'disaster' (fogo) -> 'result' (estrelas) ----------
+const phaseListeners = [];
+export function onPhaseChange(fn) { phaseListeners.push(fn); }
+export function setPhase(phase) {
+  game.phase = phase;
+  for (const fn of phaseListeners) fn(phase);
+}
 
 // ---------- Clique num quadrado ----------
 // Distingue "clicar" de "arrastar a câmara": só conta se o rato quase não se mexeu.
