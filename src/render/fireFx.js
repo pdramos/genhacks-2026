@@ -11,6 +11,19 @@ import * as THREE from 'three';
 
 export function createFireFx(scene, view) {
   const fires = new Map(); // "x,y" -> { flame, smoke, light }
+
+  // Luzes do fogo: um número FIXO de luzes, criadas já aqui e "desligadas" (intensidade 0).
+  // Porquê? Sempre que o número de luzes da cena muda, o three.js recompila os shaders
+  // de todos os materiais e o jogo congela 1 a 2 segundos. Assim o número nunca muda.
+  // Só os primeiros MAX_LIGHTS fogos acesos ao mesmo tempo têm luz; os outros só partículas.
+  const MAX_LIGHTS = 8;
+  const freeLights = [];
+  for (let i = 0; i < MAX_LIGHTS; i++) {
+    const light = new THREE.PointLight(0xff7a2a, 0, 3);
+    scene.add(light);
+    freeLights.push(light);
+  }
+
   let seed = 1;
   const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 
@@ -38,9 +51,9 @@ export function createFireFx(scene, view) {
     const smoke = makeParticles(25, 0x555555, 0.35, true);
     flame.position.set(wx, 0.3, wz);
     smoke.position.set(wx, 0.5, wz);
-    const light = new THREE.PointLight(0xff7a2a, 2.5, 3);
-    light.position.set(wx, 0.8, wz);
-    scene.add(flame, smoke, light);
+    const light = freeLights.pop() || null; // pode não haver luz livre
+    if (light) light.position.set(wx, 0.8, wz);
+    scene.add(flame, smoke);
     fires.set(key, { flame, smoke, light, x });
   }
 
@@ -48,8 +61,12 @@ export function createFireFx(scene, view) {
     const key = `${x},${y}`;
     const f = fires.get(key);
     if (!f) return;
-    scene.remove(f.flame, f.smoke, f.light);
+    scene.remove(f.flame, f.smoke);
     f.flame.geometry.dispose(); f.smoke.geometry.dispose();
+    if (f.light) {
+      f.light.intensity = 0; // desliga a luz e devolve-a para outro fogo usar
+      freeLights.push(f.light);
+    }
     fires.delete(key);
   }
 
@@ -71,7 +88,7 @@ export function createFireFx(scene, view) {
         }
         p.geometry.attributes.position.needsUpdate = true;
       }
-      f.light.intensity = 2 + Math.sin(t * 20 + f.x) * 0.6;
+      if (f.light) f.light.intensity = 2 + Math.sin(t * 20 + f.x) * 0.6;
     }
   }
 
