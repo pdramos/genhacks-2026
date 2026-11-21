@@ -64,6 +64,12 @@
         o.traverse((c) => { if (c.userData.animate) animated.push(c); });
       }
     });
+    // Quando a janela muda de tamanho, ajusta a câmara e o desenho (senão a imagem fica esticada).
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
     renderer.setAnimationLoop((t) => {
       animated.forEach((o) => o.userData.animate(t / 1000));
       controls.update();
