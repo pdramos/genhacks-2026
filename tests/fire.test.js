@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ignitionProbability, runDisaster } from '../src/sim/fire.js';
 import { createVillage } from '../src/sim/village.js';
+import { createBuildState, applyAction } from '../src/sim/actions.js';
 
 // Cria uma vila de teste a partir de linhas de letras (G relva, W água, H casa, ...).
 function villageFrom(...map) {
@@ -169,4 +170,23 @@ test('the fire stops after maxSteps even if something is still burning', () => {
   });
   assert.equal(steps.length, 4); // passo 0 (a ignição) + 3 passos
   assert.equal(outcome.stepCount, 3);
+});
+
+test('a firebreak built on the ignition tile never burns, so the fire never starts', () => {
+  // O jogador constrói um corta-fogo mesmo no quadrado onde o fogo ia começar.
+  const village = villageFrom(
+    'GGG',
+    'GEG',
+    'GGG',
+  );
+  const state = createBuildState(village, 1000);
+  assert.equal(applyAction(state, 1, 1, 'firebreak').ok, true);
+
+  const { steps, outcome } = runDisaster(village, {
+    ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1,
+  });
+  for (const { burning, burned } of steps) {
+    assert.ok(![...burning, ...burned].some(([x, y]) => x === 1 && y === 1), 'the firebreak burned');
+  }
+  assert.equal(outcome.burnedCount, 0);
 });

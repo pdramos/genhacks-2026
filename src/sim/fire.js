@@ -86,7 +86,12 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
   // burning: "x,y" -> passos que ainda faltam a arder. burned: conjunto de "x,y".
   const burning = new Map();
   const burned = new Set();
-  burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y));
+  // O fogo só começa se o quadrado da ignição puder arder.
+  // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
+  const ignitionType = village.tiles[ignition.y][ignition.x];
+  if ((FLAMMABILITY[ignitionType] ?? 0) > 0) {
+    burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y));
+  }
 
   const steps = [snapshot(0, burning, burned)];
 
