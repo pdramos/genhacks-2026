@@ -15,22 +15,31 @@ export const ACTIONS = {
   replaceTrees: { cost: 800, label: 'Replace trees', from: ['eucalyptus'], result: 'broadleaf' },
 };
 
-// Começa a fase de construção. O "estado" guarda a vila (que vamos alterar)
-// e o dinheiro que ainda há.
+// Começa a fase de construção. O "estado" guarda:
+//   village = a vila (alteramos village.tiles diretamente, porque o fogo lê a mesma vila)
+//   budget  = o dinheiro que ainda há
+//   changes = os quadrados mudados, para poder desfazer.
+//             A chave é "x,y" e o valor é { actionName, originalType }.
 export function createBuildState(village, budget) {
-  return { village, budget };
+  return { village, budget, changes: {} };
 }
 
 // Tenta aplicar uma ação no quadrado (x, y).
+// Devolve { ok: true, newType } ou { ok: false, reason } a dizer porque não deu.
 export function applyAction(state, x, y, actionName) {
   const action = ACTIONS[actionName];
+  const key = `${x},${y}`;
+  const currentType = state.village.tiles[y][x];
+
+  // O quadrado já foi mudado? Tem de ser desfeito primeiro.
+  if (state.changes[key]) return { ok: false, reason: 'already-changed' };
+  // A ação não faz sentido neste tipo de quadrado? Recusa.
+  if (!action.from.includes(currentType)) return { ok: false, reason: 'invalid-target' };
   // Não há dinheiro suficiente? Recusa, sem mexer em nada.
   if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
-  // A ação não faz sentido neste tipo de quadrado? Recusa.
-  if (!action.from.includes(state.village.tiles[y][x])) {
-    return { ok: false, reason: 'invalid-target' };
-  }
 
+  // Tudo bem: guarda o tipo original (para o undo), muda o quadrado e paga.
+  state.changes[key] = { actionName, originalType: currentType };
   state.village.tiles[y][x] = action.result;
   state.budget -= action.cost;
   return { ok: true, newType: action.result };

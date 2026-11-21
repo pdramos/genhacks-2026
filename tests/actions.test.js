@@ -70,3 +70,13 @@ test('clearBrush only works on brush and replaceTrees only on eucalyptus', () =>
   assert.equal(tileAt(village, 3, 0), 'broadleaf');
   assert.equal(remainingBudget(state), 10000);
 });
+
+test('a tile already changed by an action cannot take another action', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 10000);
+  applyAction(state, 1, 0, 'clearBrush'); // brush -> cleared (€200)
+  // cleared é vegetação, mas o quadrado já foi mudado: tem de desfazer primeiro.
+  assert.deepEqual(applyAction(state, 1, 0, 'firebreak'), { ok: false, reason: 'already-changed' });
+  assert.equal(tileAt(village, 1, 0), 'cleared');
+  assert.equal(remainingBudget(state), 9800);
+});
