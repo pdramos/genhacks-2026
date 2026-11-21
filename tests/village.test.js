@@ -40,6 +40,14 @@ test('rejects a map whose rows have different lengths', () => {
   assert.throws(() => createVillage(level), /row 7 has 4 tiles, expected 20/);
 });
 
+test('the demo level file is a valid 20x20 village', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const level = JSON.parse(await readFile(new URL('../data/levels/demo.json', import.meta.url), 'utf8'));
+  const village = createVillage(level);
+  assert.equal(village.width, 20);
+  assert.equal(village.height, 20);
+});
+
 test('rejects a level without a map', () => {
   assert.throws(() => createVillage({ name: 'Empty' }), /level has no map/);
 });
