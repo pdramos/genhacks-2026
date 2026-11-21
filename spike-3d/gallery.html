@@ -22,6 +22,7 @@
     // Linha 1: casas · Linha 2: escola · Linha 3: árvores coníferas · Linha 4: folhosas · Linha 5: arbustos
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { setupRenderer, addLights } from './lighting.js';
     const name = new URLSearchParams(location.search).get('style') || 'basic';
     const style = await import(`./styles/${name}.js`);
     document.getElementById('label').textContent = `Style: ${name}`;
@@ -29,22 +30,15 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    setupRenderer(renderer);
     document.body.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xcfe8ff);
+    addLights(scene, 10); // a mesma luz da vila (lighting.js)
+    scene.fog = null;     // na galeria não há nevoeiro
     const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100);
     camera.position.set(5.5, 5.5, 8.5);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(3.5, 0.3, 2);
-    scene.add(new THREE.HemisphereLight(0xdfefff, 0x5a4a30, 1.2));
-    const sun = new THREE.DirectionalLight(0xfff2d6, 2.2);
-    sun.position.set(-6, 12, 8); sun.castShadow = true;
-    Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10 });
-    sun.shadow.mapSize.set(2048, 2048);
-    scene.add(sun);
     const ground = new THREE.Mesh(new THREE.BoxGeometry(9, 0.2, 6), new THREE.MeshStandardMaterial({ color: style.palette.grass }));
     ground.position.set(3.5, -0.1, 2); ground.receiveShadow = true; scene.add(ground);
 

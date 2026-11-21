@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createVillage, tileAt } from '../src/sim/village.js';
+import { setupRenderer, addLights } from './lighting.js';
 
 const params = new URLSearchParams(location.search);
 const level = await fetch('../data/levels/demo.json').then((r) => r.json());
@@ -15,15 +16,11 @@ document.getElementById('style').textContent = `Style: ${styleName}`;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.15;
+setupRenderer(renderer);
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fd3ff);
-scene.fog = new THREE.Fog(0x9fd3ff, 40, 80);
+addLights(scene, 16);
 
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(22, 20, 22);
@@ -33,13 +30,6 @@ controls.maxPolarAngle = Math.PI * 0.42;
 controls.minDistance = 4;
 controls.maxDistance = 55;
 
-scene.add(new THREE.HemisphereLight(0xdfefff, 0x5a4a30, 1.2));
-const sun = new THREE.DirectionalLight(0xfff2d6, 2.2);
-sun.position.set(-14, 22, 10);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16 });
-scene.add(sun);
 
 // ---------- Chão (cores vêm do estilo) ----------
 const P = style.palette;
