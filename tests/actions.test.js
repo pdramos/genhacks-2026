@@ -80,3 +80,11 @@ test('a tile already changed by an action cannot take another action', () => {
   assert.equal(tileAt(village, 1, 0), 'cleared');
   assert.equal(remainingBudget(state), 9800);
 });
+
+test('an action outside the village is blocked', () => {
+  const state = createBuildState(smallVillage(), 10000); // a vila tem 5x2
+  for (const [x, y] of [[-1, 0], [5, 0], [0, -1], [0, 2]]) {
+    assert.deepEqual(applyAction(state, x, y, 'firebreak'), { ok: false, reason: 'outside' }, `${x},${y}`);
+  }
+  assert.equal(remainingBudget(state), 10000);
+});

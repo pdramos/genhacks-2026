@@ -27,6 +27,10 @@ export function createBuildState(village, budget) {
 // Tenta aplicar uma ação no quadrado (x, y).
 // Devolve { ok: true, newType } ou { ok: false, reason } a dizer porque não deu.
 export function applyAction(state, x, y, actionName) {
+  const { village } = state;
+  // Fora da grelha? Não há quadrado para mudar.
+  if (x < 0 || y < 0 || x >= village.width || y >= village.height) return { ok: false, reason: 'outside' };
+
   const action = ACTIONS[actionName];
   const key = `${x},${y}`;
   const currentType = state.village.tiles[y][x];
