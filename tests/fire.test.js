@@ -54,7 +54,8 @@ test('a lone patch of grass in a lake burns, and then the fire stops', () => {
   const { steps, outcome } = runDisaster(village, {
     ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1,
   });
-  assert.deepEqual(steps[0], { step: 0, burning: [[1, 1]], burned: [] });
+  const { step, burning, burned } = steps[0];
+  assert.deepEqual({ step, burning, burned }, { step: 0, burning: [[1, 1]], burned: [] });
   assert.deepEqual(steps.at(-1).burning, []);
   assert.deepEqual(steps.at(-1).burned, [[1, 1]]);
   assert.equal(outcome.burnedCount, 1);
@@ -285,3 +286,41 @@ for (const [letter, fuel] of [['E', 'eucalyptus'], ['B', 'brush'], ['G', 'grass'
     assert.ok(ratio > 0.9 && ratio < 1.1, `diagonal / axis reach was ${ratio.toFixed(2)}`);
   });
 }
+
+// ---------- Intensidade: a força do fogo em cada quadrado a arder ----------
+
+// O fogo num único quadrado do tipo letter, rodeado de água.
+function loneTile(letter) {
+  return villageFrom('WWW', `W${letter}W`, 'WWW');
+}
+
+test('every snapshot gives an intensity between 0 and 1 for each burning tile, and only for those', () => {
+  const storm = { direction: 315, speed: 100 };
+  const { steps } = runDisaster(mixedVillage(), { ignition: { x: 0, y: 0 }, wind: storm, seed: 3 });
+  for (const { burning, intensity } of steps) {
+    assert.deepEqual(Object.keys(intensity).sort(), burning.map(([x, y]) => `${x},${y}`).sort());
+    for (const value of Object.values(intensity)) assert.ok(value > 0 && value <= 1, `intensity ${value}`);
+  }
+});
+
+test('eucalyptus burns with a stronger fire than grass', () => {
+  const calm = { direction: 0, speed: 0 };
+  const eucalyptus = runDisaster(loneTile('E'), { ignition: { x: 1, y: 1 }, wind: calm, seed: 1 });
+  const grass = runDisaster(loneTile('G'), { ignition: { x: 1, y: 1 }, wind: calm, seed: 1 });
+  assert.ok(eucalyptus.steps[0].intensity['1,1'] > grass.steps[0].intensity['1,1']);
+});
+
+test('a strong wind makes the same fire stronger', () => {
+  const options = { ignition: { x: 1, y: 1 }, seed: 1 };
+  const calm = runDisaster(loneTile('B'), { ...options, wind: { direction: 0, speed: 0 } });
+  const windy = runDisaster(loneTile('B'), { ...options, wind: { direction: 0, speed: 40 } });
+  assert.ok(windy.steps[0].intensity['1,1'] > calm.steps[0].intensity['1,1']);
+});
+
+test('a fire dies down in its last step before the tile is burned', () => {
+  // Um eucalipto arde 3 a 5 passos: no último passo a arder, as chamas são mais fracas.
+  const { steps } = runDisaster(loneTile('E'), { ignition: { x: 1, y: 1 }, wind: { direction: 0, speed: 0 }, seed: 1 });
+  const values = steps.filter(({ burning }) => burning.length > 0).map(({ intensity }) => intensity['1,1']);
+  assert.ok(values.length >= 3);
+  assert.ok(values.at(-1) < values[0], `first ${values[0]}, last ${values.at(-1)}`);
+});

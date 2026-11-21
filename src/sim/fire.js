@@ -116,14 +116,14 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
   // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
   if (canBurn(village, ignition.x, ignition.y)) startFire(fire, key(ignition.x, ignition.y));
 
-  const steps = [snapshot(0, fire)];
+  const steps = [snapshot(0, fire, windAt(0))];
 
   for (let step = 1; step <= maxSteps && fire.burning.size > 0; step++) {
     const currentWind = windAt(step - 1);
     const newFires = spreadToNeighbours(fire, currentWind); // 1) o fogo passa aos vizinhos
     burnOneStep(fire);                                       // 2) quem arde gasta um passo
     for (const tileKey of newFires) startFire(fire, tileKey); // 3) os fogos novos começam
-    steps.push(snapshot(step, fire));
+    steps.push(snapshot(step, fire, currentWind));
   }
 
   return { steps, outcome: countOutcome(village, fire.burning, fire.burned, steps.length - 1) };
@@ -220,13 +220,46 @@ function burnSteps(village, x, y, rand) {
   return Math.max(1, base + change);
 }
 
-// Uma "fotografia" do fogo num passo: listas de [x, y].
-function snapshot(step, fire) {
+// Uma "fotografia" do fogo num passo: listas de [x, y], e a força do fogo em cada
+// quadrado a arder (intensity: "x,y" -> 0..1), para a animação desenhar chamas maiores ou menores.
+function snapshot(step, fire, wind) {
+  const intensity = {};
+  for (const [tileKey, tile] of fire.burning) {
+    const [x, y] = fromKey(tileKey);
+    intensity[tileKey] = tileIntensity(fire.village.tiles[y][x], tile, wind);
+  }
   return {
     step,
     burning: [...fire.burning.keys()].map(fromKey),
     burned: [...fire.burned].map(fromKey),
+    intensity,
   };
+}
+
+// A força do fogo (0 a 1) que cada tipo faz, sem vento.
+// Os eucaliptos (cheios de óleo) e o mato seco fazem chamas altas; a relva, chamas baixas.
+export const FIRE_INTENSITY = {
+  eucalyptus: 0.75,
+  brush: 0.6,
+  house: 0.55,
+  school: 0.55,
+  broadleaf: 0.45,
+  grass: 0.3,
+  cleared: 0.2,
+};
+
+// O vento dá mais oxigénio ao fogo: a 60 km/h a força duplica (mas nunca passa de 1).
+export const WIND_INTENSITY_KMH = 60;
+
+// No último passo antes de ficar queimado, o fogo já está a apagar-se: fica com 60% da força.
+export const DYING_FACTOR = 0.6;
+
+// A força do fogo num quadrado a arder: pelo tipo, pelo vento e por estar (ou não) a apagar-se.
+function tileIntensity(type, tile, wind) {
+  const base = FIRE_INTENSITY[type] ?? 0.3;
+  const windBoost = 1 + wind.speed / WIND_INTENSITY_KMH;
+  const dying = tile.stepsLeft === 1 && tile.totalSteps > 1 ? DYING_FACTOR : 1;
+  return clamp(base * windBoost * dying, 0.05, 1);
 }
 
 // Prende um número entre min e max.
