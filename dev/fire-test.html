@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fire FX test</title>
+  <!-- Página de TESTE (só para desenvolvimento): experimenta o fogo e o aspeto de queimado
+       na vila de demonstração, sem o resto do jogo. Abrir: http://localhost:8000/dev/fire-test.html
+       Opções: ?style=canada  ·  ?level=demo -->
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #a9d4f5; font-family: system-ui, sans-serif; }
+    #panel { position: fixed; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+    #panel button { padding: 7px 12px; border: 0; border-radius: 6px; background: rgba(0,0,0,.7); color: #fff;
+                    font: 600 13px system-ui, sans-serif; cursor: pointer; text-align: left; }
+    #status { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
+              background: rgba(0,0,0,.6); color: #fff; font-size: 13px; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="panel">
+    <button id="ignite">Ignite a few tiles</button>
+    <button id="play">Play the fire simulation</button>
+    <button id="char">Char sample tiles (no fire)</button>
+    <button id="ember">Throw embers</button>
+    <button id="clear">Clear fire</button>
+  </div>
+  <div id="status">Fire FX test page</div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { createVillage } from '../src/sim/village.js';
+    import { runDisaster } from '../src/sim/fire.js';
+    import { setupRenderer, addLights } from '../src/render/lighting.js';
+    import { createVillageView } from '../src/render/village3d.js';
+    import { createFireFx } from '../src/render/fireFx.js';
+    import { charProp, CHAR_COLORS } from '../src/render/charring.js';
+
+    const params = new URLSearchParams(location.search);
+    const level = await fetch(`../data/levels/${params.get('level') || 'demo'}.json`).then((r) => r.json());
+    const village = createVillage(level);
+    const style = await import(`../src/render/styles/${params.get('style') || level.style || 'portugal'}.js`);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    setupRenderer(renderer);
+    document.body.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    addLights(scene, 16);
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
+    camera.position.set(22, 20, 22);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    let seed = 42;
+    const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const view = createVillageView(scene, village, style, rand);
+    const fx = createFireFx(scene, view, { wind: level.wind });
+    const status = document.getElementById('status');
+
+    // ---------- Queimar um quadrado (como a futura view.setBurned fará) ----------
+    // A vista atual não dá acesso aos objetos, por isso procuramo-los na cena pela posição.
+    const groundMat = new THREE.MeshStandardMaterial({ color: CHAR_COLORS.ground, roughness: 1, flatShading: true });
+    function charTile(x, y) {
+      const p = view.worldPosition(x, y);
+      for (const o of scene.children) {
+        const here = Math.abs(o.position.x - p.x) < 0.01 && Math.abs(o.position.z - p.z) < 0.01;
+        if (!here) continue;
+        if (o.isGroup) charProp(o, village.tiles[y][x]);
+        if (o.isMesh && o.userData.x === x && Array.isArray(o.material)) {
+          o.material = o.material.map((m, i) => (i === 2 ? groundMat : m)); // só a face de cima
+        }
+      }
+    }
+
+    // Força do fogo por tipo de quadrado (até a simulação dar "intensity").
+    const POWER = { eucalyptus: 1, brush: 0.75, house: 0.6, school: 0.6, broadleaf: 0.45, grass: 0.3, cleared: 0.15 };
+    const powerAt = (x, y, snapshot) => snapshot?.intensity?.[`${x},${y}`] ?? POWER[village.tiles[y][x]] ?? 0.4;
+
+    // ---------- Botões ----------
+    document.getElementById('ignite').onclick = () => {
+      // um pouco de tudo: eucaliptos (fogo de copas), mato, relva e uma casa
+      for (const [x, y] of [[3, 3], [4, 3], [3, 4], [6, 6], [7, 6], [9, 3], [10, 5], [11, 5]]) {
+        fx.ignite(x, y);
+        fx.setIntensity(x, y, powerAt(x, y));
+      }
+      status.textContent = 'Ignited 8 tiles (eucalyptus, brush, grass, house)';
+    };
+
+    document.getElementById('char').onclick = () => {
+      for (const [x, y] of [[1, 1], [2, 1], [5, 6], [6, 5], [10, 6], [11, 6], [10, 5], [11, 5], [12, 3], [13, 4], [14, 4]]) {
+        charTile(x, y);
+        fx.smolder(x, y);
+      }
+      status.textContent = 'Charred: eucalyptus, brush, houses, broadleaf';
+    };
+
+    document.getElementById('ember').onclick = () => {
+      for (let i = 0; i < 5; i++) fx.ember(4, 4, 6 + i, 7 + (i % 2));
+      status.textContent = 'Embers thrown';
+    };
+
+    document.getElementById('clear').onclick = () => { fx.clear(); status.textContent = 'Cleared'; };
+
+    let timer = null;
+    document.getElementById('play').onclick = () => {
+      clearInterval(timer);
+      fx.clear();
+      const { steps } = runDisaster(village, { ignition: level.ignition, wind: level.wind, seed: 1 });
+      const shown = new Set();
+      let i = 0;
+      timer = setInterval(() => {
+        const snap = steps[i];
+        for (const [x, y] of snap.burning) { fx.ignite(x, y); fx.setIntensity(x, y, powerAt(x, y, snap)); }
+        for (const [x, y] of snap.burned) {
+          const key = `${x},${y}`;
+          if (shown.has(key)) continue;
+          shown.add(key);
+          fx.extinguish(x, y); fx.smolder(x, y); charTile(x, y);
+        }
+        // brasas: as da simulação (spots) ou, se ainda não existirem, umas a favor do vento
+        const spots = snap.spots ?? fakeSpots(snap);
+        for (const [fx0, fy0, tx, ty] of spots) fx.ember(fx0, fy0, tx, ty);
+        status.textContent = `Step ${snap.step}/${steps.length - 1} · burning ${snap.burning.length} · burned ${snap.burned.length}`;
+        i++;
+        if (i >= steps.length) clearInterval(timer);
+      }, 900);
+    };
+
+    function fakeSpots(snap) {
+      const d = (level.wind.direction * Math.PI) / 180, dx = -Math.sin(d), dy = Math.cos(d);
+      return snap.burning.filter(() => Math.random() < 0.08).map(([x, y]) =>
+        [x, y, Math.round(x + dx * 2.5), Math.round(y + dy * 2.5)]);
+    }
+
+    // Para testes automáticos na consola do navegador:
+    //   dev.pause()          -> para a animação automática
+    //   dev.advance(seconds) -> avança o tempo à mão (a 30 imagens/s) e desenha
+    //   dev.look(x, y, dx, dy, dz) -> põe a câmara a olhar para o quadrado (x, y)
+    let manualTime = 100;
+    function advance(seconds) {
+      for (let i = 0; i < seconds * 30; i++) { manualTime += 1 / 30; fx.update(1 / 30, manualTime); }
+      view.update(manualTime);
+      renderer.render(scene, camera);
+    }
+    function look(x, y, dx, dy, dz, targetY = 0.4) {
+      const p = view.worldPosition(x, y);
+      controls.target.set(p.x, targetY, p.z);
+      camera.position.set(p.x + dx, dy, p.z + dz);
+      controls.update();
+    }
+    window.dev = { fx, view, village, charTile, camera, controls, renderer, scene, advance, look,
+      pause: () => renderer.setAnimationLoop(null) };
+
+    let last = 0;
+    renderer.setAnimationLoop((ms) => {
+      const dt = last ? Math.min((ms - last) / 1000, 0.1) : 0, t = ms / 1000;
+      last = ms;
+      controls.update();
+      view.update(t);
+      fx.update(dt, t);
+      renderer.render(scene, camera);
+    });
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
