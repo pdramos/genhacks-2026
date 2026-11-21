@@ -227,3 +227,25 @@ test('on a hillside with no wind, the fire climbs to the top faster than it runs
   }
   assert.ok(eastSteps < westSteps, `uphill (east) took ${eastSteps} steps in total, downhill (west) ${westSteps}`);
 });
+
+// ---------- Duração variável: cada quadrado arde um tempo um pouco diferente ----------
+
+// Quantos passos cada quadrado passou a arder: "x,y" -> número de snapshots em que aparece em burning.
+function burnDurations(steps) {
+  const durations = new Map();
+  for (const { burning } of steps) {
+    for (const [x, y] of burning) durations.set(`${x},${y}`, (durations.get(`${x},${y}`) ?? 0) + 1);
+  }
+  return durations;
+}
+
+test('tiles of the same type burn for slightly different times, between 1 and 3 steps for brush', () => {
+  // Um campo de mato: o mato arde cerca de 2 passos (20 minutos), às vezes 1, às vezes 3.
+  const field = villageFrom(...Array(9).fill('B'.repeat(9)));
+  const { steps } = runDisaster(field, { ignition: { x: 4, y: 4 }, wind: { direction: 0, speed: 0 }, seed: 7 });
+  assert.deepEqual(steps.at(-1).burning, [], 'the fire burned out');
+
+  const values = [...burnDurations(steps).values()];
+  assert.ok(values.every((steps) => steps >= 1 && steps <= 3), `durations ${values}`);
+  assert.ok(new Set(values).size > 1, 'not every tile burned for the same time');
+});

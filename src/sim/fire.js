@@ -104,7 +104,7 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
   // Um corta-fogo, estrada ou água na ignição = o fogo nunca começa.
   const ignitionType = village.tiles[ignition.y][ignition.x];
   if ((FLAMMABILITY[ignitionType] ?? 0) > 0) {
-    burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y));
+    burning.set(key(ignition.x, ignition.y), burnSteps(village, ignition.x, ignition.y, rand));
   }
 
   const steps = [snapshot(0, burning, burned)];
@@ -141,7 +141,7 @@ export function runDisaster(village, { ignition, wind, seed = 1, k = DEFAULT_K, 
     for (const tileKey of newFires) {
       if (burning.has(tileKey)) continue; // dois vizinhos podem acender o mesmo quadrado
       const [x, y] = fromKey(tileKey);
-      burning.set(tileKey, burnSteps(village, x, y));
+      burning.set(tileKey, burnSteps(village, x, y, rand));
     }
 
     steps.push(snapshot(step, burning, burned));
@@ -181,8 +181,13 @@ function heightOf(village, x, y) {
   return village.heights?.[y]?.[x] ?? 0;
 }
 
-function burnSteps(village, x, y) {
-  return BURN_STEPS[village.tiles[y][x]] ?? 1;
+// Quantos passos um quadrado vai arder: o valor de BURN_STEPS, com um pouco de acaso
+// (1 passo a menos, igual, ou 1 passo a mais; nunca menos de 1).
+// Assim a frente do fogo fica irregular, como num incêndio verdadeiro.
+function burnSteps(village, x, y, rand) {
+  const base = BURN_STEPS[village.tiles[y][x]] ?? 1;
+  const change = Math.floor(rand() * 3) - 1; // -1, 0 ou +1
+  return Math.max(1, base + change);
 }
 
 // Uma "fotografia" do fogo num passo: listas de [x, y].
