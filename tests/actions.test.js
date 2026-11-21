@@ -21,3 +21,12 @@ test('clearBrush turns brush into cleared and costs 200', () => {
   assert.equal(tileAt(village, 1, 0), 'cleared');
   assert.equal(remainingBudget(state), 800);
 });
+
+test('firebreak turns grass into firebreak and costs 500', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 1000);
+  const result = applyAction(state, 0, 0, 'firebreak');
+  assert.deepEqual(result, { ok: true, newType: 'firebreak' });
+  assert.equal(tileAt(village, 0, 0), 'firebreak');
+  assert.equal(remainingBudget(state), 500);
+});
