@@ -66,7 +66,7 @@ function floatDelta(change) {
   delta.className = 'budget-delta ' + (change > 0 ? 'gain' : 'spend');
   delta.textContent = (change > 0 ? '+' : '−') + formatEuros(Math.abs(change));
   budgetBox.append(delta);
-  delta.addEventListener('animationend', () => delta.remove());
+  removeLater(delta, 1200);
 }
 
 // ---------- Mensagens "toast" ----------
@@ -101,7 +101,7 @@ export function showToast(text, kind = 'info') {
 function hideToast(toast) {
   if (toast.classList.contains('leaving')) return;
   toast.classList.add('leaving');
-  toast.addEventListener('animationend', () => toast.remove());
+  removeLater(toast, 350);
 }
 
 // ---------- Cartas das ferramentas ----------
@@ -201,6 +201,13 @@ export function showResultCard(outcome) {
 // 9300 -> "€9,300"
 export function formatEuros(amount) {
   return '€' + amount.toLocaleString('en-US');
+}
+
+// Tira um elemento do ecrã depois de a sua animação acabar (ms = a duração da animação).
+// Usamos um relógio em vez de esperar pelo fim da animação, porque num separador
+// escondido o navegador pausa as animações e o elemento nunca seria tirado.
+function removeLater(element, ms) {
+  setTimeout(() => element.remove(), ms);
 }
 
 // Volta a correr uma animação CSS (tirar a classe, forçar o navegador a reparar, pôr outra vez).
