@@ -59,3 +59,14 @@ test('a firebreak cannot be built on a house, school, road or water', () => {
   }
   assert.equal(remainingBudget(state), 10000);
 });
+
+test('clearBrush only works on brush and replaceTrees only on eucalyptus', () => {
+  const village = smallVillage();
+  const state = createBuildState(village, 10000);
+  assert.deepEqual(applyAction(state, 0, 0, 'clearBrush'), { ok: false, reason: 'invalid-target' }); // grass
+  assert.deepEqual(applyAction(state, 3, 0, 'replaceTrees'), { ok: false, reason: 'invalid-target' }); // broadleaf
+  assert.deepEqual(applyAction(state, 4, 0, 'replaceTrees'), { ok: false, reason: 'invalid-target' }); // house
+  assert.equal(tileAt(village, 0, 0), 'grass');
+  assert.equal(tileAt(village, 3, 0), 'broadleaf');
+  assert.equal(remainingBudget(state), 10000);
+});
