@@ -1,5 +1,16 @@
 {
   "name": "Demo village",
+  "style": "portugal",
+  "budget": 10000,
+  "ignition": {
+    "x": 2,
+    "y": 2
+  },
+  "wind": {
+    "direction": 315,
+    "speed": 30,
+    "note": "Fixed wind for development. direction = where the wind comes FROM, in degrees (0 = north, 90 = east, 180 = south, 270 = west), like weather reports. speed in km/h. Ticket #6 replaces this with real hourly wind."
+  },
   "legend": "G grass, B brush, E eucalyptus/pine, O broadleaf, H house, S school, R road, W water, C cleared, F firebreak",
   "map": [
     "EEEEEEEEEEBBBBGGGGWW",

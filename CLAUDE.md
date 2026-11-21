@@ -10,9 +10,9 @@ Jogo de navegador (3D estilizado, Three.js 0.186.1, JavaScript simples) em que o
 - Escopo implacável: avisar se uma ideia nova não cabe no prazo (meta de envio a **20/12/2026**).
 - Código com nomes em inglês e comentários em português.
 - Sem ferramentas de build: páginas HTML com um `importmap` que carrega `three@0.186.1` por CDN, com a versão fixada.
-- **Gráficos 100% gerados por código** (decisão do estudante): não usar modelos ou imagens descarregados. Cada região tem um "estilo" em `spike-3d/styles/<região>.js`, com arquitetura e vegetação autênticas: `portugal.js` (Pedrógão Grande e as Aldeias do Xisto) e `canada.js` (Jasper). O contrato de um estilo está no cabeçalho de `styles/basic.js`. Para ver todas as peças de um estilo: `spike-3d/gallery.html?style=<nome>`.
-- A simulação (`src/sim/`) não depende do Three.js e é testada com `npm test` (o `node:test` do próprio Node). O desenho só lê a simulação.
-- Para correr o jogo localmente: `python -m http.server 8000` e abrir `http://localhost:8000/spike-3d/`.
+- **Gráficos 100% gerados por código** (decisão do estudante): não usar modelos ou imagens descarregados. Cada região tem um "estilo" em `src/render/styles/<região>.js`, com arquitetura e vegetação autênticas: `portugal.js` (Pedrógão Grande e as Aldeias do Xisto) e `canada.js` (Jasper). O contrato de um estilo está no cabeçalho de `src/render/styles/basic.js`. Para ver todas as peças de um estilo: `gallery.html?style=<nome>`.
+- **Estrutura:** `src/sim/` = regras (simulação: vila, ações, fogo, estrelas), sem Three.js, testada com `npm test` (o `node:test` do próprio Node). `src/render/` = desenho 3D (`main.js` arranca tudo, `village3d.js` desenha a vila, `fireFx.js` desenha o fogo, `lighting.js` e `styles/`). O desenho só lê a simulação. Vocabulário e convenções (coordenadas, direção do vento): `GLOSSARY.md`.
+- Para correr o jogo localmente: `python -m http.server 8000` e abrir `http://localhost:8000/` (opcional: `?style=canada`).
 - Todo o uso de IA, bibliotecas e dados (Three.js MIT, Open-Meteo CC BY 4.0) fica declarado no README e no Devpost.
 
 ## Agent skills

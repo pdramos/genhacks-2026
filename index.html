@@ -5,20 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brace</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #1d2b3a; overflow: hidden; font-family: system-ui, sans-serif; }
-    #game { width: 100%; height: 100%; }
-    /* Caixa de informação por cima do jogo (texto de depuração por agora) */
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #a9d4f5; font-family: system-ui, sans-serif; }
+    #game canvas { display: block; }
+    /* Caixa de informação por cima do jogo */
     #info { position: fixed; left: 12px; bottom: 12px; padding: 6px 10px; border-radius: 6px;
             background: rgba(0,0,0,.6); color: #fff; font-size: 14px; pointer-events: none; }
+    /* Os outros módulos do jogo (construção, desastre) põem os seus botões aqui */
+    #hud { position: fixed; right: 12px; bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   </style>
+  <!-- Diz ao navegador onde está o Three.js (versão fixa) -->
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    } }
+  </script>
 </head>
 <body>
   <div id="game"></div>
-  <div id="info">Drag to move · Scroll to zoom · Click a tile</div>
-  <!-- Phaser 3.90.0 fixo (a tag "latest" já é o Phaser 4) -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"
-          integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"
-          crossorigin="anonymous"></script>
-  <script type="module" src="src/main.js"></script>
+  <div id="info">Drag to rotate · Right-drag to move · Scroll to zoom · Click a tile</div>
+  <div id="hud"></div>
+  <script type="module" src="src/render/main.js"></script>
 </body>
 </html>

@@ -22,9 +22,9 @@
     // Linha 1: casas · Linha 2: escola · Linha 3: árvores coníferas · Linha 4: folhosas · Linha 5: arbustos
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { setupRenderer, addLights } from './lighting.js';
+    import { setupRenderer, addLights } from './src/render/lighting.js';
     const name = new URLSearchParams(location.search).get('style') || 'basic';
-    const style = await import(`./styles/${name}.js`);
+    const style = await import(`./src/render/styles/${name}.js`);
     document.getElementById('label').textContent = `Style: ${name}`;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
