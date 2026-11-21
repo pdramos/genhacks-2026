@@ -22,15 +22,15 @@
 import * as THREE from 'three';
 
 // ---------- Números que mandam no aspeto (podes mexer!) ----------
-const LEVEL_HEIGHT = 0.22;  // cada nível de altura (0-9) sobe 0.22 unidades
+const LEVEL_HEIGHT = 0.28;  // cada nível de altura (0-9) sobe 0.28 unidades (9 níveis = 2.5)
 const BASE_Y = 0.25;        // altura do chão no nível 0 (igual ao topo dos antigos blocos)
 const STEPS = 4;            // cada quadrado é dividido em 4 x 4 bocadinhos
 const RIVER_DEPTH = 0.42;   // quanto o leito do rio é mais fundo que a margem
 const WATER_BELOW = 0.2;    // a superfície da água fica 0.2 abaixo da margem
 const ROAD_WIDTH = 0.56;    // largura da estrada (o quadrado tem 1)
 const CLIFF_BOTTOM = -1.7;  // até onde desce a ribanceira da ilha
-const CHARCOAL = 0x1b1a19;  // cor do carvão (queimado)
-const ASH = 0x77736d;       // cor da cinza (queimado)
+const CHARCOAL = 0x171615;  // cor do carvão (queimado)
+const ASH = 0x8e8c89;       // cor da cinza (queimado)
 
 // =====================================================================================
 // 1. Pequenas ferramentas de matemática
@@ -133,7 +133,9 @@ export function createTerrain(scene, village, palette) {
   // para ficar uma "beirinha" de terra que segura a água.
   function riverDip(gx, gy) {
     const edgeFade = smooth(clamp((distanceToEdge(gx, gy) - 0.2) / 0.35, 0, 1));
-    return sampleGrid(wetness, gx, gy) * edgeFade * RIVER_DEPTH;
+    const wx = gx + (noise(gx * 0.7, gy * 0.7, 13) - 0.5) * 0.7; // entorta a margem: o rio faz curvas
+    const wy = gy + (noise(gx * 0.7, gy * 0.7, 14) - 0.5) * 0.7;
+    return sampleGrid(wetness, wx, wy) * edgeFade * RIVER_DEPTH;
   }
 
   // ALTURA DO CHÃO num ponto qualquer (coordenadas de quadrado).
@@ -168,22 +170,33 @@ export function createTerrain(scene, village, palette) {
     }
     if (total > 0) out.multiplyScalar(1 / total);
     else surfaceColour(surfaces[clamp(ty0, 0, H - 1)][clamp(tx0, 0, W - 1)], gx, gy, out);
-    return out;
+    return wetBank(gx, gy, out);
+  }
+
+  // Junto à água o chão fica escuro e molhado (areia húmida), e debaixo de água ainda mais.
+  const wetColour = shade(mixHex(palette.dirt, palette.water, 0.25), 0.7);
+  function wetBank(gx, gy, out) {
+    const aboveWater = heightAt(gx, gy) - waterHeight(gx, gy);
+    if (aboveWater > 0.1) return out;
+    return out.lerp(wetColour, clamp(1 - aboveWater / 0.1, 0, 1) * 0.7);
   }
 
   // Peso de um quadrado para um ponto a (dx, dy) do seu centro: 1 dentro do quadrado,
   // a cair para 0 até 0.3 fora dele.
   function blendWeight(dx, dy) {
-    const ox = Math.max(0, Math.abs(dx) - 0.5), oy = Math.max(0, Math.abs(dy) - 0.5);
-    const outside = Math.hypot(ox, oy);
-    const w = Math.max(0, 1 - outside / 0.3);
+    const w = Math.max(0, 1 - distanceOutside(dx, dy) / 0.3);
     return w * w;
+  }
+
+  // Distância de um ponto a (dx, dy) do centro de um quadrado até ao quadrado (0 se está dentro).
+  function distanceOutside(dx, dy) {
+    return Math.hypot(Math.max(0, Math.abs(dx) - 0.5), Math.max(0, Math.abs(dy) - 0.5));
   }
 
   // Cor de UM tipo de chão num ponto: cor base + manchas + um bocadinho de grão.
   function surfaceColour(type, gx, gy, out) {
     const r = recipes[type] || recipes.grass;
-    const scale = r.fine ? 3.2 : 1.1; // o queimado tem manchas mais pequenas (cinza aos bocados)
+    const scale = r.fine ? 2.4 : 1.1; // o queimado tem manchas mais pequenas (cinza aos bocados)
     const patches = smooth(noise(gx * scale, gy * scale, 5));
     out.copy(r.base).lerp(r.patch, patches * r.amount);
     const grain = 0.9 + noise(gx * 7, gy * 7, 6) * 0.2;
@@ -273,7 +286,8 @@ export function createTerrain(scene, village, palette) {
   }
 
   // ---------- 3e. Ribanceira com camadas de terra ----------
-  scene.add(buildCliff());
+  const cliff = buildCliff();
+  scene.add(cliff);
 
   // A volta da ilha, em ordem: lista de índices (i, j) dos vértices da borda.
   function rimLoop() {
@@ -350,7 +364,7 @@ export function createTerrain(scene, village, palette) {
     const tx0 = Math.round(gx), ty0 = Math.round(gy);
     for (let ty = ty0 - 1; ty <= ty0 + 1; ty++) {
       for (let tx = tx0 - 1; tx <= tx0 + 1; tx++) {
-        if (inside(tx, ty) && isWater(tx, ty) && blendWeight(gx - tx, gy - ty) > 0.05) return true;
+        if (inside(tx, ty) && isWater(tx, ty) && distanceOutside(gx - tx, gy - ty) < 0.75) return true;
       }
     }
     return false;
@@ -507,9 +521,9 @@ export function createTerrain(scene, village, palette) {
     top.mesh.geometry.attributes.color.needsUpdate = true;
   }
 
-  // Que quadrado está debaixo do raio? (chão, água ou estrada)
+  // Que quadrado está debaixo do raio? (chão, água, estrada, ou a ribanceira = quadrado da beira)
   function pickTile(raycaster) {
-    const targets = [top.mesh, roads];
+    const targets = [top.mesh, roads, cliff];
     if (water) targets.push(water.mesh);
     const hit = raycaster.intersectObjects(targets, false)[0];
     return hit ? tileAtWorld(hit.point.x, hit.point.z) : null;

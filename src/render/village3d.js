@@ -125,7 +125,8 @@ export function createVillageView(scene, village, style, rand) {
     for (const fx of [-0.42, 0, 0.42]) {
       for (const fz of [-0.42, 0, 0.42]) low = Math.min(low, terrain.heightAtWorld(cx + fx * w, cz + fz * h));
     }
-    return low - 0.02;
+    // ...mas sem se afundar muito (ex.: uma casa à beira do rio não desce até à água)
+    return Math.max(low, terrain.heightAtWorld(cx, cz) - 0.15) - 0.02;
   }
 
   // Ângulo (múltiplo de 90°) para o objeto olhar para a estrada mais próxima.
