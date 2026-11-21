@@ -8,7 +8,9 @@ import { createVillageView } from './village3d.js';
 import { createFireFx } from './fireFx.js';
 
 const params = new URLSearchParams(location.search);
-const level = await fetch('data/levels/demo.json').then((r) => r.json());
+// ?level=sintra carrega data/levels/sintra.json (por omissão, o nível de desenvolvimento "demo").
+const levelName = params.get('level') || 'demo';
+const level = await fetch(`data/levels/${levelName}.json`, { cache: 'no-cache' }).then((r) => r.json());
 const village = createVillage(level);
 const styleName = params.get('style') || level.style || 'portugal';
 const style = await import(`./styles/${styleName}.js`);

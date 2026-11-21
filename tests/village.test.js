@@ -48,6 +48,34 @@ test('the demo level file is a valid 20x20 village', async () => {
   assert.equal(village.height, 20);
 });
 
+test('a level without heights is flat (every height is 0)', () => {
+  const village = createVillage(validLevel());
+  assert.equal(village.heights.length, 20);
+  assert.equal(village.heights[0].length, 20);
+  assert.ok(village.heights.every((row) => row.every((h) => h === 0)));
+});
+
+test('heights are read from digits 0-9, one per tile', () => {
+  const level = validLevel();
+  level.heights = Array.from({ length: 20 }, (_, y) => String(y % 10).repeat(20));
+  level.heights[4] = '0123456789'.repeat(2);
+  const village = createVillage(level);
+  assert.equal(village.heights[3][0], 3);
+  assert.equal(village.heights[4][9], 9);
+  assert.equal(village.heights[4][10], 0);
+});
+
+test('rejects heights that are not digits or have the wrong size', () => {
+  const level = validLevel();
+  level.heights = Array.from({ length: 20 }, () => '0'.repeat(20));
+  level.heights[2] = '0'.repeat(19) + 'x';
+  assert.throws(() => createVillage(level), /height "x" at column 19, row 2/);
+  level.heights[2] = '000';
+  assert.throws(() => createVillage(level), /heights row 2 has 3 values, expected 20/);
+  level.heights = ['0'.repeat(20)];
+  assert.throws(() => createVillage(level), /heights has 1 rows, expected 20/);
+});
+
 test('rejects a level without a map', () => {
   assert.throws(() => createVillage({ name: 'Empty' }), /level has no map/);
 });
