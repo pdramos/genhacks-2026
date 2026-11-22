@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { createVillage, tileAt } from '../src/sim/village.js';
 import { runDisaster } from '../src/sim/fire.js';
+import { findRoadPath } from '../src/render/roadPath.js'; // o caminho do carro (não usa Three.js)
 
 const LEVELS_DIR = new URL('../data/levels/', import.meta.url);
 // O demo é anterior ao contrato (não tem relevo nem estrada junto à ignição).
@@ -62,14 +63,90 @@ test('every story level has heights (relief) for every row', async () => {
   }
 });
 
-test('in every story level the fire starts on dry brush or grass right next to a road', async () => {
+// Os candidatos à ignição: os sítios onde o cigarro PODE cair (a simulação escolhe um pela semente).
+// Um nível sem a lista só tem a ignição fixa.
+function ignitionCandidates(level) {
+  return level.ignitionCandidates ?? [level.ignition];
+}
+
+test('in every story level each ignition candidate is dry brush or grass right next to a road', async () => {
   for (const { file, level } of await storyLevels()) {
     const village = createVillage(level);
-    const { x, y } = level.ignition;
-    const type = tileAt(village, x, y);
-    assert.ok(['brush', 'grass'].includes(type), `${file}: ignition (${x},${y}) is ${type}`);
-    const nextToRoad = sideNeighbours(village, x, y).some(([nx, ny]) => tileAt(village, nx, ny) === 'road');
-    assert.ok(nextToRoad, `${file}: no road next to the ignition (${x},${y})`);
+    for (const { x, y } of ignitionCandidates(level)) {
+      const type = tileAt(village, x, y);
+      assert.ok(['brush', 'grass'].includes(type), `${file}: candidate (${x},${y}) is ${type}`);
+      const nextToRoad = sideNeighbours(village, x, y).some(([nx, ny]) => tileAt(village, nx, ny) === 'road');
+      assert.ok(nextToRoad, `${file}: no road next to the candidate (${x},${y})`);
+    }
+  }
+});
+
+test('the Sintra level has at least 4 ignition candidates and "ignition" is the first one', async () => {
+  const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
+  assert.ok(Array.isArray(level.ignitionCandidates), 'no "ignitionCandidates"');
+  assert.ok(level.ignitionCandidates.length >= 4, `only ${level.ignitionCandidates.length} candidates`);
+  assert.deepEqual(level.ignition, level.ignitionCandidates[0]);
+});
+
+// A EN247 é a primeira linha (a contar do norte) em que pelo menos metade dos quadrados são estrada.
+function en247Row(village) {
+  return village.tiles.findIndex((row) => row.filter((type) => type === 'road').length >= village.width / 2);
+}
+
+// Dá um número a cada estrada da serra (só as linhas acima da EN247): quadrados de estrada
+// ligados entre si (norte, sul, este, oeste) ficam com o mesmo número.
+// Devolve um objeto "x,y" -> número da estrada.
+function serraRoadNumbers(village, lastRow) {
+  const numbers = {};
+  let next = 0;
+  for (let y = 0; y <= lastRow; y++) {
+    for (let x = 0; x < village.width; x++) {
+      if (tileAt(village, x, y) !== 'road' || numbers[`${x},${y}`] !== undefined) continue;
+      // Uma estrada nova: pinta todos os quadrados ligados a este com o mesmo número.
+      const todo = [[x, y]];
+      numbers[`${x},${y}`] = next;
+      while (todo.length > 0) {
+        const [cx, cy] = todo.pop();
+        for (const [nx, ny] of sideNeighbours(village, cx, cy)) {
+          const isNew = ny <= lastRow && tileAt(village, nx, ny) === 'road' && numbers[`${nx},${ny}`] === undefined;
+          if (isNew) { numbers[`${nx},${ny}`] = next; todo.push([nx, ny]); }
+        }
+      }
+      next++;
+    }
+  }
+  return numbers;
+}
+
+test('the Sintra candidates are beside at least 2 different serra roads, all north (upwind) of the town', async () => {
+  const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
+  const village = createVillage(level);
+  const en247 = en247Row(village);
+  assert.ok(en247 > 0, 'no EN247 (a road row across the map)');
+  // A vila (o quartel) fica a sul da EN247.
+  village.tiles.forEach((row, y) => row.forEach((type) => {
+    if (type === 'school') assert.ok(y > en247, 'the fire station is north of the EN247');
+  }));
+  const numbers = serraRoadNumbers(village, en247 - 1);
+  const roadsUsed = new Set();
+  for (const { x, y } of level.ignitionCandidates) {
+    // O vento é de norte: um candidato a norte da EN247 está a montante (upwind) da vila.
+    assert.ok(y < en247, `candidate (${x},${y}) is not north of the EN247 (row ${en247})`);
+    const roads = sideNeighbours(village, x, y)
+      .map(([nx, ny]) => numbers[`${nx},${ny}`])
+      .filter((n) => n !== undefined);
+    assert.ok(roads.length > 0, `candidate (${x},${y}) is not beside a serra road`);
+    roads.forEach((n) => roadsUsed.add(n));
+  }
+  assert.ok(roadsUsed.size >= 2, `the candidates are beside only ${roadsUsed.size} serra road(s)`);
+});
+
+test('in the Sintra level the cigarette car can drive past every candidate (3+ straight road tiles)', async () => {
+  const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
+  const village = createVillage(level);
+  for (const candidate of level.ignitionCandidates) {
+    const path = findRoadPath(village, candidate);
+    assert.ok(path && path.tiles.length >= 3, `candidate (${candidate.x},${candidate.y}): road too short`);
   }
 });
 
@@ -94,15 +171,17 @@ test('the landmark (school tile) of every story level is one 2x2 block', async (
   }
 });
 
-test('without any defence, the fire of every story level reaches the town', async () => {
+test('without any defence, the fire from every candidate of every story level reaches the houses', async () => {
   for (const { file, level } of await storyLevels()) {
     const village = createVillage(level);
-    // Experimenta 5 sementes: basta uma em que o fogo chegue às casas.
-    const housesLost = [1, 2, 3, 4, 5].map((seed) => {
-      const { outcome } = runDisaster(village, { ignition: level.ignition, wind: level.wind, seed });
-      return outcome.housesTotal - outcome.housesSaved;
-    });
-    assert.ok(Math.max(...housesLost) > 0, `${file}: the fire never reaches a house`);
+    for (const ignition of ignitionCandidates(level)) {
+      // Experimenta 5 sementes: basta uma em que o fogo chegue às casas.
+      const housesLost = [1, 2, 3, 4, 5].map((seed) => {
+        const { outcome } = runDisaster(village, { ignition, wind: level.wind, seed });
+        return outcome.housesTotal - outcome.housesSaved;
+      });
+      assert.ok(Math.max(...housesLost) > 0, `${file}: from (${ignition.x},${ignition.y}) the fire never reaches a house`);
+    }
   }
 });
 

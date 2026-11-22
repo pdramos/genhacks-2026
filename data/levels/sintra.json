@@ -6,7 +6,15 @@
   "date": "2018-10-06T22:50",
   "place": "Serra de Sintra and Malveira da Serra (Sintra-Cascais Natural Park, near Lisbon, Portugal)",
   "ignition": { "x": 8, "y": 2 },
-  "ignitionNote": "Dramatisation. The real cause was never confirmed; the police investigated arson. A cigarette thrown from a car on the Peninha road is one way a fire like this can start.",
+  "ignitionCandidates": [
+    { "x": 8, "y": 2 },
+    { "x": 5, "y": 6 },
+    { "x": 18, "y": 8 },
+    { "x": 21, "y": 2 },
+    { "x": 25, "y": 6 },
+    { "x": 27, "y": 9 }
+  ],
+  "ignitionNote": "Dramatisation. The real cause was never confirmed; the police investigated arson. A cigarette thrown from a car on a serra road is one way a fire like this can start. The game picks one of the ignitionCandidates each night (from the seed); the first one, by the Peninha road, is also the fixed ignition.",
   "wind": {
     "direction": 5,
     "speed": 33,
