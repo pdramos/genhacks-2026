@@ -12,7 +12,7 @@ Jogo de navegador (3D estilizado, Three.js 0.186.1, JavaScript simples) em que o
 - Sem ferramentas de build: páginas HTML com um `importmap` que carrega `three@0.186.1` por CDN, com a versão fixada.
 - **Gráficos 100% gerados por código** (decisão do estudante): não usar modelos ou imagens descarregados. Cada região tem um "estilo" em `src/render/styles/<região>.js`, com arquitetura e vegetação autênticas: `portugal.js` (Pedrógão Grande e as Aldeias do Xisto) e `canada.js` (Jasper). O contrato de um estilo está no cabeçalho de `src/render/styles/basic.js`. Para ver todas as peças de um estilo: `gallery.html?style=<nome>`.
 - **Estrutura:** `src/sim/` = regras (simulação: vila, ações, fogo, estrelas), sem Three.js, testada com `npm test` (o `node:test` do próprio Node). `src/render/` = desenho 3D (`main.js` arranca tudo, `village3d.js` desenha a vila, `fireFx.js` desenha o fogo, `lighting.js` e `styles/`). O desenho só lê a simulação. Vocabulário e convenções (coordenadas, direção do vento): `GLOSSARY.md`.
-- Para correr o jogo localmente: `python -m http.server 8000` e abrir `http://localhost:8000/` (opcional: `?style=canada`).
+- Para correr o jogo localmente: `python dev/serve.py` (igual ao `http.server`, mas sem cache: o navegador corre sempre o código novo) e abrir `http://localhost:8000/` (opcional: `?style=canada`).
 - Todo o uso de IA, bibliotecas e dados (Three.js MIT, Open-Meteo CC BY 4.0) fica declarado no README e no Devpost.
 
 ## Agent skills
