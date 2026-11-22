@@ -10,8 +10,7 @@
 // depois do main.js (assim o "game" já está pronto quando este código corre).
 import * as THREE from 'three';
 import { game, onTileClick, onPhaseChange, tileName } from './main.js';
-// TODO(merger): trocar './simBridge.js' por '../sim/actions.js' (ver o cabeçalho de simBridge.js).
-import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable } from './simBridge.js';
+import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable } from '../sim/actions.js';
 import { stripMap, stripEdges, slopeNote } from './fuelStrips.js';
 import { setLevelName, setBudget, showToast, createToolCard, formatEuros, showBriefingCard } from './ui/hud.js';
 import { rakeIcon, bulldozerIcon, saplingIcon, undoIcon } from './ui/icons.js';

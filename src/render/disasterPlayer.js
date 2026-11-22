@@ -6,8 +6,7 @@
 import * as THREE from 'three';
 import { game, onFrame, onPhaseChange, setPhase, retrySameNight } from './main.js';
 import { runDisaster } from '../sim/fire.js';
-// TODO(merger): trocar por `import { pickIgnition } from '../sim/ignition.js'` (ver simBridge.js).
-import { pickIgnition } from './simBridge.js';
+import { pickIgnition } from '../sim/ignition.js';
 import { planFromChanges } from './runState.js';
 import { windForLevel, STEP_MINUTES } from '../sim/weather.js';
 import { playIgnition } from './ignitionCinematic.js';
