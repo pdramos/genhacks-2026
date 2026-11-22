@@ -14,6 +14,10 @@
 //   2. buildMeshes(bakedTiles)   -> cola os quadrados cozidos de uma zona (um "bloco" do mapa)
 //                                  em poucas peças grandes: uma por material.
 //
+// Truque extra: os materiais "simples" (só uma cor, sem textura) que só diferem na cor viram
+// UM material branco, e a cor de cada peça vai guardada nos seus pontos ("cores por vértice").
+// O resultado no ecrã é igual (cor do material x cor do ponto), mas são muito menos pedidos.
+//
 // E as árvores a balançar ao vento? Antes, cada árvore rodava sozinha. Agora estão coladas,
 // por isso o balanço é feito pela placa gráfica: cada ponto da árvore guarda (no atributo
 // "aSway") a sua fase, a altura acima do pé da árvore e para que lado se inclina.
@@ -34,14 +38,17 @@ export function bakeTile(group, swaying) {
   const buckets = new Map();
   group.traverseVisible((mesh) => {
     if (!mesh.isMesh || Array.isArray(mesh.material)) return;
-    const key = `${mesh.material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}|${mesh.renderOrder}`;
+    // Material simples: junta-se com os outros iguais a ele (menos a cor). Senão, vai sozinho.
+    const plain = plainKey(mesh.material);
+    const material = plain ? plainMaterial(plain, mesh.material) : mesh.material;
+    const key = `${material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}|${mesh.renderOrder}`;
     if (!buckets.has(key)) {
       buckets.set(key, {
-        material: mesh.material, castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow,
+        material, castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow,
         renderOrder: mesh.renderOrder, pieces: [],
       });
     }
-    buckets.get(key).pieces.push(bakeMesh(mesh, swayOf(mesh)));
+    buckets.get(key).pieces.push(bakeMesh(mesh, swayOf(mesh), plain ? mesh.material.color : null));
   });
   // cola as peças de cada material deste quadrado (assim o bloco depois só cola quadrados)
   for (const bucket of buckets.values()) {
@@ -49,6 +56,33 @@ export function bakeTile(group, swaying) {
     delete bucket.pieces;
   }
   return buckets;
+}
+
+// ---------- Materiais "simples" ----------
+// Um material é simples se for MeshStandardMaterial, sem texturas, sem transparência e sem
+// programa especial. Nesse caso devolvemos uma "assinatura" com tudo MENOS a cor
+// (dois materiais com a mesma assinatura só diferem na cor). Senão devolvemos null.
+function plainKey(m) {
+  if (m.type !== 'MeshStandardMaterial' || m.transparent || m.vertexColors) return null;
+  if (m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return null;
+  for (const value of Object.values(m)) if (value && value.isTexture) return null; // tem textura
+  return JSON.stringify([
+    m.roughness, m.metalness, m.flatShading, m.side, m.opacity, m.alphaTest, m.depthWrite, m.depthTest,
+    m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.fog, m.wireframe,
+    m.emissive.getHex(), m.emissiveIntensity, m.envMapIntensity,
+  ]);
+}
+
+// O material branco partilhado por todos os materiais simples com a mesma assinatura.
+const plainMaterials = new Map();
+function plainMaterial(key, example) {
+  if (!plainMaterials.has(key)) {
+    const material = example.clone();
+    material.color.set(0xffffff); // branco x cor do ponto = cor do ponto
+    material.vertexColors = true;
+    plainMaterials.set(key, material);
+  }
+  return plainMaterials.get(key);
 }
 
 // Para cada peça, descobre se pertence a uma árvore que balança e devolve os dados do balanço:
@@ -73,50 +107,67 @@ function swayLookup(group, swaying) {
 // Copia os pontos de UMA peça para listas simples (Float32Array), já no sítio certo do mundo.
 const normalMatrix = new THREE.Matrix3();
 const v = new THREE.Vector3();
-function bakeMesh(mesh, sway) {
+// color = a cor a guardar em cada ponto (só para materiais simples), ou null.
+// Para poupar memória, só guardamos o que faz falta:
+//   uv    -> só para materiais com textura (os simples não precisam);
+//   color -> só para os materiais simples;
+//   sway  -> só para as peças das árvores que balançam.
+function bakeMesh(mesh, sway, color) {
   // Sem "índices": cada triângulo tem os seus 3 pontos (mais simples de colar).
   const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
   const count = geometry.attributes.position.count;
-  const position = new Float32Array(count * 3);
-  const normal = new Float32Array(count * 3);
-  const uv = new Float32Array(count * 2);
-  const swayData = new Float32Array(count * 4);
   const pos = geometry.attributes.position, nor = geometry.attributes.normal, tex = geometry.attributes.uv;
+  const baked = { position: new Float32Array(count * 3), normal: new Float32Array(count * 3) };
+  if (!color) baked.uv = new Float32Array(count * 2);
+  if (color) baked.color = new Float32Array(count * 3);
+  if (sway) baked.sway = new Float32Array(count * 4);
   normalMatrix.getNormalMatrix(mesh.matrixWorld);
   // Uma peça "ao espelho" (escala negativa) tem os triângulos virados ao contrário:
   // trocamos a ordem dos pontos para a placa gráfica não pensar que estão de costas.
   const mirrored = mesh.matrixWorld.determinant() < 0;
   for (let i = 0; i < count; i++) {
     // no triângulo (a, b, c), ao espelho escrevemos (a, c, b)
-    const corner = i % 3, out = mirrored && corner > 0 ? i + (corner === 1 ? 1 : -1) : i;
+    const corner = i % 3, k = mirrored && corner > 0 ? i + (corner === 1 ? 1 : -1) : i;
     v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-    position[out * 3] = v.x; position[out * 3 + 1] = v.y; position[out * 3 + 2] = v.z;
+    put(baked.position, k * 3, v.x, v.y, v.z);
     if (nor) {
       v.fromBufferAttribute(nor, i).applyMatrix3(normalMatrix).normalize();
-      normal[out * 3] = v.x; normal[out * 3 + 1] = v.y; normal[out * 3 + 2] = v.z;
+      put(baked.normal, k * 3, v.x, v.y, v.z);
     }
-    if (tex) { uv[out * 2] = tex.getX(i); uv[out * 2 + 1] = tex.getY(i); }
+    if (baked.uv && tex) put(baked.uv, k * 2, tex.getX(i), tex.getY(i));
+    if (color) put(baked.color, k * 3, color.r, color.g, color.b);
     if (sway) {
-      swayData[out * 4] = sway.phase;
-      swayData[out * 4 + 1] = Math.max(0, position[out * 3 + 1] - sway.footY); // altura acima do pé
-      swayData[out * 4 + 2] = sway.dirX;
-      swayData[out * 4 + 3] = sway.dirZ;
+      const height = Math.max(0, baked.position[k * 3 + 1] - sway.footY); // altura acima do pé
+      put(baked.sway, k * 4, sway.phase, height, sway.dirX, sway.dirZ);
     }
   }
   if (geometry !== mesh.geometry) geometry.dispose();
-  return { position, normal, uv, sway: swayData };
+  return baked;
+}
+
+// Escreve 2, 3 ou 4 números seguidos numa lista, a começar na posição `at`.
+// (Mais rápido do que lista.set([a, b, c], at), que cria uma lista nova para cada ponto.)
+function put(list, at, a, b, c, d) {
+  list[at] = a; list[at + 1] = b;
+  if (c !== undefined) list[at + 2] = c;
+  if (d !== undefined) list[at + 3] = d;
 }
 
 // Cola várias listas de pontos numa só (umas a seguir às outras).
-const ATTRIBUTES = [['position', 3], ['normal', 3], ['uv', 2], ['sway', 4]];
+// Se uma peça não tiver uma lista (ex.: um arbusto não tem "sway"), ficam zeros no seu lugar.
+const SIZES = { position: 3, normal: 3, uv: 2, color: 3, sway: 4 };
 function joinArrays(pieces) {
   const out = {};
-  for (const [name] of ATTRIBUTES) {
-    let total = 0;
-    for (const piece of pieces) total += piece[name].length;
-    out[name] = new Float32Array(total);
+  let points = 0;
+  for (const piece of pieces) points += piece.position.length / 3;
+  for (const [name, size] of Object.entries(SIZES)) {
+    if (!pieces.some((piece) => piece[name])) continue; // ninguém tem esta lista
+    out[name] = new Float32Array(points * size);
     let offset = 0;
-    for (const piece of pieces) { out[name].set(piece[name], offset); offset += piece[name].length; }
+    for (const piece of pieces) {
+      if (piece[name]) out[name].set(piece[name], offset);
+      offset += (piece.position.length / 3) * size;
+    }
   }
   return out;
 }
@@ -134,11 +185,14 @@ export function buildMeshes(bakedTiles) {
   const meshes = [];
   for (const bucket of byKey.values()) {
     const arrays = joinArrays(bucket.list);
+    if (!arrays.sway) arrays.sway = new Float32Array((arrays.position.length / 3) * 4); // nada balança
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(arrays.position, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(arrays.normal, 3));
-    geometry.setAttribute('uv', new THREE.BufferAttribute(arrays.uv, 2));
-    geometry.setAttribute('aSway', new THREE.BufferAttribute(arrays.sway, 4));
+    geometry.setAttribute('position', gpuOnly(arrays.position, 3));
+    geometry.setAttribute('normal', gpuOnly(arrays.normal, 3));
+    if (arrays.uv) geometry.setAttribute('uv', gpuOnly(arrays.uv, 2));
+    if (arrays.color) geometry.setAttribute('color', gpuOnly(arrays.color, 3));
+    geometry.setAttribute('aSway', gpuOnly(arrays.sway, 4));
+    geometry.computeBoundingSphere(); // feito agora, enquanto ainda temos os pontos (serve para não desenhar o que está fora do ecrã)
     const mesh = new THREE.Mesh(geometry, swayMaterial(bucket.material));
     mesh.castShadow = bucket.castShadow;
     mesh.receiveShadow = bucket.receiveShadow;
@@ -146,6 +200,15 @@ export function buildMeshes(bakedTiles) {
     meshes.push(mesh);
   }
   return meshes;
+}
+
+// Uma lista de pontos que, depois de enviada para a placa gráfica, é apagada da memória do
+// browser (a placa gráfica fica com a sua cópia). Os pontos de cada quadrado continuam guardados
+// em bakeTile, por isso conseguimos refazer o bloco quando quisermos.
+function gpuOnly(array, size) {
+  const attribute = new THREE.BufferAttribute(array, size);
+  attribute.onUpload(function () { this.array = null; });
+  return attribute;
 }
 
 // ---------- O material que balança ----------
