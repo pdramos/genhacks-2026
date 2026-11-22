@@ -6,9 +6,11 @@
 // isso aparece em letra pequena por baixo da legenda.
 //
 // API:
-//   await playIgnition(game)  -> a Promise termina quando o fogo deve começar (cerca de 7 s).
+//   await playIgnition(game, ignition) -> a Promise termina quando o fogo deve começar (cerca de 7 s).
 //                                O jogador pode saltar a cena com um clique ou com a tecla Espaço.
-// Usa: game.level (ignição e vento), game.village (onde está a estrada), game.view.worldPosition,
+//     ignition = {x, y}, o quadrado onde cai o cigarro (escolhido com a semente por pickIgnition).
+//                Se não for dado, usa game.level.ignition. O carro passa na estrada colada a ele.
+// Usa: game.level (vento), game.village (onde está a estrada), game.view.worldPosition,
 //      game.camera e game.renderer. Se existirem, usa também game.scene e game.controls.
 // No fim, a câmara volta exatamente para onde o jogador a tinha deixado.
 import * as THREE from 'three';
@@ -26,7 +28,7 @@ const ROAD_EXTENSION = 1.5;  // o carro aparece um pouco antes da estrada e sai 
 const LANE_OFFSET = 0.2;     // o carro anda pela faixa da direita (a estrada tem 1 de largura)
 const TILE_TOP = 0.25;       // altura do chão quando a vista ainda não tem relevo
 
-export function playIgnition(game) {
+export function playIgnition(game, ignition = game.level.ignition) {
   return new Promise((resolve) => {
     let cinematic = null; // a cena só é montada no primeiro desenho (é aí que conhecemos a cena 3D)
     let skipRequested = false;
@@ -47,7 +49,7 @@ export function playIgnition(game) {
       const dt = Math.min((now - lastMs) / 1000, 0.1); // segundos desde o último desenho
       lastMs = now;
       try {
-        if (!cinematic) cinematic = createCinematic(game, game.scene || scene, overlay);
+        if (!cinematic) cinematic = createCinematic(game, game.scene || scene, overlay, ignition);
         if (skipRequested || cinematic.update(dt)) finish();
       } catch (error) {
         // Se algo correr mal, o jogo não pode ficar preso: o fogo começa na mesma.
@@ -72,8 +74,8 @@ export function playIgnition(game) {
 // ---------- A cena: carro, ponta de cigarro, fumo e câmara, passo a passo ----------
 // Fases: 'drive' (o carro chega) -> 'flight' (o cigarro voa) -> 'smoke' (fumo na berma)
 //        -> 'return' (a câmara volta ao jogador) -> fim.
-function createCinematic(game, scene, overlay) {
-  const route = buildRoute(game);
+function createCinematic(game, scene, overlay, ignition) {
+  const route = buildRoute(game, ignition);
   // Com estrada: um carro. Sem estrada: um caminhante (mais pequeno e mais lento).
   const car = route.onFoot ? buildWalker() : buildCar();
   const butt = buildCigaretteButt();
@@ -126,7 +128,7 @@ function createCinematic(game, scene, overlay) {
       // O fogo a sério acende ANTES de a câmara voltar: quando ela volta, já se vê a chama.
       if (!fireStarted && phaseTime >= SMOKE_TIME * FIRE_AT) {
         fireStarted = true;
-        const { x, y } = game.level.ignition;
+        const { x, y } = ignition;
         game.fireFx?.setIntensity?.(x, y, 0.45);
         game.fireFx?.ignite?.(x, y);
       }
@@ -172,12 +174,13 @@ function createCinematic(game, scene, overlay) {
 
 // ---------- O caminho do carro no mundo 3D ----------
 // Transforma os quadrados de estrada (roadPath.js) numa linha 3D por onde o carro anda.
-function buildRoute(game) {
-  const { village, level, view } = game;
-  const roadPath = findRoadPath(village, level.ignition);
+// `start` = o quadrado da ignição escolhido para este jogo.
+function buildRoute(game, start) {
+  const { village, view } = game;
+  const roadPath = findRoadPath(village, start);
   const onFoot = !roadPath; // sem estrada perto: um caminhante num carreiro
-  const path = roadPath || fallbackPath(village, level.ignition);
-  const ignition = groundPoint(view, level.ignition.x, level.ignition.y);
+  const path = roadPath || fallbackPath(village, start);
+  const ignition = groundPoint(view, start.x, start.y);
   const road = path.tiles[path.dropIndex];
   const roadPoint = groundPoint(view, road.x, road.y);
 

@@ -4,8 +4,11 @@
 //   2) pedimos à simulação o incêndio inteiro (uma lista de snapshots, um por passo de 10 minutos);
 //   3) mostramos esses snapshots um a um, devagar, como um filme.
 import * as THREE from 'three';
-import { game, onFrame, onPhaseChange, setPhase } from './main.js';
+import { game, onFrame, onPhaseChange, setPhase, retrySameNight } from './main.js';
 import { runDisaster } from '../sim/fire.js';
+// TODO(merger): trocar por `import { pickIgnition } from '../sim/ignition.js'` (ver simBridge.js).
+import { pickIgnition } from './simBridge.js';
+import { planFromChanges } from './runState.js';
 import { windForLevel, STEP_MINUTES } from '../sim/weather.js';
 import { playIgnition } from './ignitionCinematic.js';
 import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, showResultCard } from './ui/hud.js';
@@ -54,21 +57,27 @@ async function startDisaster() {
   if (game.phase !== 'build') return;
   setPhase('disaster');
 
+  // 0) Onde cai o cigarro? O nível tem vários sítios possíveis (ignitionCandidates) e a
+  //    semente deste jogo escolhe um. O jogador só o descobre agora, na cena.
+  const ignition = pickIgnition(game.level, game.seed);
+  game.ignition = ignition;
+
   // 1) A cena do cigarro: um carro passa e atira uma ponta de cigarro para o mato seco.
   //    Esperamos (await) até ela acabar; o jogador pode saltá-la com um clique ou Espaço.
   //    Durante a cena escondemos a caixa #info (a cena tem as suas próprias legendas).
   info.style.visibility = 'hidden';
-  await playIgnition(game);
+  await playIgnition(game, ignition);
   info.style.visibility = '';
 
   // 2) A simulação calcula o incêndio todo de uma vez, a partir da vila ATUAL
   //    (já com o que o jogador construiu). Não altera a vila.
   //    O vento é o VERDADEIRO do dia, hora a hora (Open-Meteo), se o nível o tiver.
   const wind = windForLevel(game.level);
+  //    A MESMA semente decide o acaso do fogo: "Try again (same night)" repete tudo igual.
   const { steps, outcome } = runDisaster(game.village, {
-    ignition: game.level.ignition,
+    ignition,
     wind,
-    seed: game.level.seed ?? 1,
+    seed: game.seed,
   });
   game.outcome = outcome; // o som (audioHooks.js) usa isto para saber se ganhámos
   // A bússola do vento só aparece depois da cena, para não ficar por baixo das barras de cinema.
@@ -162,7 +171,23 @@ function showResult(outcome) {
   const school = `${label} ${outcome.schoolSaved ? 'saved' : 'lost'}`;
   info.textContent = `Houses saved: ${outcome.housesSaved} / ${outcome.housesTotal} · ${school}`;
   setPhase('result');
-  showResultCard(outcome, label, game.level); // o cartão do fim: estrelas, a história real e as fontes
+  const card = showResultCard(outcome, label, game.level); // o cartão do fim: estrelas, a história real e as fontes
+  addRetryButton(card);
+}
+
+// O botão "Try again (same night)": recomeça com o MESMO plano e a MESMA semente
+// (o cigarro cai no mesmo sítio e o fogo faz o mesmo), para o jogador poder mudar o plano
+// e ver a diferença. O "Play again" do cartão é um jogo novo (outra semente, plano vazio).
+function addRetryButton(card) {
+  const buttons = card?.querySelector('.result-buttons');
+  if (!buttons) return;
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'result-button retry';
+  retry.textContent = 'Try again (same night)';
+  retry.title = 'Same fire, same plan: change your plan and see what happens';
+  retry.addEventListener('click', () => retrySameNight(planFromChanges(game.buildState?.changes ?? {})));
+  buttons.querySelector('[data-do="again"]')?.before(retry);
 }
 
 // Nome da direção na bússola: 0 -> N, 45 -> NE, 90 -> E, ...
