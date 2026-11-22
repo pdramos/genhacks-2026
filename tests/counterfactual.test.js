@@ -186,6 +186,14 @@ test('nightLessons: saving no more houses than doing nothing points downwind', (
   assert.match(lessons[0], /The wind blows from the north: work just south \(downwind\) of the \? spots\./);
 });
 
+// Visto ao jogar (semente 12): quem não fez NADA não pode ouvir "o teu trabalho não salvou mais casas".
+test('nightLessons: a player who prepared nothing hears that, not "your work"', () => {
+  const lessons = nightLessons({ ...baseNight, player: result(20), expert: result(25), spent: 0 });
+  assert.match(lessons[0], /^You didn't prepare anything, so tonight was the same as doing nothing\./);
+  assert.match(lessons[0], /work just south \(downwind\) of the \? spots\./);
+  assert.ok(!lessons.some((lesson) => /Your work/.test(lesson)));
+});
+
 test('nightLessons: saving the school that doing nothing lost is not "no better than nothing"', () => {
   // Sem fazer nada: mais casas, mas sem quartel (0 estrelas). O jogador: menos casas, com quartel.
   const lessons = nightLessons({ ...baseNight, player: result(40), nothing: result(45, false), expert: result(48) });
