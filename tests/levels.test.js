@@ -39,11 +39,16 @@ test('there is a Sintra level among the level files', async () => {
   assert.ok(files.includes('sintra.json'), `found only: ${files.join(', ')}`);
 });
 
-test('every level file builds a 20x20 village', async () => {
+// O tamanho de cada nível: o demo fica pequeno (20x20); Sintra cresceu para 32x32 (ticket #13).
+const LEVEL_SIZES = { 'demo.json': 20, 'sintra.json': 32 };
+
+test('the demo stays 20x20 and the Sintra level is 32x32', async () => {
   for (const { file, level } of await loadLevels()) {
+    const size = LEVEL_SIZES[file];
+    assert.ok(size, `${file}: add its size to LEVEL_SIZES`);
     const village = createVillage(level);
-    assert.equal(village.width, 20, `${file}: width`);
-    assert.equal(village.height, 20, `${file}: height`);
+    assert.equal(village.width, size, `${file}: width`);
+    assert.equal(village.height, size, `${file}: height`);
   }
 });
 
@@ -51,7 +56,7 @@ test('every story level has heights (relief) for every row', async () => {
   for (const { file, level } of await storyLevels()) {
     assert.ok(Array.isArray(level.heights), `${file}: no "heights"`);
     const village = createVillage(level);
-    assert.equal(village.heights.length, 20, `${file}: heights rows`);
+    assert.equal(village.heights.length, village.height, `${file}: heights rows`);
     const all = village.heights.flat();
     assert.ok(Math.max(...all) > Math.min(...all), `${file}: the terrain is flat`);
   }
@@ -105,9 +110,10 @@ test('the Sintra level tells the real story: crest to the north, sea to the sout
   const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
   const village = createVillage(level);
   assert.equal(level.style, 'sintra');
+  const bottom = village.height - 1; // a última linha (a sul)
   assert.ok(village.heights[0][4] >= 8, 'the Peninha crest is high');
-  assert.equal(tileAt(village, 0, 19), 'water', 'the Atlantic is at the south-west corner');
-  assert.equal(village.heights[19][0], 0, 'the sea is at height 0');
+  assert.equal(tileAt(village, 0, bottom), 'water', 'the Atlantic is at the south-west corner');
+  assert.equal(village.heights[bottom][0], 0, 'the sea is at height 0');
   // vento de norte (entre 350° e 20°): o fogo desce a serra para sul
   assert.ok(level.wind.direction <= 20 || level.wind.direction >= 350);
   // a cena do cigarro é uma dramatização: a causa real nunca foi confirmada
