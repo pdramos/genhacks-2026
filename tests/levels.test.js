@@ -88,9 +88,11 @@ test('the Sintra level has at least 4 ignition candidates and "ignition" is the 
   assert.deepEqual(level.ignition, level.ignitionCandidates[0]);
 });
 
-// A EN247 é a primeira linha (a contar do norte) em que pelo menos metade dos quadrados são estrada.
-function en247Row(village) {
-  return village.tiles.findIndex((row) => row.filter((type) => type === 'road').length >= village.width / 2);
+// A linha de cima do quartel (o "S"): o que fica a norte dela é a serra, a montante (upwind) da vila.
+// (Antes era a EN247, uma linha reta de estrada; no mapa com dados reais a EN247 desce a encosta
+// em diagonal, como a verdadeira, por isso a fronteira passou a ser o quartel.)
+function stationTopRow(village) {
+  return village.tiles.findIndex((row) => row.includes('school'));
 }
 
 // Dá um número a cada estrada da serra (só as linhas acima da EN247): quadrados de estrada
@@ -121,17 +123,13 @@ function serraRoadNumbers(village, lastRow) {
 test('the Sintra candidates are beside at least 2 different serra roads, all north (upwind) of the town', async () => {
   const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
   const village = createVillage(level);
-  const en247 = en247Row(village);
-  assert.ok(en247 > 0, 'no EN247 (a road row across the map)');
-  // A vila (o quartel) fica a sul da EN247.
-  village.tiles.forEach((row, y) => row.forEach((type) => {
-    if (type === 'school') assert.ok(y > en247, 'the fire station is north of the EN247');
-  }));
-  const numbers = serraRoadNumbers(village, en247 - 1);
+  const stationTop = stationTopRow(village);
+  assert.ok(stationTop > 0, 'no fire station (school tile) below the serra');
+  const numbers = serraRoadNumbers(village, stationTop - 1);
   const roadsUsed = new Set();
   for (const { x, y } of level.ignitionCandidates) {
-    // O vento é de norte: um candidato a norte da EN247 está a montante (upwind) da vila.
-    assert.ok(y < en247, `candidate (${x},${y}) is not north of the EN247 (row ${en247})`);
+    // O vento é de norte: um candidato a norte do quartel está a montante (upwind) da vila.
+    assert.ok(y < stationTop, `candidate (${x},${y}) is not north of the fire station (row ${stationTop})`);
     const roads = sideNeighbours(village, x, y)
       .map(([nx, ny]) => numbers[`${nx},${ny}`])
       .filter((n) => n !== undefined);
@@ -185,16 +183,29 @@ test('without any defence, the fire from every candidate of every story level re
   }
 });
 
-test('the Sintra level tells the real story: crest to the north, sea to the south-west, wind from the north', async () => {
+test('the Sintra level tells the real story: crest to the north, land falling to the south-west, wind from the north', async () => {
   const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
   const village = createVillage(level);
   assert.equal(level.style, 'sintra');
   const bottom = village.height - 1; // a última linha (a sul)
   assert.ok(village.heights[0][4] >= 8, 'the Peninha crest is high');
-  assert.equal(tileAt(village, 0, bottom), 'water', 'the Atlantic is at the south-west corner');
-  assert.equal(village.heights[bottom][0], 0, 'the sea is at height 0');
+  // O mar (Guincho) fica 2-3 km a oeste/sudoeste, fora do mapa real: o canto sudoeste é o mais baixo.
+  assert.equal(village.heights[bottom][0], 0, 'the south-west corner (towards Guincho and the sea) is the lowest');
+  // A vila fica no sopé da serra: o quartel está bem abaixo da crista.
+  const stationTop = stationTopRow(village);
+  const stationX = village.tiles[stationTop].indexOf('school');
+  assert.ok(village.heights[stationTop][stationX] <= village.heights[0][4] - 4, 'the town sits at the foot of the serra');
   // vento de norte (entre 350° e 20°): o fogo desce a serra para sul
   assert.ok(level.wind.direction <= 20 || level.wind.direction >= 350);
   // a cena do cigarro é uma dramatização: a causa real nunca foi confirmada
   assert.match(level.ignitionNote, /never confirmed/);
+});
+
+test('the Sintra map credits its real data (OpenStreetMap is ODbL: the attribution is required)', async () => {
+  const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
+  const credits = (level.attribution || []).join(' ');
+  assert.match(credits, /© OpenStreetMap contributors/);
+  assert.match(credits, /ODbL/);
+  assert.match(credits, /Copernicus/);
+  assert.ok(level.sources.includes('https://www.openstreetmap.org/copyright'));
 });
