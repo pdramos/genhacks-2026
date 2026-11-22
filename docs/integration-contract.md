@@ -112,7 +112,7 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
   - `actionCost(village, x, y, actionName)` → custo base × fator de declive. O fator é 1 no plano e cresce com a diferença de altura para os vizinhos; a constante fica documentada.
   - `applyAction`/`undoAction` usam este custo, e o reembolso devolve exatamente o que foi pago.
   - `checkAction` (já existe) devolve também o custo.
-- O `runDisaster` não muda de assinatura. Quem chama passa `ignition: pickIgnition(level, seed)`.
+- O `runDisaster` não muda de assinatura. Quem chama passa `ignition: resolveIgnition(village, level, seed)` (DEPOIS da construção): é o `pickIgnition`, mas se o candidato não arder (corta-fogo) o fogo começa no primeiro quadrado que arde à volta (8 vizinhos, depois o anel seguinte, ordem fixa). Sem isto, um corta-fogo em cada candidato dava 3★ sempre.
 - **Constantes de equilíbrio** ficam num só sítio, `src/sim/balance.js` (novo), importadas pelos outros: orçamento por nível se não vier no JSON, fator de declive e os limites das estrelas, se forem precisos.
 
 ## Mapa (dono: agente MAP)
@@ -132,7 +132,7 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
   - quadrados de Parque Natural com um 🔒 discreto e o toast "Protected natural park — you can only clear the legal fuel strips" ao clicar;
   - custo real ao passar o rato (já existe uma pré-visualização; mostrar o preço com o declive).
 - **Semente:** cada jogo novo sorteia uma semente no browser (`Math.random` só na interface; a simulação recebe a semente). "Play again" faz um jogo novo; um "Try again (same night)" mantém o plano e a semente.
-- **O cinemático** usa a ignição escolhida (`pickIgnition`), e o carro passa na estrada desse candidato.
+- **O cinemático** usa a ignição já resolvida (`resolveIgnition`), e o carro passa na estrada desse quadrado.
 - **Câmara:** enquadra o mapa maior.
 - O dono é responsável por `buildPanel.js`, `disasterPlayer.js`, `ignitionCinematic.js`, `main.js` (câmara) e `hud.css`.
 
@@ -145,5 +145,8 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
 
 Afina o orçamento, os custos, o fator de declive, as constantes do fogo (com cuidado, sem partir os testes do fogo) e os limites das estrelas.
 
-**Resultado (sementes 1–30, orçamento 12 000):** nada 1,10★ (era 1,67) · ingénuo 1,17★ (era 1,67) · ao calhas 1,40★ (era 2,00) · bom plano ≥ 2★ em 73% e 3★ em 20% (era 100% e 37%).
-A meta "nada < 0,5★" **não foi cumprida** e está como `todo` no teste: o fogo da berma da estrada da Peninha (5, 6) desce para a costa, longe da vila, e os fogos a oeste da estrada x=19 nunca chegam ao quartel, por isso não fazer nada ainda dá 1–2★ em cerca de metade das sementes. As afinações do fogo que desciam abaixo de 0,5 partiam os testes da forma do fogo (elipse). Para lá chegar é preciso mexer no mapa (por exemplo, nos `ignitionCandidates` ou no sítio do quartel).
+Duas guardas da revisão de equilíbrio: **corta-fogo em cada candidato** e **só proteger o quartel** ficam pelo menos 0,3★ abaixo do bom plano; e cada passo do bom plano tem de aplicar ações (nenhum passo pode ficar só com `not-enough-money`).
+
+**Resultado (sementes 1–30, orçamento 12 000), depois da revisão:** nada 1,07★ · ingénuo 1,10★ · ao calhas 1,07★ · corta-fogo nos candidatos 1,20★ (era 3,00) · só o quartel 1,27★ (era 1,80) · bom plano 1,70★, ≥ 2★ em 60% e 3★ em 13%.
+O bom plano: corta-fogo na ravina por cima do quartel (€3 000), corta-fogo nos eucaliptos a norte da EN247 em frente ao quartel e ao leste (€7 500) e limpar o mato a norte da EN247 em frente à vila oeste (€1 300). O que mudou: corta-fogo em árvores custa €1 000 (trocar árvores, €800, passa a compensar); o quartel tem casas a leste (a ravina é só a faixa colada à EN247); o candidato da costa (5, 6) passou para (7, 7), do outro lado da estrada da Peninha, de onde o fogo desce para a vila.
+A meta "nada < 0,5★" **não foi cumprida** e está como `todo` no teste: os fogos a oeste da estrada x=19 muitas vezes ficam na vila oeste e nunca chegam ao quartel, por isso não fazer nada ainda dá 1–2★ em cerca de metade das sementes. As afinações do fogo que desciam abaixo de 0,5 partiam os testes da forma do fogo (elipse). Para lá chegar é preciso mexer no mapa (por exemplo, nos `ignitionCandidates` ou no sítio do quartel).

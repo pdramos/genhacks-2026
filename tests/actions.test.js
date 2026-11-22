@@ -32,6 +32,18 @@ test('firebreak turns grass into firebreak and costs 500', () => {
   assert.equal(remainingBudget(state), 500);
 });
 
+test('a firebreak on trees costs 1000 (the trees must be cut down first), on brush or grass 500', () => {
+  // Revisão de equilíbrio: com o mesmo preço, o corta-fogo num eucalipto (€500, não arde)
+  // era sempre melhor do que trocar as árvores (€800, folhosa ainda arde) e ninguém usava a 3.ª carta.
+  const village = smallVillage();
+  assert.equal(actionCost(village, 2, 0, 'firebreak'), 1000); // eucalyptus
+  assert.equal(actionCost(village, 3, 0, 'firebreak'), 1000); // broadleaf
+  assert.equal(actionCost(village, 1, 0, 'firebreak'), 500); // brush
+  assert.equal(actionCost(village, 0, 0, 'firebreak'), 500); // grass
+  // Trocar as árvores passa a ser mais barato do que abatê-las para um corta-fogo.
+  assert.ok(actionCost(village, 2, 0, 'replaceTrees') < actionCost(village, 2, 0, 'firebreak'));
+});
+
 test('replaceTrees turns eucalyptus into broadleaf and costs 800', () => {
   const village = smallVillage();
   const state = createBuildState(village, 1000);
@@ -93,9 +105,9 @@ test('an action outside the village is blocked', () => {
 test('undo restores the original tile and refunds the exact cost', () => {
   const village = smallVillage();
   const state = createBuildState(village, 1000);
-  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€500)
+  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€1000: é preciso abater as árvores)
   const result = undoAction(state, 2, 0);
-  assert.deepEqual(result, { ok: true, refund: 500, restoredType: 'eucalyptus' });
+  assert.deepEqual(result, { ok: true, refund: 1000, restoredType: 'eucalyptus' });
   assert.equal(tileAt(village, 2, 0), 'eucalyptus');
   assert.equal(remainingBudget(state), 1000);
 });
@@ -112,8 +124,8 @@ test('undo on a tile that was never changed fails and gives no money', () => {
 test('after an undo, the tile cannot be undone again but can take a new action', () => {
   const village = smallVillage();
   const state = createBuildState(village, 1000);
-  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€500)
-  undoAction(state, 2, 0); // volta a eucalyptus, devolve €500
+  applyAction(state, 2, 0, 'firebreak'); // eucalyptus -> firebreak (€1000)
+  undoAction(state, 2, 0); // volta a eucalyptus, devolve €1000
 
   // Desfazer outra vez não pode dar dinheiro a dobrar.
   assert.deepEqual(undoAction(state, 2, 0), { ok: false, reason: 'nothing-to-undo' });

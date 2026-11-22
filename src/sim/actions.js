@@ -1,6 +1,6 @@
 // A fase de construção: o jogador gasta o orçamento em ações defensivas.
 // Só regras e dados (sem desenho), por isso funciona igual no navegador e nos testes.
-import { HOUSE_STRIP, ROAD_STRIP, BASE_COSTS, SLOPE_COST_PER_LEVEL, COST_ROUNDING, DEFAULT_BUDGET } from './balance.js';
+import { HOUSE_STRIP, ROAD_STRIP, BASE_COSTS, FIREBREAK_ON_TREES_COST, SLOPE_COST_PER_LEVEL, COST_ROUNDING, DEFAULT_BUDGET } from './balance.js';
 
 // Os quadrados de vegetação (ver GLOSSARY.md).
 const VEGETATION = ['grass', 'brush', 'eucalyptus', 'broadleaf', 'cleared'];
@@ -8,12 +8,17 @@ const VEGETATION = ['grass', 'brush', 'eucalyptus', 'broadleaf', 'cleared'];
 // As ações que o jogador pode comprar.
 //   cost   = preço BASE em euros, num terreno plano (o número vive em balance.js;
 //            o preço a sério de um quadrado é actionCost, que junta o declive)
+//   costByType = (opcional) preço base diferente para alguns tipos de quadrado
+//            (ex.: corta-fogo em árvores custa mais, porque é preciso abatê-las)
 //   label  = nome mostrado no botão (em inglês)
 //   from   = tipos de quadrado onde a ação pode ser feita
 //   result = tipo em que o quadrado se transforma
 export const ACTIONS = {
   clearBrush: { cost: BASE_COSTS.clearBrush, label: 'Clear brush', from: ['brush'], result: 'cleared' },
-  firebreak: { cost: BASE_COSTS.firebreak, label: 'Firebreak', from: VEGETATION, result: 'firebreak' },
+  firebreak: {
+    cost: BASE_COSTS.firebreak, label: 'Firebreak', from: VEGETATION, result: 'firebreak',
+    costByType: { eucalyptus: FIREBREAK_ON_TREES_COST, broadleaf: FIREBREAK_ON_TREES_COST },
+  },
   replaceTrees: { cost: BASE_COSTS.replaceTrees, label: 'Replace trees', from: ['eucalyptus'], result: 'broadleaf' },
 };
 
@@ -107,13 +112,19 @@ function isNear(village, x, y, types, distance) {
   return false;
 }
 
-// Quanto custa fazer esta ação NESTE quadrado: preço base × fator de declive.
+// O preço base desta ação NESTE tipo de quadrado, sem declive (ex.: corta-fogo em eucalipto = €1000).
+export function baseCost(actionName, tileType) {
+  const action = ACTIONS[actionName];
+  return action.costByType?.[tileType] ?? action.cost;
+}
+
+// Quanto custa fazer esta ação NESTE quadrado: preço base (do tipo) × fator de declive.
 //   fator = 1 + SLOPE_COST_PER_LEVEL × (maior diferença de altura para os 8 vizinhos)
 // No plano o fator é 1 (paga-se o preço base). Numa encosta é mais caro.
 // O resultado é arredondado a múltiplos de COST_ROUNDING euros (ver balance.js).
 export function actionCost(village, x, y, actionName) {
   const factor = 1 + SLOPE_COST_PER_LEVEL * steepness(village, x, y);
-  const cost = ACTIONS[actionName].cost * factor;
+  const cost = baseCost(actionName, village.tiles[y][x]) * factor;
   return Math.round(cost / COST_ROUNDING) * COST_ROUNDING;
 }
 

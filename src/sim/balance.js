@@ -10,6 +10,12 @@
 //     (SPOT_CHANCE_PER_KMH 0.003 -> 0.006, SPOT_MIN_WIND_KMH 20 -> 25) e casas/escola mais
 //     inflamáveis (0.4 -> 0.5). Antes, não fazer nada dava 1,67 estrelas em média.
 //   - preços, declive e estrelas ficaram iguais (os testes das ações e das estrelas usam-nos).
+// Revisão de equilíbrio (depois do #14), o que mudou e porquê:
+//   - a ignição: um corta-fogo no sítio do cigarro já não impede o fogo (resolveIgnition em
+//     src/sim/ignition.js); antes, €3.390 em corta-fogos davam 3 estrelas em todas as noites;
+//   - corta-fogo em árvores passa a custar FIREBREAK_ON_TREES_COST (trocar árvores passa a compensar);
+//   - no mapa de Sintra, o quartel tem casas a leste (proteger só o quartel já não chega) e o
+//     candidato da costa passou para o lado da estrada da Peninha que desce para a vila.
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.
@@ -24,6 +30,12 @@ export const BASE_COSTS = {
   firebreak: 500,
   replaceTrees: 800,
 };
+
+// Um corta-fogo onde há ÁRVORES (eucalipto ou folhosa) custa mais: é preciso abatê-las primeiro.
+// Antes custava os mesmos €500 e era sempre melhor do que trocar as árvores (€800, a folhosa
+// ainda arde um pouco), por isso a 3.ª carta nunca compensava. Agora: abater = €1000,
+// trocar = €800 (mais barato, mas a folhosa ainda pode arder).
+export const FIREBREAK_ON_TREES_COST = 1000;
 
 // Quanto MAIS caro fica por cada nível de altura de diferença para o vizinho mais desnivelado.
 // Fator de declive = 1 + SLOPE_COST_PER_LEVEL × (maior diferença de altura para os 8 vizinhos).

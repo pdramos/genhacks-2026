@@ -86,7 +86,7 @@ O formato é o de "construir a base e defendê-la de um ataque", conhecido de jo
 | Ação | Custo | Efeito |
 |---|---|---|
 | Limpar mato | €200 | mato → terreno limpo (arde pouco) |
-| Corta-fogo | €500 | qualquer vegetação → corta-fogo (não arde) |
+| Corta-fogo | €500 (€1000 em árvores: é preciso abatê-las) | qualquer vegetação → corta-fogo (não arde) |
 | Trocar árvores | €800 | eucalipto/pinheiro → folhosa (arde menos) |
 
 - O orçamento por nível é fixo e não chega para proteger tudo. Esse é o centro do jogo: **escolher**.
