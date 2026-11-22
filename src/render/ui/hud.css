@@ -407,6 +407,43 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   .tool-name { font-size: 10.5px; }
 }
 
+/* ============ Ecrãs baixos (telemóvel deitado) ============ */
+/* A carta nunca pode ser mais alta do que o ecrã: senão o botão para começar
+   fica de fora e o jogo nem arranca. A carta passa a deslizar por dentro e os
+   botões ficam sempre colados em baixo, à vista. */
+@media (max-height: 520px) {
+  .result-card {
+    max-height: calc(100dvh - 16px); overflow-y: auto; padding: 10px 16px 0;
+    border-radius: 18px;
+  }
+  /* O título deixa de "espreitar" por cima da carta (seria cortado pelo deslizar) */
+  .result-title { margin: 0 auto 8px; font-size: 19px; padding: 4px 16px; }
+  /* As caixas de texto já não precisam de deslizar sozinhas: desliza a carta toda */
+  .briefing-text, .result-story { max-height: none; overflow: visible; }
+  .briefing-text { font-size: 14px; margin: 6px 0; }
+  .result-stars { margin: 0 0 6px; }
+  .star { width: 34px; height: 34px; }
+  .result-icon { width: 36px; height: 36px; }
+  .result-number { font-size: 22px; }
+  .result-buttons {
+    position: sticky; bottom: 0; margin: 10px -16px 0; padding: 8px 16px 10px;
+    background: var(--cream); border-top: 3px solid var(--ink);
+  }
+  .result-button { padding: 7px 16px; font-size: 15px; }
+
+  /* Painel das ferramentas e botão de começar mais pequenos: o mapa precisa da altura */
+  #hud { bottom: 6px; }
+  .build-panel { gap: 6px; padding: 6px; border-radius: 16px; }
+  .tool-card { width: 76px; padding: 5px 3px 4px; border-radius: 12px; }
+  .tool-icon { width: 30px; height: 30px; }
+  .tool-name { font-size: 11.5px; }
+  .tool-price { font-size: 11px; }
+  .start-button { width: 80px; height: 80px; }
+  .start-flame { width: 34px; height: 34px; }
+  .start-label { font-size: 10px; }
+  #info { font-size: 12px; padding: 3px 10px; }
+}
+
 /* Quem pede menos movimento no sistema não vê as animações a repetir */
 @media (prefers-reduced-motion: reduce) {
   .start-button, .start-button:hover .start-flame { animation: none; }

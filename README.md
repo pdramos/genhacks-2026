@@ -59,11 +59,21 @@ npm test
 
 The game shows the weather, map and elevation credits on the briefing and results screens.
 
+**Early spike (removed):** in the first days we briefly tried free Kenney 3D models (CC0, public
+domain). They were never committed to this repository and the final game uses none of them: every
+house, tree and flag is now built in code.
+
+## Licence
+
+The source code is under the [MIT licence](LICENSE). The map data in `data/levels/sintra.json` is
+derived from OpenStreetMap and stays under the **ODbL 1.0**; the weather and elevation data stay under
+CC BY 4.0 (see above).
+
 ## Use of AI
 
 This project is made by a 16-year-old student who is learning to program from scratch. Most of the
 code was written by **Claude Code (Anthropic)**, an AI coding assistant, in small steps that the
-student directed, tested and explained back in his own words. The student made the design decisions
+student directed, tested and explained back in their own words. The student made the design decisions
 (the game idea, the real fire, the look of the town, the difficulty goals). AI was also used to help
 gather the real data and the news sources listed above. No AI-generated images, models or sounds are
 used: everything you see and hear is drawn or synthesised by the game's own code.
