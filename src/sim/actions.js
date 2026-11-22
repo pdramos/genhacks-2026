@@ -1,28 +1,32 @@
 // A fase de construção: o jogador gasta o orçamento em ações defensivas.
 // Só regras e dados (sem desenho), por isso funciona igual no navegador e nos testes.
-import { HOUSE_STRIP, ROAD_STRIP } from './balance.js';
+import { HOUSE_STRIP, ROAD_STRIP, BASE_COSTS, SLOPE_COST_PER_LEVEL, COST_ROUNDING, DEFAULT_BUDGET } from './balance.js';
 
 // Os quadrados de vegetação (ver GLOSSARY.md).
 const VEGETATION = ['grass', 'brush', 'eucalyptus', 'broadleaf', 'cleared'];
 
 // As ações que o jogador pode comprar.
-//   cost   = preço em euros
+//   cost   = preço BASE em euros, num terreno plano (o número vive em balance.js;
+//            o preço a sério de um quadrado é actionCost, que junta o declive)
 //   label  = nome mostrado no botão (em inglês)
 //   from   = tipos de quadrado onde a ação pode ser feita
 //   result = tipo em que o quadrado se transforma
 export const ACTIONS = {
-  clearBrush: { cost: 200, label: 'Clear brush', from: ['brush'], result: 'cleared' },
-  firebreak: { cost: 500, label: 'Firebreak', from: VEGETATION, result: 'firebreak' },
-  replaceTrees: { cost: 800, label: 'Replace trees', from: ['eucalyptus'], result: 'broadleaf' },
+  clearBrush: { cost: BASE_COSTS.clearBrush, label: 'Clear brush', from: ['brush'], result: 'cleared' },
+  firebreak: { cost: BASE_COSTS.firebreak, label: 'Firebreak', from: VEGETATION, result: 'firebreak' },
+  replaceTrees: { cost: BASE_COSTS.replaceTrees, label: 'Replace trees', from: ['eucalyptus'], result: 'broadleaf' },
 };
 
 // Começa a fase de construção. O "estado" guarda:
 //   village = a vila (alteramos village.tiles diretamente, porque o fogo lê a mesma vila)
 //   budget  = o dinheiro que ainda há
 //   changes = os quadrados mudados, para poder desfazer.
-//             A chave é "x,y" e o valor é { actionName, originalType }.
+//             A chave é "x,y" e o valor é { actionName, originalType, cost }
+//             (cost = o que se pagou, para o undo devolver exatamente isso).
+// Se o nível não trouxer orçamento (budget undefined), usa DEFAULT_BUDGET de balance.js.
 export function createBuildState(village, budget) {
-  return { village, budget, changes: {} };
+  // "??" só troca quando não há valor nenhum: um orçamento de 0 continua a ser 0.
+  return { village, budget: budget ?? DEFAULT_BUDGET, changes: {} };
 }
 
 // Tenta aplicar uma ação no quadrado (x, y).
@@ -34,10 +38,10 @@ export function applyAction(state, x, y, actionName) {
   const key = `${x},${y}`;
   const currentType = state.village.tiles[y][x];
 
-  // Tudo bem: guarda o tipo original (para o undo), muda o quadrado e paga.
-  state.changes[key] = { actionName, originalType: currentType };
+  // Tudo bem: guarda o tipo original e o preço (para o undo), muda o quadrado e paga.
+  state.changes[key] = { actionName, originalType: currentType, cost: check.cost };
   state.village.tiles[y][x] = action.result;
-  state.budget -= action.cost;
+  state.budget -= check.cost;
   return { ok: true, newType: action.result };
 }
 
@@ -52,7 +56,7 @@ export function checkAction(state, x, y, actionName) {
   const change = state.changes[`${x},${y}`];
   if (actionName === 'undo') {
     if (!change) return { ok: false, reason: 'nothing-to-undo' };
-    return { ok: true, cost: -ACTIONS[change.actionName].cost };
+    return { ok: true, cost: -change.cost };
   }
   const action = ACTIONS[actionName];
   // O quadrado já foi mudado? Tem de ser desfeito primeiro.
@@ -61,19 +65,20 @@ export function checkAction(state, x, y, actionName) {
   if (!isWorkable(village, x, y)) return { ok: false, reason: 'protected-area' };
   // A ação não faz sentido neste tipo de quadrado? Recusa.
   if (!action.from.includes(village.tiles[y][x])) return { ok: false, reason: 'invalid-target' };
-  // Não há dinheiro suficiente? Recusa, sem mexer em nada.
-  if (action.cost > state.budget) return { ok: false, reason: 'not-enough-money' };
-  return { ok: true, cost: action.cost };
+  // Não há dinheiro suficiente para o preço DESTE quadrado (com o declive)? Recusa, sem mexer em nada.
+  const cost = actionCost(village, x, y, actionName);
+  if (cost > state.budget) return { ok: false, reason: 'not-enough-money' };
+  return { ok: true, cost };
 }
 
-// Desfaz a ação no quadrado (x, y): volta ao tipo original e devolve o dinheiro todo.
+// Desfaz a ação no quadrado (x, y): volta ao tipo original e devolve exatamente o que se pagou.
 // Devolve { ok: true, refund, restoredType } ou { ok: false, reason: 'nothing-to-undo' }.
 export function undoAction(state, x, y) {
   const key = `${x},${y}`;
   const change = state.changes[key];
   // Este quadrado não foi mudado nesta fase? Não há nada para desfazer.
   if (!change) return { ok: false, reason: 'nothing-to-undo' };
-  const refund = ACTIONS[change.actionName].cost;
+  const refund = change.cost;
 
   state.village.tiles[y][x] = change.originalType;
   state.budget += refund;
@@ -100,6 +105,30 @@ function isNear(village, x, y, types, distance) {
     }
   }
   return false;
+}
+
+// Quanto custa fazer esta ação NESTE quadrado: preço base × fator de declive.
+//   fator = 1 + SLOPE_COST_PER_LEVEL × (maior diferença de altura para os 8 vizinhos)
+// No plano o fator é 1 (paga-se o preço base). Numa encosta é mais caro.
+// O resultado é arredondado a múltiplos de COST_ROUNDING euros (ver balance.js).
+export function actionCost(village, x, y, actionName) {
+  const factor = 1 + SLOPE_COST_PER_LEVEL * steepness(village, x, y);
+  const cost = ACTIONS[actionName].cost * factor;
+  return Math.round(cost / COST_ROUNDING) * COST_ROUNDING;
+}
+
+// O "declive" de um quadrado: a maior diferença de altura (para cima ou para baixo)
+// entre ele e os 8 vizinhos que existem no mapa. 0 = plano.
+function steepness(village, x, y) {
+  const here = village.heights[y][x];
+  let biggest = 0;
+  for (let ny = y - 1; ny <= y + 1; ny++) {
+    for (let nx = x - 1; nx <= x + 1; nx++) {
+      if (nx < 0 || ny < 0 || nx >= village.width || ny >= village.height) continue; // fora do mapa
+      biggest = Math.max(biggest, Math.abs(village.heights[ny][nx] - here));
+    }
+  }
+  return biggest;
 }
 
 // Quanto dinheiro ainda sobra.

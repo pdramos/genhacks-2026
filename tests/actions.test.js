@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage, tileAt } from '../src/sim/village.js';
-import { createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable } from '../src/sim/actions.js';
+import { DEFAULT_BUDGET } from '../src/sim/balance.js';
+import { createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable, actionCost, ACTIONS } from '../src/sim/actions.js';
 
 // Uma vila pequena (5x2) com um quadrado de cada tipo:
 //   x:  0      1      2           3          4
@@ -210,4 +211,77 @@ test('protected-area is checked before invalid-target and not-enough-money', () 
 test('checkAction also says protected-area', () => {
   const state = createBuildState(parkVillage(), 1000);
   assert.deepEqual(checkAction(state, 3, 0, 'clearBrush'), { ok: false, reason: 'protected-area' });
+});
+
+// ---------- Preço com declive: trabalhar numa encosta custa mais ----------
+
+// Uma vila 3x3 com mato no centro e uma casa no canto (tudo dentro da faixa).
+// "heights" muda o relevo: o preço depende da diferença de altura do centro para os vizinhos.
+function hill(heights) {
+  return createVillage({ name: 'Hill', map: ['HGG', 'GBG', 'GGE'], heights });
+}
+
+test('on flat ground every action costs its base price', () => {
+  const village = hill(undefined); // sem heights = plano
+  assert.equal(actionCost(village, 1, 1, 'clearBrush'), ACTIONS.clearBrush.cost);
+  assert.equal(actionCost(village, 1, 1, 'firebreak'), ACTIONS.firebreak.cost);
+  assert.equal(actionCost(village, 2, 2, 'replaceTrees'), ACTIONS.replaceTrees.cost);
+});
+
+test('a tile on a slope costs more than on flat ground, and a steeper one costs even more', () => {
+  const flat = actionCost(hill(undefined), 1, 1, 'clearBrush');
+  const gentle = actionCost(hill(['000', '010', '000']), 1, 1, 'clearBrush');
+  const steep = actionCost(hill(['000', '040', '000']), 1, 1, 'clearBrush');
+  assert.ok(gentle > flat, `gentle ${gentle} vs flat ${flat}`);
+  assert.ok(steep > gentle, `steep ${steep} vs gentle ${gentle}`);
+});
+
+test('a high but flat plateau costs the base price (only the slope counts, not the height)', () => {
+  assert.equal(actionCost(hill(['999', '999', '999']), 1, 1, 'firebreak'), ACTIONS.firebreak.cost);
+});
+
+test('the slope counts uphill and downhill the same', () => {
+  const peak = actionCost(hill(['000', '030', '000']), 1, 1, 'firebreak'); // o centro está 3 acima
+  const pit = actionCost(hill(['333', '303', '333']), 1, 1, 'firebreak'); // o centro está 3 abaixo
+  assert.equal(peak, pit);
+});
+
+test('prices are whole euros', () => {
+  for (let h = 0; h <= 9; h++) {
+    const cost = actionCost(hill(['000', `0${h}0`, '000']), 1, 1, 'clearBrush');
+    assert.ok(Number.isInteger(cost), `height ${h}: ${cost}`);
+  }
+});
+
+test('applyAction charges the slope price and checkAction shows it before', () => {
+  const village = hill(['000', '040', '000']);
+  const price = actionCost(village, 1, 1, 'firebreak');
+  const state = createBuildState(village, 10000);
+  assert.deepEqual(checkAction(state, 1, 1, 'firebreak'), { ok: true, cost: price });
+  applyAction(state, 1, 1, 'firebreak');
+  assert.equal(remainingBudget(state), 10000 - price);
+});
+
+test('the slope price decides if there is enough money', () => {
+  const village = hill(['000', '040', '000']);
+  const price = actionCost(village, 1, 1, 'clearBrush');
+  // Dá para o preço base, mas não para o preço com declive.
+  const state = createBuildState(village, price - 1);
+  assert.deepEqual(applyAction(state, 1, 1, 'clearBrush'), { ok: false, reason: 'not-enough-money' });
+  assert.equal(remainingBudget(state), price - 1);
+});
+
+test('a level without a budget uses the default budget from balance.js; a budget of 0 stays 0', () => {
+  assert.equal(remainingBudget(createBuildState(smallVillage(), undefined)), DEFAULT_BUDGET);
+  assert.equal(remainingBudget(createBuildState(smallVillage(), 0)), 0);
+});
+
+test('undo on a slope refunds exactly what was paid', () => {
+  const village = hill(['000', '040', '000']);
+  const state = createBuildState(village, 10000);
+  applyAction(state, 1, 1, 'firebreak');
+  const paid = 10000 - remainingBudget(state);
+  assert.deepEqual(checkAction(state, 1, 1, 'undo'), { ok: true, cost: -paid });
+  assert.deepEqual(undoAction(state, 1, 1), { ok: true, refund: paid, restoredType: 'brush' });
+  assert.equal(remainingBudget(state), 10000);
 });
