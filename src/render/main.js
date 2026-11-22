@@ -6,6 +6,7 @@ import { createVillage } from '../sim/village.js';
 import { setupRenderer, addLights } from './lighting.js';
 import { createVillageView } from './village3d.js';
 import { createFireFx } from './fireFx.js';
+import { newSeed, saveRetry, loadRetry } from './runState.js';
 
 const params = new URLSearchParams(location.search);
 // ?level=demo carrega data/levels/demo.json (por omissão, o nível a sério: Sintra, outubro de 2018).
@@ -14,6 +15,27 @@ const level = await fetch(`data/levels/${levelName}.json`, { cache: 'no-cache' }
 const village = createVillage(level);
 const styleName = params.get('style') || level.style || 'portugal';
 const style = await import(`./styles/${styleName}.js`);
+
+// ---------- A semente deste jogo ----------
+// Cada jogo novo sorteia uma semente (é ela que decide onde cai o cigarro e o acaso do fogo).
+// "Try again (same night)" (no cartão do fim) guarda a semente e o plano antes de recarregar
+// a página: se os encontrarmos aqui, repetimos a MESMA noite com o MESMO plano.
+// ?seed=123 fixa a semente à mão (útil para testar).
+const RETRY_KEY = 'brace-retry';
+const retry = takeRetry();
+const seed = retry?.seed ?? (Number(params.get('seed')) || newSeed());
+
+// Lê (e apaga logo) o "Try again" guardado. O try/catch é porque o navegador pode bloquear o
+// sessionStorage (janela privada, por exemplo): nesse caso é só um jogo novo.
+function takeRetry() {
+  try {
+    const text = sessionStorage.getItem(RETRY_KEY);
+    sessionStorage.removeItem(RETRY_KEY);
+    return loadRetry(text, levelName);
+  } catch {
+    return null;
+  }
+}
 
 // ---------- Renderizador, cena, câmara ----------
 // ?lowgpu = modo leve para computadores fracos (menos píxeis e sombras mais pequenas).
@@ -26,16 +48,46 @@ setupRenderer(renderer);
 document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const lights = addLights(scene, 16); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
+// O tamanho do mapa manda na câmara, nas sombras e no nevoeiro (o mapa de Sintra é 32x32).
+const mapSize = Math.max(village.width, village.height);
+// Metade do mapa (+ uma margem) tem de ter sombras do sol.
+const lights = addLights(scene, mapSize / 2 + 2); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
 if (lowGpu) lights.sun.shadow.mapSize.set(1024, 1024);
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(22, 20, 22);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.42; // não deixa ir para baixo do chão
 controls.minDistance = 4;
-controls.maxDistance = 55;
+// A distância a que o mapa todo cabe no ecrã (ver frameDistance, lá em baixo).
+const startDistance = frameDistance();
+controls.maxDistance = startDistance * 1.5;
+// A câmara começa na mesma direção de sempre (de sudeste, a olhar para baixo),
+// só que mais longe se o mapa for maior.
+camera.position.set(22, 20, 22).setLength(startDistance);
+
+// O nevoeiro de lighting.js foi pensado para um mapa 20x20 visto a ~37 de distância.
+// Com a câmara mais longe, afastamos o nevoeiro na mesma proporção (senão o mapa grande
+// ficava todo enevoado). Fazemos isto sempre que a hora do dia muda o nevoeiro.
+const fogScale = Math.max(1, startDistance / 37);
+const setTimeOfDay = lights.setTimeOfDay;
+lights.setTimeOfDay = (t) => {
+  setTimeOfDay(t);
+  scene.fog.near *= fogScale;
+  scene.fog.far *= fogScale;
+};
+lights.setTimeOfDay(0);
+
+// A distância da câmara a que o mapa inteiro cabe no ecrã.
+// Imaginamos uma bola à volta do mapa (raio = metade da diagonal) e afastamos a câmara até a
+// bola caber no ângulo de visão mais apertado (o vertical, ou o horizontal num ecrã ao alto).
+// O 0.95 aproxima um bocadinho, porque o mapa é plano e não ocupa a bola toda.
+function frameDistance() {
+  const radius = Math.hypot(village.width, village.height) / 2;
+  const halfVertical = THREE.MathUtils.degToRad(camera.fov / 2);
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * camera.aspect);
+  return (radius * 0.95) / Math.tan(Math.min(halfVertical, halfHorizontal));
+}
 
 // ---------- A vila em 3D ----------
 const rand = mulberry32(42); // acaso com semente: a vila sai sempre igual
@@ -51,7 +103,21 @@ const fireFx = createFireFx(scene, view, { wind: level.wind, tileType: (x, y) =>
 // Exposto para os outros módulos do jogo (fase de construção, desastre) se ligarem.
 // game.village é a MESMA vila que a fase de construção altera e que o fogo lê.
 // scene e controls servem à cena do cigarro (ignitionCinematic.js), que move a câmara.
-export const game = { level, village, view, fireFx, scene, camera, controls, renderer, lights, phase: 'build' };
+// seed = a semente deste jogo; retryPlan = o plano a repetir no "Try again" (ou null num jogo novo).
+export const game = {
+  level, levelName, village, view, fireFx, scene, camera, controls, renderer, lights, phase: 'build',
+  seed, retryPlan: retry?.plan ?? null,
+};
+
+// Guarda a semente e o plano e recarrega a página: é o "Try again (same night)".
+export function retrySameNight(plan) {
+  try {
+    sessionStorage.setItem(RETRY_KEY, saveRetry(levelName, seed, plan));
+  } catch {
+    // Sem sessionStorage não há como guardar: fica um jogo novo.
+  }
+  location.reload();
+}
 
 // ---------- Fases do jogo: 'build' (construir) -> 'disaster' (fogo) -> 'result' (estrelas) ----------
 const phaseListeners = [];
@@ -113,6 +179,8 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  // Num ecrã mais estreito o mapa precisa de mais espaço: deixa afastar mais a câmara.
+  controls.maxDistance = Math.max(controls.maxDistance, frameDistance() * 1.5);
 });
 
 // Gerador de números "aleatórios" com semente (sempre a mesma sequência).
