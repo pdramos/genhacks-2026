@@ -1,5 +1,8 @@
 # Brace (working title) — GenHacks 2026
 
+**▶ Play it in your browser (no account needed): https://pdramos.github.io/genhacks-2026/**
+Works on a computer and on a phone held sideways.
+
 A browser game about getting ready for a real wildfire. You get a limited budget to prepare a village
 (clear brush, cut firebreaks, swap eucalyptus for native trees), then a **real fire night** plays out,
 driven by the real hourly weather of that night.
