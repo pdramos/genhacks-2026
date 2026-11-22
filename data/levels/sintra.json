@@ -87,9 +87,26 @@
       { "time": "2018-10-07T10:00", "direction": 9, "speed": 19.7, "gust": 44.6, "temperature": 16, "humidity": 48 }
     ]
   },
-  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. After a dry summer, a strong north wind (33 km/h, gusts near 70 km/h) is blowing down the mountain towards Malveira da Serra and the small villages near Guincho beach. That night a real fire started in the scrub near the Peninha sanctuary. It crossed the EN247 road and ran downhill. Hundreds of people, a campsite and 70 horses were evacuated, 21 people were lightly hurt, and about 500 hectares burned before it was controlled at 10:45 the next morning. No aircraft could fly until dawn. The cause was never confirmed (the police investigated arson). You have 20,000 euros to prepare the town before the fire arrives.",
+  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. A fire breaks out in the scrub near the Peninha sanctuary and races downhill towards Malveira da Serra. In real life it burned about 500 hectares, hundreds of people were evacuated, and no aircraft could fly until dawn. You have €20,000 to prepare the town, and the law only lets you work in the fuel strips around houses and roads.",
   "aftermath": "In real life: about 500 hectares burned in one night. Hundreds of people, a campsite and 70 horses were evacuated, and 21 people were lightly hurt. Around 700 firefighters fought the fire, but no aircraft could fly until dawn; it was controlled at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
   "ignitionHint": "Tonight a cigarette thrown from a car will start a fire at one of the spots marked ? beside the serra roads. You will not know which one until it happens.",
+  "law": {
+    "title": "Portugal: fuel strips",
+    "intro": "By law, bushes and trees must be cut back in strips around villages, houses and roads, so a fire that reaches them gets weaker.",
+    "strips": [
+      { "width": "100 m", "where": "around villages next to forest, like Malveira da Serra", "article": "art. 49.º n.º 6" },
+      { "width": "50 m", "where": "around houses on forest land, from the walls (10 m on farmland)", "article": "art. 49.º n.º 7" },
+      { "width": "10 m", "where": "on each side of a road (the road operator's job)", "article": "art. 49.º n.º 4 a)" }
+    ],
+    "source": "Decreto-Lei n.º 82/2021, article 49.º (in force since 2022).",
+    "inGame": "One tile is 65 m, so the game rounds to whole tiles: you may work up to 2 tiles (about 130 m; regional programmes may make strips up to 50% wider) from houses and the fire station, and on the tiles next to a road. The rest is Sintra-Cascais Natural Park: locked.",
+    "canada": "In Canada, FireSmart (advice, not a law) looks after the 30 m around a home: Immediate 0–1.5 m, Intermediate 1.5–10 m, Extended 10–30 m.",
+    "links": [
+      { "label": "Decreto-Lei n.º 82/2021 (in Portuguese)", "url": "https://diariodarepublica.pt/dr/detalhe/decreto-lei/82-2021-172745163" },
+      { "label": "FireSmart Canada: the Home Ignition Zone", "url": "https://firesmartcanada.ca/about-firesmart-2/the-home-ignition-zone/" }
+    ],
+    "note": "Simplified for a game. Check the rules where you live."
+  },
   "places": [
     { "name": "in the serra", "x0": 0, "y0": 0, "x1": 31, "y1": 10 },
     { "name": "in Almoinhas Velhas and Arneiro", "x0": 0, "y0": 11, "x1": 12, "y1": 20 },

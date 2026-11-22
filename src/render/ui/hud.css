@@ -368,6 +368,44 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   background: rgba(232, 69, 44, .25);
 }
 
+/* ============ Cartão da lei ("The law", lawCard.js) ============ */
+/* Abre por cima de qualquer outro cartão (z-index maior), com um fundo escuro por trás.
+   A carta é uma coluna: o título e o botão "Close" ficam sempre à vista
+   e só o texto do meio (.law-body) desliza se não couber no ecrã. */
+.law-backdrop { position: fixed; inset: 0; z-index: 39; background: rgba(30, 20, 10, .45); }
+.law-card {
+  z-index: 40; width: min(520px, calc(100% - 32px)); text-align: left;
+  display: flex; flex-direction: column; max-height: calc(100dvh - 72px);
+}
+.law-card .result-title { flex: none; background: var(--ink); }
+.law-card .result-buttons { flex: none; justify-content: flex-end; }
+.law-body { min-height: 0; overflow-y: auto; }
+.law-heading { font-size: 22px; font-weight: 700; }
+.law-intro, .law-source, .law-canada { margin: 6px 0; font-size: 14.5px; line-height: 1.4; }
+.law-source { font-size: 13px; color: var(--ink-soft); }
+/* As três larguras: a largura numa pastilha dourada, o artigo da lei em cinzento */
+.law-strips { list-style: none; margin: 8px 0; padding: 0; font-size: 14.5px; line-height: 1.35; }
+.law-strips li { margin: 0 0 6px; padding-left: 4.8em; text-indent: -4.8em; }
+.law-width {
+  display: inline-block; min-width: 3.4em; margin-right: .3em; padding: 0 6px; text-indent: 0;
+  border: 2px solid var(--ink); border-radius: 999px; background: var(--gold);
+  font-weight: 700; text-align: center;
+}
+.law-article { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; }
+/* "In the game": como o jogo arredonda a lei aos quadrados */
+.law-game { margin: 8px 0; padding: 8px 12px; border: 3px solid var(--ink); border-radius: 16px; background: #fff; }
+.law-game-text { margin: 4px 0 0; font-size: 14px; line-height: 1.4; }
+.law-links { margin: 6px 0; padding-left: 18px; font-size: 13.5px; }
+.law-links a { color: var(--blue); }
+/* No cartão do briefing, o botão "The law" fica à esquerda e "Prepare the town" à direita */
+.briefing-card [data-do="law"] { margin-right: auto; }
+@media (max-height: 520px) {
+  /* Ecrã baixo: a carta inteira desliza, como as outras (ver o bloco "Ecrãs baixos" abaixo) */
+  .law-card { display: block; max-height: calc(100dvh - 16px); }
+  .law-body { overflow: visible; }
+  .law-heading { font-size: 18px; }
+}
+
 /* ============ Ecrãs estreitos (telemóvel, janela pequena) ============ */
 @media (max-width: 640px) {
   .topbar { top: 8px; left: 8px; right: 8px; gap: 6px; }
