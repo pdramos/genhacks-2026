@@ -1,6 +1,7 @@
 {
   "name": "Malveira da Serra, 6 October 2018",
   "style": "sintra",
+  "terrainScale": 0.62,
   "schoolName": "Fire station",
   "budget": 20000,
   "date": "2018-10-06T22:50",

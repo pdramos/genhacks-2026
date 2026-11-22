@@ -4,7 +4,9 @@
 // aqui pomos por cima as casas, a escola, as árvores e o mato.
 //
 // API (o que o resto do jogo pode usar):
-//   const view = createVillageView(scene, village, style, rand)
+//   const view = createVillageView(scene, village, style, rand, options)
+//                                    options.terrainScale = quanto sobe cada nível de altura (opcional;
+//                                    vem do nível: o de Sintra exagera o relevo para se ver o morro)
 //   view.setTileType(x, y, type)   -> redesenha um quadrado com outro tipo (ex.: depois de construir)
 //   view.setBurned(x, y)           -> mostra o quadrado queimado (chão de carvão e objetos carbonizados)
 //   view.tileFromPointer(event, camera, canvas) -> {x, y} do quadrado clicado, ou null
@@ -22,6 +24,7 @@ import * as THREE from 'three';
 import { tileAt } from '../sim/village.js';
 import { createTerrain } from './terrain.js';
 import { bakeTile, buildMeshes, swayTime } from './mergeProps.js';
+import { createBackdrop } from './backdrop.js';
 
 // Tamanho de um bloco (em quadrados). Maior = menos pedidos de desenho, mas mais trabalho
 // para refazer o bloco quando um quadrado muda (por exemplo, quando arde).
@@ -33,9 +36,11 @@ const charcoalMat = new THREE.MeshStandardMaterial({ color: 0x1c1a18, roughness:
 let charProp = (group) => group.traverse((o) => { if (o.isMesh) o.material = charcoalMat; });
 import('./charring.js').then((m) => { if (m.charProp) charProp = m.charProp; }).catch(() => {});
 
-export function createVillageView(scene, village, style, rand) {
+export function createVillageView(scene, village, style, rand, options = {}) {
   const halfX = (village.width - 1) / 2, halfZ = (village.height - 1) / 2;
-  const terrain = createTerrain(scene, village, style.palette);
+  const terrain = createTerrain(scene, village, style.palette, { verticalScale: options.terrainScale });
+  // O cenário à volta do mapa (serra, mar, povoações ao longe), se o estilo o tiver.
+  if (style.backdrop) createBackdrop(scene, village, terrain, style.backdrop);
   let shadowListener = null; // quem quer saber que as sombras mudaram (ver onShadowsChanged)
 
   // tiles[y][x] = { type, prop, swaying: [...], animated: [...], baked, merged }
@@ -61,6 +66,7 @@ export function createVillageView(scene, village, style, rand) {
   }
 
   // Os marcos da vila (só os estilos que quiserem os usam; ver findLandmarks, lá em baixo).
+  let largo = null; // o centro do largo (se houver), para largoDistance
   const landmarks = findLandmarks();
 
   for (let y = 0; y < village.height; y++) {
@@ -200,7 +206,8 @@ export function createVillageView(scene, village, style, rand) {
   }
 
   function addBushes(group) {
-    for (let i = 0; i < 3; i++) {
+    const count = style.bushesPerTile ?? 3; // o estilo pode pedir mato mais denso
+    for (let i = 0; i < count; i++) {
       const b = style.buildBush(rand);
       placeOnGround(group, b, (rand() - 0.5) * 0.6, (rand() - 0.5) * 0.6);
       b.rotation.y = rand() * Math.PI * 2;
@@ -212,12 +219,43 @@ export function createVillageView(scene, village, style, rand) {
   // monte (como as casas reais), em vez de ficar a flutuar.
   // ctx (o 2.º argumento) é opcional no contrato: quantas casas há à volta (centro denso ou
   // periferia) e se este quadrado é um marco da vila ('chapel', 'hall'). Os outros estilos ignoram-no.
+  // ctx.rotation = para onde a casa vai ficar virada; ctx.largoDistance = a que distância
+  // (em quadrados) está do largo. Os outros estilos ignoram-nos.
   function addHouse(group, x, y) {
-    const ctx = { x, y, neighbors: houseNeighbors(x, y), landmark: landmarks.get(`${x},${y}`) };
+    const rotation = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
+    const ctx = {
+      x, y, neighbors: houseNeighbors(x, y), landmark: landmarks.get(`${x},${y}`),
+      rotation, largoDistance: largo ? Math.max(Math.abs(x - largo.x), Math.abs(y - largo.y)) : Infinity,
+    };
     const house = style.buildHouse(rand, ctx);
-    house.rotation.y = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
-    house.position.y = lowestGround(group.position.x, group.position.z, 1, 1) - group.position.y;
+    house.rotation.y = rotation;
+    house.position.y = seat(group, 0, 0, 1, 1, ctx) - group.position.y;
     group.add(house);
+  }
+
+  // Onde assenta um edifício de w x h quadrados, deslocado (ox, oz) do centro do quadrado.
+  // Sem muro de suporte no estilo: no ponto mais baixo do terreno (fica "encaixado" no monte).
+  // Com style.buildTerrace: num PATAMAR plano, e do lado de baixo da encosta aparece o muro de
+  // suporte. É isso que faz as casas da Malveira subirem a encosta em degraus.
+  function seat(group, ox, oz, w, h, ctx) {
+    const cx = group.position.x + ox, cz = group.position.z + oz;
+    if (!style.buildTerrace) return lowestGround(cx, cz, w, h);
+    let low = Infinity, high = -Infinity;
+    for (const fx of [-0.45, -0.15, 0.15, 0.45]) {
+      for (const fz of [-0.45, -0.15, 0.15, 0.45]) {
+        const g = terrain.heightAtWorld(cx + fx * w, cz + fz * h);
+        low = Math.min(low, g); high = Math.max(high, g);
+      }
+    }
+    // o patamar fica a 3/4 do desnível: o lado de cima enterra-se um pouco no monte
+    const platform = low + (high - low) * 0.75;
+    const drop = platform - low;
+    if (drop > 0.04) {
+      const wall = style.buildTerrace(0.94 * w, 0.94 * h, drop + 0.08, ctx);
+      wall.position.set(ox, platform - group.position.y, oz);
+      group.add(wall);
+    }
+    return platform - 0.005;
   }
 
   // A escola pode ocupar vários quadrados (ex.: 2x2). Construímos UMA só escola, no
@@ -230,8 +268,7 @@ export function createVillageView(scene, village, style, rand) {
     while (isSchool(x, y + h)) h++;
     const school = style.buildSchool(rand);
     school.scale.setScalar(Math.min(w, h) * 0.95);
-    const cx = group.position.x + (w - 1) / 2, cz = group.position.z + (h - 1) / 2; // centro do bloco
-    school.position.set((w - 1) / 2, lowestGround(cx, cz, w, h) - group.position.y, (h - 1) / 2);
+    school.position.set((w - 1) / 2, seat(group, (w - 1) / 2, (h - 1) / 2, w, h, { x, y }) - group.position.y, (h - 1) / 2);
     school.rotation.y = facingRoad(x, y);
     group.add(school);
   }
@@ -287,6 +324,7 @@ export function createVillageView(scene, village, style, rand) {
     for (let y = 0; y < village.height - 1; y++) {
       for (let x = 0; x < village.width - 1; x++) {
         if (!(isRoad(x, y) && isRoad(x + 1, y) && isRoad(x, y + 1) && isRoad(x + 1, y + 1))) continue;
+        largo = { x: x + 0.5, y: y + 0.5 };
         const around = [[x, y - 1], [x + 1, y - 1], [x + 2, y], [x + 2, y + 1],
           [x, y + 2], [x + 1, y + 2], [x - 1, y], [x - 1, y + 1]];
         const houses = around.filter(([cx, cy]) => inside(cx, cy) && tileAt(village, cx, cy) === 'house');

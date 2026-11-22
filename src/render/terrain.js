@@ -7,7 +7,9 @@
 // Só desenha. As regras (o que arde, etc.) estão em src/sim.
 //
 // API (o que o resto do jogo pode usar):
-//   const terrain = createTerrain(scene, village, palette)
+//   const terrain = createTerrain(scene, village, palette, options)
+//                                     options.verticalScale = quanto sobe cada nível de altura
+//                                     (por omissão LEVEL_HEIGHT; o nível pode pedir mais relevo)
 //   terrain.groundHeight(x, y)     -> altura do chão (unidades 3D) no CENTRO do quadrado (x, y).
 //                                     Nos quadrados de água devolve a altura da superfície da água.
 //   terrain.heightAtWorld(wx, wz)  -> altura do chão num ponto qualquer do mundo (para pôr árvores)
@@ -15,6 +17,7 @@
 //                                     (um tipo de quadrado, ou 'burned' = carvão preto e cinza)
 //   terrain.pickTile(raycaster)    -> {x, y} do quadrado onde o "raio" bate, ou null
 //   terrain.update(t)              -> anima a água; chamar a cada desenho
+//   terrain.levelHeight, terrain.baseY -> a escala vertical usada (para o cenário à volta, backdrop.js)
 //
 // Coordenadas: o quadrado (x, y) tem o centro no mundo em (x - halfX, ?, y - halfZ).
 // Dentro deste ficheiro também usamos "coordenadas de quadrado" (gx, gy): números com vírgula,
@@ -23,6 +26,7 @@ import * as THREE from 'three';
 
 // ---------- Números que mandam no aspeto (podes mexer!) ----------
 const LEVEL_HEIGHT = 0.28;  // cada nível de altura (0-9) sobe 0.28 unidades (9 níveis = 2.5)
+                            // (é o valor por omissão: um nível pode pedir outro com "terrainScale")
 const BASE_Y = 0.25;        // altura do chão no nível 0 (igual ao topo dos antigos blocos)
 const STEPS = 4;            // cada quadrado é dividido em 4 x 4 bocadinhos
 const RIVER_DEPTH = 0.42;   // quanto o leito do rio é mais fundo que a margem
@@ -78,7 +82,10 @@ function makeSurfaceRecipes(P) {
     broadleaf:  { base: shade(color(P.grass), 0.82), patch: color(P.brush), amount: 0.3 },
     cleared:    { base: color(P.cleared), patch: color(P.dirt), amount: 0.3 },
     firebreak:  { base: color(P.firebreak), patch: color(P.dirt), amount: 0.35 },
-    house:      { base: mixHex(P.grass, P.dirt, 0.25), patch: color(P.cleared), amount: 0.4 },  // quintal
+    // quintal: um estilo pode dar a sua cor (P.yard, ex.: jardim regado verde-azeitona)
+    house:      P.yard !== undefined
+      ? { base: color(P.yard), patch: shade(color(P.yard), 0.8), amount: 0.45 }
+      : { base: mixHex(P.grass, P.dirt, 0.25), patch: color(P.cleared), amount: 0.4 },
     school:     { base: mixHex(P.cleared, 0xd9d2c3, 0.6), patch: color(P.cleared), amount: 0.3 }, // pátio
     road:       { base: mixHex(P.dirt, P.grass, 0.35), patch: color(P.brush), amount: 0.4 },     // berma
     water:      { base: shade(mixHex(P.dirt, P.water, 0.35), 0.8), patch: color(0x9a8e6e), amount: 0.35 }, // leito
@@ -91,7 +98,8 @@ function makeSurfaceRecipes(P) {
 // =====================================================================================
 // 3. O terreno
 // =====================================================================================
-export function createTerrain(scene, village, palette) {
+export function createTerrain(scene, village, palette, options = {}) {
+  const levelHeight = options.verticalScale ?? LEVEL_HEIGHT;
   const W = village.width, H = village.height;
   const halfX = (W - 1) / 2, halfZ = (H - 1) / 2;
   const recipes = makeSurfaceRecipes(palette);
@@ -124,7 +132,7 @@ export function createTerrain(scene, village, palette) {
 
   // Altura da "margem": o relevo do nível, sem o rio e sem pedrinhas.
   function bankHeight(gx, gy) {
-    return BASE_Y + sampleGrid(levels, gx, gy) * LEVEL_HEIGHT;
+    return BASE_Y + sampleGrid(levels, gx, gy) * levelHeight;
   }
 
   // Pequenas ondulações do chão, para não ser uma mesa de bilhar.
@@ -488,6 +496,16 @@ export function createTerrain(scene, village, palette) {
   // A forma da estrada num quadrado, com meia-largura h: meio + braços + cantos cheios.
   // linked = [norte, leste, sul, oeste]: há estrada desse lado?
   function roadShape(ribbon, x, y, linked, h, lift, colour) {
+    // Curva: só 2 ligações e em esquina (ex.: norte e leste). Em vez de um "L" de quadrados,
+    // desenhamos um quarto de círculo à volta do canto do quadrado. Assim uma estrada em
+    // escada (que sobe a serra em zigue-zague) fica com curvas suaves, como as verdadeiras.
+    const sides = [0, 1, 2, 3].filter((k) => linked[k]);
+    if (sides.length === 2 && (sides[1] - sides[0]) % 2 === 1) {
+      const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      const [a, b] = sides.map((k) => DIRS[k]);
+      addArc(ribbon, x + (a[0] + b[0]) / 2, y + (a[1] + b[1]) / 2, a, b, h, lift, colour);
+      return;
+    }
     addRect(ribbon, x - h, y - h, x + h, y + h, lift, colour);
     if (linked[0]) addRect(ribbon, x - h, y - 0.5, x + h, y - h, lift, colour);
     if (linked[1]) addRect(ribbon, x + h, y - h, x + 0.5, y + h, lift, colour);
@@ -505,6 +523,36 @@ export function createTerrain(scene, village, palette) {
   // A estrada sai do mapa por este lado? (está na borda e continua do lado oposto)
   function leavesMap(x, y, dx, dy) {
     return !inside(x + dx, y + dy) && isRoad(x - dx, y - dy);
+  }
+
+  // Um quarto de círculo de estrada à volta do canto (cx, cy): vai do meio do lado "a" ao meio
+  // do lado "b" (a e b = direções [dx, dy]), com raio 0.5 e meia-largura h, pousado no relevo.
+  function addArc(ribbon, cx, cy, a, b, h, lift, baseColour) {
+    // os pontos do meio dos dois lados, vistos do canto
+    let a0 = Math.atan2(-b[1] * 0.5, -b[0] * 0.5); // o meio do lado "a" está a -b/2 do canto
+    let a1 = Math.atan2(-a[1] * 0.5, -a[0] * 0.5);   // o meio do lado "b" está a -a/2 do canto
+    if (a1 - a0 > Math.PI) a1 -= Math.PI * 2;
+    if (a0 - a1 > Math.PI) a1 += Math.PI * 2;
+    // os triângulos só se veem de cima se o ângulo crescer: se for ao contrário, troca as pontas
+    if (a1 < a0) [a0, a1] = [a1, a0];
+    const SEG = 8, start = ribbon.positions.length / 3;
+    const c = new THREE.Color();
+    for (let i = 0; i <= SEG; i++) {
+      const ang = lerp(a0, a1, i / SEG);
+      for (const r of [0.5 - h, 0.5, 0.5 + h]) {
+        const gx = cx + Math.cos(ang) * r, gy = cy + Math.sin(ang) * r;
+        ribbon.positions.push(gx - halfX, heightAt(gx, gy) + lift, gy - halfZ);
+        c.copy(baseColour).multiplyScalar(0.92 + noise(gx * 5, gy * 5, 12) * 0.16);
+        ribbon.colours.push(c.r, c.g, c.b);
+        if (ribbon.uvs) ribbon.uvs.push(gx, gy);
+      }
+    }
+    for (let i = 0; i < SEG; i++) {
+      for (let k = 0; k < 2; k++) {
+        const p = start + i * 3 + k, q = p + 3;
+        ribbon.index.push(p, q, p + 1, p + 1, q, q + 1);
+      }
+    }
   }
 
   // Um retângulo (em coordenadas de quadrado) dividido em bocadinhos, pousado no relevo.
@@ -738,7 +786,7 @@ export function createTerrain(scene, village, palette) {
     animateWater(t);
   }
 
-  return { groundHeight, heightAtWorld, setSurface, pickTile, update };
+  return { groundHeight, heightAtWorld, setSurface, pickTile, update, levelHeight, baseY: BASE_Y };
 }
 
 // Um tufo de erva: 4 folhas finas e compridas em leque (e não um cone, que parecia um espigão).

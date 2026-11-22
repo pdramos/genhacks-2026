@@ -54,7 +54,10 @@ const mapSize = Math.max(village.width, village.height);
 const lights = addLights(scene, mapSize / 2 + 2); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
 if (lowGpu) lights.sun.shadow.mapSize.set(1024, 1024);
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
+// Se a janela ainda não tem tamanho (ex.: aberta escondida), innerHeight é 0 e a proporção dava
+// NaN (e a câmara ficava perdida em [NaN, NaN, NaN]). Nesse caso usamos 1 até haver tamanho.
+const viewAspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 1);
+const camera = new THREE.PerspectiveCamera(40, viewAspect(), 0.1, 400);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.42; // não deixa ir para baixo do chão
@@ -91,7 +94,12 @@ function frameDistance() {
 
 // ---------- A vila em 3D ----------
 const rand = mulberry32(42); // acaso com semente: a vila sai sempre igual
-const view = createVillageView(scene, village, style, rand);
+// level.terrainScale (opcional): mais relevo (Sintra: a Malveira está mesmo num morro).
+const view = createVillageView(scene, village, style, rand, { terrainScale: level.terrainScale });
+// A câmara gira à volta do chão do meio do mapa (com muito relevo, o meio já não está a y = 0).
+const middle = view.worldPosition(Math.floor(village.width / 2), Math.floor(village.height / 2));
+controls.target.set(0, middle.y * 0.6, 0);
+camera.position.add(controls.target);
 // O fumo inclina-se com o vento do nível; o tipo de cada quadrado diz a altura das chamas.
 // As sombras só são recalculadas quando a vila muda (construir, arder) ou quando alguém pede
 // (a cena do cigarro liga o autoUpdate enquanto o carro anda). Poupa metade dos desenhos.
@@ -176,11 +184,14 @@ renderer.setAnimationLoop((ms) => {
 });
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+  camera.aspect = viewAspect();
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   // Num ecrã mais estreito o mapa precisa de mais espaço: deixa afastar mais a câmara.
-  controls.maxDistance = Math.max(controls.maxDistance, frameDistance() * 1.5);
+  const distance = frameDistance();
+  controls.maxDistance = Math.max(Number.isFinite(controls.maxDistance) ? controls.maxDistance : 0, distance * 1.5);
+  // Se a câmara se perdeu (NaN), põe-na outra vez no sítio do início.
+  if (!Number.isFinite(camera.position.x)) camera.position.set(22, 20, 22).setLength(distance).add(controls.target);
 });
 
 // Gerador de números "aleatórios" com semente (sempre a mesma sequência).

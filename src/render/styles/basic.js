@@ -13,6 +13,11 @@
 //   Casas/escola: pegada até 0.9 x 0.9, altura até ~1.2. Árvores: até ~1.3 de altura. Arbustos: pequenos.
 // Desempenho: há ~400 quadrados; reutilizar geometrias e materiais (criar uma vez, fora das funções).
 // Para algo animar (ex.: bandeira), pôr no grupo: group.userData.animate = (t) => { ... }.
+// EXTRAS OPCIONAIS (só o estilo sintra.js usa; os outros estilos não precisam de os ter):
+//   palette.yard          -> cor do chão dos quintais (senão: mistura de relva e terra)
+//   bushesPerTile         -> quantos arbustos por quadrado de mato (senão: 3)
+//   buildTerrace(w, d, h, ctx) -> muro de suporte debaixo das casas em encosta (topo em y=0, desce h)
+//   backdrop              -> o cenário à volta do mapa (serra, mar, povoações): ver src/render/backdrop.js
 import * as THREE from 'three';
 
 const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...opts });

@@ -61,10 +61,85 @@ const COLORS = {
 // Cores do chão. Outubro, fim do verão seco: relva cor de palha, mato castanho-azeitona.
 // O aceiro (firebreak) é terra de granito raspada, clara; o terreno limpo é restolho baixo.
 // O queimado é CARVÃO (quase preto), nunca castanho: castanho parece lama.
+// yard = o chão dos quintais: na Malveira cada vivenda tem jardim regado (verde-azeitona),
+// por isso a vila vista de cima é "branco e laranja no meio do verde", e não cor de areia.
 export const palette = {
-  grass: 0xb8a874, brush: 0x6a6a3c, dirt: 0x8a7258, road: 0x55555a,
+  grass: 0xb8a874, brush: 0x5f6236, dirt: 0x8a7258, road: 0x55555a,
   cleared: 0xa3a874, firebreak: 0xd9cdb0, water: 0x2f7f9a, burned: 0x1f1d1b,
+  yard: 0x6f7f3f,
 };
+
+// Opcional (só este estilo usa): quantos arbustos põe a vista em cada quadrado de mato.
+// O mato da serra é um tapete contínuo de tojo e urze, não arbustos soltos.
+export const bushesPerTile = 6;
+
+// Opcional: o CENÁRIO à volta do mapa (desenhado por src/render/backdrop.js; não se joga lá).
+// Posições no mundo (1 quadrado = 65 m; o centro do mapa é (0, 0); -z é o norte), a partir das
+// cartas e do satélite. A vila da Malveira fica no quadrado (17, 17), ou seja, perto de (1.5, 1.5).
+//   - Peninha (487 m), com o santuário branco no cume, ~2 km a NNO: a serra que se vê atrás da vila;
+//   - a cumeada até ao Monge (~490 m) a norte, toda de pinhal escuro com penedos de granito;
+//   - Cruz Alta (528 m, o ponto mais alto da serra), longe para nordeste;
+//   - a cúpula a nordeste, de cume pelado cor de ferrugem;
+//   - a oeste, mato baixo cor de caqui a descer para a costa e o Guincho (o mar a sudoeste);
+//   - a sul e a leste, Janes, Alcorvim, Alcabideche e Cascais: casinhas brancas ao longe.
+export const backdrop = {
+  metresPerLevel: 31, minMetres: 85,
+  lift: { above: 330, factor: 1.9 },   // a serra ao fundo, exagerada ~2x (no mapa o relevo é ~1.3x)
+  // o terreno "de fundo" em metros: continua o declive do mapa (alto a norte, baixo a sul)
+  base(x, z) {
+    let m = 210 - z * 7.5;
+    if (z < -16) m = 330 + (-16 - z) * 3;
+    if (z > 16) m = 90 - (z - 16) * 1.2;
+    m -= Math.max(0, -x - 18) * 1.5;
+    return Math.max(25, m);
+  },
+  peaks: [
+    { x: -14, z: -25, metres: 487, radius: 9, cover: 'pine', tors: 70, sanctuary: true },  // Peninha
+    { x: -5, z: -33, metres: 455, radius: 9, cover: 'pine', tors: 30 },                    // cumeada
+    { x: 5, z: -41, metres: 490, radius: 13, cover: 'pine', tors: 50 },                    // Monge
+    { x: 14, z: -31, metres: 460, radius: 10, cover: 'pine', tors: 25 },                   // cumeada para leste
+    { x: -26, z: -30, metres: 430, radius: 10, cover: 'pine', tors: 30 },                  // cumeada para oeste
+    { x: 55, z: -52, metres: 528, radius: 18, cover: 'pine', tors: 40 },                   // Cruz Alta
+    { x: 23, z: -22, metres: 415, radius: 7, cover: 'pine', bareTop: true, tors: 45 },     // cúpula NE
+    { x: -40, z: -28, metres: 300, radius: 14, cover: 'scrub', tors: 25 },                 // para o Cabo da Roca
+    { x: -30, z: -2, metres: 215, radius: 10, cover: 'scrub' },
+  ],
+  scrubWest: -20,
+  lowlandTrees: 0.03,
+  // a costa, de norte para sul e depois para leste (o mar fica à direita de quem a percorre)
+  coast: [[-80, -90], [-66, -40], [-54, 0], [-42, 24], [-35, 40], [-28, 52], [-10, 70], [20, 84], [60, 94], [160, 100]],
+  colours: {
+    pine: 0x2b3f26, pineLit: 0x3d5531, scrub: 0x7d7a4c, scrubDark: 0x5f6238, granite: 0x8f8c85,
+    bare: 0x8c5a3c, field: 0x76813f, fieldDry: 0xb5a675, sand: 0xd8caa2, sea: 0x2a6f8e, track: 0xd6c9a6,
+  },
+  // aceiros e carreiros de terra clara a subir a encosta a noroeste (fotos e satélite)
+  tracks: [
+    { x0: -22, z0: -12, x1: -15, z1: -27, turns: 6, width: 2.2 },
+    { x0: -33, z0: -10, x1: -27, z1: -27, turns: 5, width: 2.6 },
+    { x0: -19, z0: -17, x1: -38, z1: -22, turns: 2, width: 1.5 },
+  ],
+  towns: [
+    { x: 27, z: 0, radius: 6, count: 60 },     // Janes
+    { x: 24, z: 22, radius: 7, count: 60 },    // Malveira (o resto da aldeia, a sueste)
+    { x: 6, z: 30, radius: 10, count: 130 },   // Alcorvim, Alcabideche
+    { x: 22, z: 72, radius: 20, count: 300 },  // Cascais, ao longe
+    { x: -20, z: 40, radius: 6, count: 40 },   // Areia, junto ao Guincho
+  ],
+};
+
+// Opcional: o MURO DE SUPORTE debaixo de uma casa numa encosta (a vista põe a casa num patamar
+// plano e, do lado de baixo, aparece este muro). Na Malveira as casas sobem a encosta em degraus,
+// cada uma no seu socalco de muro caiado ou de pedra de granito.
+// w x d = o tamanho do patamar; h = a altura do muro (o topo fica em y = 0).
+export function buildTerrace(w, d, h, ctx = {}) {
+  const g = new THREE.Group();
+  const stone = ctx.x !== undefined && tileHash(ctx.x + 7, ctx.y + 3) < 0.35;
+  box(g, stone ? MATERIALS.graniteWall : MATERIALS.lime, w, h, d, 0, -h / 2, 0);
+  box(g, MATERIALS.whiteTrim, w + 0.02, 0.018, d + 0.02, 0, -0.009, 0);                 // capeamento
+  if (!stone) box(g, MATERIALS.granite, w + 0.006, Math.min(0.05, h * 0.5), d + 0.006, 0, -h + 0.025, 0); // sapata
+  mergeByMaterial(g);
+  return shadows(g);
+}
 
 // =====================================================================================
 // 2. MATEMÁTICA AVANÇADA — não precisas de perceber isto agora.
@@ -683,10 +758,11 @@ const MATERIALS = {
   acacia: mat(COLORS.acacia), acaciaFeather: mat(COLORS.acaciaFeather), dryGrass: mat(COLORS.dryGrass),
 };
 
-// Paredes das vivendas: quase todas brancas; de vez em quando amarelo-claro, salmão ou creme.
+// Paredes das vivendas: quase todas brancas; de vez em quando creme ou amarelo-claro.
+// (Comparado com as fotos: as paredes coloridas são raras, ~1 em 12.)
 const VILLA_WALLS = [
   MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime,
-  MATERIALS.lime, MATERIALS.paleYellow, MATERIALS.salmon, MATERIALS.cream,
+  MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.cream, MATERIALS.paleYellow,
 ];
 // Telhados das vivendas: laranja vivo (telha nova), o laranja normal e algum mais velho.
 const VILLA_ROOFS = [MATERIALS.roofTypical, MATERIALS.roofTypical, MATERIALS.roofFresh, MATERIALS.roofAged];
@@ -1014,7 +1090,7 @@ function groundHouse(house, lot) {
 // =====================================================================================
 export function buildHouse(rand, ctx) {
   const kind = ctx ? houseKind(rand, ctx) : GALLERY_HOUSES[galleryIndex++ % GALLERY_HOUSES.length];
-  const house = HOUSE_BUILDERS[kind](rand);
+  const house = HOUSE_BUILDERS[kind](rand, ctx);
   groundHouse(house, house.userData.lot);
   mergeByMaterial(house);                       // as bandeiras ficam de fora (keepSeparate)
   return shadows(house);
@@ -1027,7 +1103,7 @@ let galleryIndex = 0;
 const HOUSE_BUILDERS = {
   villa: (rand) => villa(rand, {}),
   villaPool: (rand) => villa(rand, { pool: true }),
-  villaFlag: (rand) => villa(rand, { flag: true }),
+  villaFlag: (rand, ctx) => villa(rand, { flag: true, rotation: ctx?.rotation ?? 0 }),
   cluster: (rand) => villageCluster(rand),
   saloio: (rand) => saloioCottage(rand, false),
   saloioPair: (rand) => saloioCottage(rand, true),
@@ -1039,32 +1115,40 @@ const HOUSE_BUILDERS = {
   hall: (rand) => clubHall(rand),
 };
 
-// Que casa vai neste quadrado? Depende de quantas casas há à volta (centro denso ou periferia).
-// As bandeiras nas varandas são raras (~1 casa em 30) e escolhidas pelo quadrado (tileHash),
+// Que casa vai neste quadrado? Depende de quantas casas há à volta (centro denso ou periferia)
+// e da distância ao largo (ctx.largoDistance): as casas saloias em banda e o café só existem
+// junto ao largo; no resto da aldeia são vivendas brancas de 4 águas, como nas fotos.
+// As bandeiras nas varandas (~1 casa em 16) são escolhidas pelo quadrado (tileHash),
 // por isso aparecem sempre nas mesmas casas.
 function houseKind(rand, ctx) {
   if (ctx.landmark === 'chapel' || ctx.landmark === 'hall') return ctx.landmark;
-  if (ctx.x !== undefined && tileHash(ctx.x, ctx.y) < 0.035) return 'villaFlag';
+  if (ctx.x !== undefined && tileHash(ctx.x, ctx.y) < 0.06) return 'villaFlag';
   const n = ctx.neighbors ?? 3;
+  const nearLargo = (ctx.largoDistance ?? 99) <= 3;
   const r = rand();
-  if (n >= 5) {                                  // centro: casinhas encostadas
-    if (r < 0.62) return 'cluster';
-    if (r < 0.77) return 'saloioPair';
-    if (r < 0.9) return 'cafe';
+  if (nearLargo && n >= 4) {                     // à volta do largo: o núcleo antigo
+    if (r < 0.4) return 'cluster';
+    if (r < 0.6) return 'saloioPair';
+    if (r < 0.75) return 'cafe';
     return 'villa';
   }
-  if (n >= 2) {                                  // bairros: vivendas e algumas casas saloias
+  if (n >= 5) {                                  // centro: casinhas brancas e vivendas
+    if (r < 0.45) return 'cluster';
+    if (r < 0.8) return 'villa';
+    return 'villaPool';
+  }
+  if (n >= 2) {                                  // bairros: vivendas, muitas com piscina
     if (r < 0.5) return 'villa';
-    if (r < 0.68) return 'villaPool';
-    if (r < 0.82) return 'cluster';
-    if (r < 0.94) return 'saloio';
+    if (r < 0.76) return 'villaPool';
+    if (r < 0.93) return 'cluster';
+    if (r < 0.97) return 'saloio';
     return 'stone';
   }
-  if (r < 0.4) return 'villaPool';               // periferia: vivendas com piscina, quintas
-  if (r < 0.65) return 'villa';
-  if (r < 0.77) return 'quinta';
-  if (r < 0.87) return 'manor';
-  if (r < 0.95) return 'stone';
+  if (r < 0.38) return 'villaPool';              // periferia: vivendas com piscina, quintas
+  if (r < 0.78) return 'villa';
+  if (r < 0.86) return 'quinta';
+  if (r < 0.93) return 'manor';
+  if (r < 0.97) return 'stone';
   return 'saloio';
 }
 
@@ -1178,17 +1262,29 @@ function villa(rand, opts) {
   gardenWall(g, -0.44, gateX - 0.08, 0.425, 0.07);
   gardenWall(g, gateX + 0.08, 0.44, 0.425, 0.07);
   ironGate(g, gateX, 0.425, 0.12, rand() < 0.6 ? MATERIALS.green : MATERIALS.iron);
-  if (rand() < 0.7) hedge(g, 0, -0.405, 0.86, 0.05, 0.13 + rand() * 0.07);
+  // sebes de cipreste aparadas: as "paredes verdes" compridas e escuras entre os lotes (fotos)
+  if (rand() < 0.85) hedge(g, 0, -0.405, 0.86, 0.05, 0.13 + rand() * 0.07);
+  if (rand() < 0.55) hedge(g, side * 0.415, 0, 0.045, 0.78, 0.14 + rand() * 0.05);
   else if (!opts.pool) hedge(g, -side * 0.405, -0.05, 0.05, 0.62, 0.16);
   const freeX = -side * 0.29;                                       // o lado livre do lote
-  const irrigated = opts.pool || rand() < 0.4;
+  const irrigated = opts.pool || rand() < 0.75;                     // quase todos têm jardim regado
   box(g, irrigated ? MATERIALS.lawn : MATERIALS.yardEarth, 0.3, 0.008, 0.7, freeX, 0.004, 0.02);
   box(g, MATERIALS.gravel, 0.12, 0.006, 0.4 - (bz + wall.d / 2), gateX, 0.003, (0.42 + bz + wall.d / 2) / 2);   // caminho
-  if (opts.pool) pool(g, freeX, -0.08, 0.15 + rand() * 0.04, 0.26);
+  if (opts.pool) pool(g, freeX, -0.08, 0.18 + rand() * 0.04, 0.3);
   const tree = gardenTree(rand);
   tree.position.set(freeX + side * 0.02, 0, opts.pool ? 0.27 : 0.05 + rand() * 0.2);
   g.add(tree);
-  if (opts.flag) balconyFlag(body, terrace ?? { x: 0, y: eave - 0.04, z: wall.d / 2 + 0.01 });
+  if (rand() < 0.5) {                                               // mais uma árvore de jardim
+    const second = rand() < 0.6 ? cypress(rand) : gardenTree(rand);
+    second.position.set(side * 0.34, 0, 0.33);
+    g.add(second);
+  }
+  if (opts.flag) {
+    // A bandeira fica na parede virada para a câmara do jogo (que olha de sueste), para se ver.
+    const face = faceTowardsCamera(opts.rotation ?? 0);
+    if (face === 'front') balconyFlag(body, terrace ?? { x: 0, y: eave - 0.04, z: wall.d / 2 + 0.01 }, 'front');
+    else balconyFlag(body, { y: eave - 0.04, wall }, face);
+  }
   g.userData.lot = { w: wall.w, d: wall.d, z: bz };
   return g;
 }
@@ -1218,8 +1314,8 @@ function villageCluster(rand) {
     const info = smallHouse(g, rand, x + (rand() - 0.5) * 0.03, z + (rand() - 0.5) * 0.03, w, d);
     if (!lot) lot = info;
   }
-  box(g, MATERIALS.yardEarth, 0.84, 0.008, 0.84, 0, 0.004, 0);
-  if (rand() < 0.5) {                                    // um quintal com uma árvore
+  box(g, rand() < 0.6 ? MATERIALS.lawn : MATERIALS.yardEarth, 0.84, 0.008, 0.84, 0, 0.004, 0);
+  if (rand() < 0.65) {                                   // um quintal com uma árvore
     const tree = rand() < 0.5 ? lemonTree(rand) : cypress(rand);
     const [fx, fz] = CLUSTER_SLOTS[(first + 2) % 4];
     tree.position.set(fx, 0, fz);
@@ -1234,7 +1330,7 @@ function smallHouse(g, rand, x, z, w, d) {
   const body = bodyAt(g, x, z);
   const wall = { w, d };
   const eave = rand() < 0.45 ? 0.43 : 0.25;
-  const old = rand() < 0.2;                               // casa saloia antiga: barra pintada
+  const old = rand() < 0.08;                              // casa saloia antiga: barra pintada (rara)
   const paint = old ? MATERIALS.lime : pick(rand, VILLA_WALLS);
   walls(body, wall, eave, paint);
   const band = old ? pick(rand, [MATERIALS.saloioBlue, MATERIALS.ochre]) : MATERIALS.limeShadow;
@@ -1529,7 +1625,8 @@ function woodenAnnex(g, x, z) {
 // A vista escolhe UM quadrado de casa colado ao largo (ver village3d.js, findLandmarks).
 // Capela caiada pequena, empena virada para o largo, uma sineira e telhado de telha laranja.
 // Ao lado, o coreto octogonal com telhado e dois bancos. A capela NÃO tem bandeira:
-// na vida real as igrejas portuguesas não hasteiam a bandeira nacional.
+// na vida real as igrejas portuguesas não hasteiam a bandeira nacional. A bandeira fica num
+// mastro alto no canto do largo, como os mastros das Juntas de Freguesia.
 function chapelLargo(rand) {
   const g = new THREE.Group();
   const chapelGroup = chapel(rand);
@@ -1547,6 +1644,9 @@ function chapelLargo(rand) {
   tree.position.set(0.25, 0, -0.27);
   g.add(tree);
   box(g, MATERIALS.calcada, 0.9, 0.012, 0.9, 0, 0.006, 0);
+  // o mastro do largo (da Junta, não da capela) com uma bandeira de Portugal grande
+  const flag = tallFlagMast(g, 0.38, 0.38, 1.05, 0.32);
+  g.userData.animate = (t) => flag.animate(t, 'south');
   g.userData.lot = { w: 0.44, d: 0.66, z: -0.08 };
   return g;
 }
@@ -1631,20 +1731,54 @@ function clubHall(rand) {
   const flag = makeFlag(MATERIALS.flag, 0.12, 0.08);
   flag.mesh.position.set(tip.x, tip.y - 0.045, tip.z);
   body.add(flag.mesh);
-  g.userData.animate = (t) => flag.animate(t, 'alongWall');
+  // e um mastro alto à frente do salão, com uma bandeira grande (vê-se de longe)
+  const big = tallFlagMast(g, -0.37, 0.37, 0.95, 0.28);
+  g.userData.animate = (t) => { flag.animate(t, 'alongWall'); big.animate(t, 'south'); };
   g.userData.lot = { w: wall.w, d: wall.d, z: 0 };
   return g;
 }
 
 // A bandeira de Portugal pendurada no parapeito de uma varanda (como depois de um jogo de futebol):
 // fica encostada à varanda, a cair, e mexe-se um pouco com o vento.
-function balconyFlag(body, spot) {
-  const w = 0.13, h = 0.087;                                        // 2:3
+// face = a parede onde fica ('front' = no parapeito da varanda; 'back', 'left', 'right' = pendurada
+// na parede, por baixo do beiral).
+function balconyFlag(body, spot, face = 'front') {
+  const w = 0.195, h = 0.13;                                        // 2:3 (maior, para se ver de longe)
   const flag = makeFlag(MATERIALS.flag, w, h, 'hanging');
-  flag.mesh.position.set(spot.x - w / 2, spot.y - h / 2, spot.z + 0.006);
+  const y = spot.y - h / 2;
+  if (face === 'front') flag.mesh.position.set(spot.x - w / 2, y, spot.z + 0.006);
+  else {
+    const { w: ww, d: wd } = spot.wall;
+    // a bandeira é desenhada virada para +z; rodamo-la para ficar virada para fora da parede
+    if (face === 'right') { flag.mesh.rotation.y = Math.PI / 2; flag.mesh.position.set(ww / 2 + 0.008, y, w / 2); }
+    if (face === 'left') { flag.mesh.rotation.y = -Math.PI / 2; flag.mesh.position.set(-ww / 2 - 0.008, y, -w / 2); }
+    if (face === 'back') { flag.mesh.rotation.y = Math.PI; flag.mesh.position.set(w / 2, y, -wd / 2 - 0.008); }
+  }
   body.add(flag.mesh);
   const root = body.parent;
   root.userData.animate = (t) => flag.animate(t, 'hanging');
+}
+
+// Que parede da casa fica virada para a câmara do jogo (que está a sueste, em +x +z)?
+// rotation = quanto a vista roda a casa (para a porta olhar para a estrada).
+function faceTowardsCamera(rotation) {
+  const s = Math.sin(rotation), c = Math.cos(rotation);
+  const faces = { front: s + c, back: -s - c, right: c - s, left: s - c };   // direção no mundo · (1, 1)
+  return Object.keys(faces).reduce((a, b) => (faces[b] > faces[a] ? b : a));
+}
+
+// Mastro ALTO com uma bandeira de Portugal grande (no largo e na sociedade recreativa), para a
+// bandeira se ver da câmara do jogo. Base de pedra, mastro branco e uma bola dourada no topo.
+// Devolve { animate } da bandeira.
+function tallFlagMast(g, x, z, height = 1.0, flagW = 0.3) {
+  box(g, MATERIALS.cantaria, 0.07, 0.04, 0.07, x, 0.02, z);
+  stick(g, GEOMETRIES.flagPole, MATERIALS.pole, x, 0.04, z, x, height, z, 1.6);
+  place(g, GEOMETRIES.finial, MATERIALS.gold, x, height + 0.014, z);
+  const flagH = flagW * 2 / 3;
+  const flag = makeFlag(MATERIALS.flag, flagW, flagH);
+  flag.mesh.position.set(x, height - flagH / 2 - 0.015, z);
+  g.add(flag.mesh);
+  return flag;
 }
 
 // =====================================================================================
@@ -1666,7 +1800,7 @@ export function buildSchool(rand) {
   // ao meio (o mais alto) e a bandeira da corporação
   const flags = [
     flagPole(g, 0.2, 0.4, 0.5, MATERIALS.euFlag),
-    flagPole(g, 0.29, 0.4, 0.58, MATERIALS.flag),
+    flagPole(g, 0.29, 0.4, 0.72, MATERIALS.flag, 0.21),             // Portugal: o mais alto
     flagPole(g, 0.38, 0.4, 0.5, MATERIALS.firemenFlag),
   ];
   mergeByMaterial(g);                                       // as bandeiras e as luzes ficam de fora
@@ -1771,11 +1905,12 @@ function ambulance(g, x, z) {
 }
 
 // Mastro com uma bandeira (2:3). Devolve { animate } para a fazer ondular ao vento.
-function flagPole(g, px, pz, poleTop, material) {
+function flagPole(g, px, pz, poleTop, material, w = 0.16) {
   stick(g, GEOMETRIES.flagPole, MATERIALS.pole, px, 0, pz, px, poleTop, pz);
   place(g, GEOMETRIES.finial, MATERIALS.gold, px, poleTop + 0.012, pz);
-  const flag = makeFlag(material, 0.16, 0.107);
-  flag.mesh.position.set(px, poleTop - 0.107 / 2 - 0.01, pz);
+  const h = w * 2 / 3;
+  const flag = makeFlag(material, w, h);
+  flag.mesh.position.set(px, poleTop - h / 2 - 0.01, pz);
   g.add(flag.mesh);
   return flag;
 }
@@ -2102,12 +2237,14 @@ function oliveTree(rand) {
 export function buildBush(rand) {
   const g = new THREE.Group();
   const r = rand();
-  if (r < 0.24) g.add(gorse(rand));
-  else if (r < 0.42) g.add(mound(rand, MATERIALS.rockrose, MATERIALS.rockrose));        // esteva
-  else if (r < 0.57) g.add(mound(rand, MATERIALS.heatherRust, MATERIALS.heather));      // urze
-  else if (r < 0.74) g.add(acacia(rand));
-  else if (r < 0.86) g.add(broom(rand));
+  // Nas fotos o mato é um TAPETE baixo e contínuo (tojo, esteva, urze), com poucas acácias e penedos.
+  if (r < 0.32) g.add(gorse(rand));
+  else if (r < 0.56) g.add(mound(rand, MATERIALS.rockrose, MATERIALS.rockrose));        // esteva
+  else if (r < 0.76) g.add(mound(rand, MATERIALS.heatherRust, MATERIALS.heather));      // urze
+  else if (r < 0.84) g.add(acacia(rand));
+  else if (r < 0.93) g.add(broom(rand));
   else g.add(boulder(rand));
+  g.scale.set(1.3, 0.85, 1.3);                  // mais largo e mais baixo: os arbustos encostam-se
   mergeByMaterial(g);
   return shadows(g);
 }
