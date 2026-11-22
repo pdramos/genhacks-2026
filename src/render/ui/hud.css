@@ -372,10 +372,11 @@ body.briefing #hud, body.briefing #info { visibility: hidden; }
   margin: -4px auto 10px; width: fit-content; padding: 3px 14px; border: 3px solid var(--ink); border-radius: 999px;
   background: var(--gold); font-size: 14px; font-weight: 700;
 }
-/* Com a comparação o cartão fica mais alto. Para caber no ecrã: o cartão fica mais largo (os três
+/* Com a comparação o cartão fica mais alto. Para caber no ecrã: o cartão fica mais largo (os quatro
    botões cabem numa linha e as lições ocupam menos linhas), os números de cima ficam mais pequenos
    e a história real encolhe (desliza por dentro). */
-.result-card.has-compare { width: min(580px, calc(100% - 32px)); }
+.result-card.has-compare { width: min(640px, calc(100% - 32px)); }
+.result-card.has-compare .result-button { padding-left: 16px; padding-right: 16px; }
 .result-card.has-compare .result-stars { margin-bottom: 8px; }
 .result-card.has-compare .result-stars .star { width: 40px; height: 40px; }
 .result-card.has-compare .result-stat { padding: 6px; }
@@ -391,6 +392,8 @@ body.briefing #hud, body.briefing #info { visibility: hidden; }
     position: sticky; bottom: 0; margin: 12px -20px 0; padding: 10px 20px 12px;
     background: var(--cream); border-top: 3px solid var(--ink);
   }
+  /* A barra de deslizar come um pouco da largura: botões um pouco mais pequenos, numa só linha */
+  .result-card.has-compare .result-button { padding: 8px 12px; font-size: 16px; }
 }
 @media (max-height: 520px) {
   .result-compare { margin-top: 8px; padding: 6px 10px 8px; }

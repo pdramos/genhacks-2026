@@ -270,12 +270,15 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
   const lost = card.querySelector('.result-lost');
   if (lostText) lost.textContent = lostText;
   else lost.remove();
-  // A comparação dos planos, logo por baixo dos números. Numa "noite de sorte" (não fazer nada
-  // também salvava tudo) aparece uma faixa lá em cima, para o jogador não pensar que foi só mérito.
+  // A comparação dos planos, logo por baixo dos números (e da linha das casas perdidas, que fala
+  // do plano do jogador). Numa "noite de sorte" (não fazer nada também salvava tudo) aparece uma
+  // faixa lá em cima, para o jogador não pensar que foi só mérito. Só quando o jogador também
+  // salvou tudo: se o plano dele piorou o fogo, a faixa mentia (quem explica é a lição).
   if (comparison) {
     card.classList.add('has-compare');
-    card.querySelector('.result-stats').after(compareSection(comparison, schoolLabel));
-    if (comparison.lucky) {
+    const above = card.querySelector('.result-lost') ?? card.querySelector('.result-stats');
+    above.after(compareSection(comparison, schoolLabel));
+    if (comparison.lucky && comparison.player.stars === 3) {
       const lucky = document.createElement('div');
       lucky.className = 'result-lucky';
       lucky.textContent = 'Lucky night: the fire died out on its own';
@@ -299,6 +302,9 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
   }
   if (!level.aftermath && !(level.sources || []).length) story.querySelector('.story-heading').remove();
   addLevelCredits(story.querySelector('.credit'), level);
+  // O botão "The law" (à esquerda do "Look around"), como no cartão do início.
+  const law = lawButton(level);
+  if (law) card.querySelector('[data-do="look"]').before(law);
   // "Look around" esconde o cartão (para ver a vila queimada) e deixa um botão "Back to results"
   // para o voltar a abrir (antes o cartão era apagado e perdiam-se o "Try again" e o "Play again").
   // "Play again" recomeça o nível.
