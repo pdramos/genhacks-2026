@@ -41,13 +41,14 @@ export function createVillageView(scene, village, style, rand) {
   // tiles[y][x] = { type, prop, swaying: [...], animated: [...], baked, merged }
   //   baked  = os pontos do quadrado já "cozidos" (ver mergeProps.js), prontos a colar no bloco
   //   merged = true se o quadrado vai colado no bloco; false se o grupo está sozinho na cena
-  //            (só os quadrados com coisas animadas, como a bandeira do quartel)
+  //            (só os quadrados com coisas animadas que o estilo não marcou com userData.moving)
+  //   loose  = as peças que mexem (userData.moving: bandeiras, pirilampos), soltas na cena
   const tiles = [];
   const props = []; // grupos de objetos, para o clique
   for (let y = 0; y < village.height; y++) {
     tiles.push([]);
     for (let x = 0; x < village.width; x++) {
-      tiles[y].push({ type: null, prop: null, swaying: [], animated: [], top: undefined, baked: null, merged: false });
+      tiles[y].push({ type: null, prop: null, swaying: [], animated: [], loose: [], top: undefined, baked: null, merged: false });
     }
   }
 
@@ -58,6 +59,9 @@ export function createVillageView(scene, village, style, rand) {
     if (!chunks.has(key)) chunks.set(key, { bx: Math.floor(x / CHUNK), by: Math.floor(y / CHUNK), meshes: [], dirty: true });
     chunks.get(key).dirty = true;
   }
+
+  // Os marcos da vila (só os estilos que quiserem os usam; ver findLandmarks, lá em baixo).
+  const landmarks = findLandmarks();
 
   for (let y = 0; y < village.height; y++) {
     for (let x = 0; x < village.width; x++) setTileType(x, y, tileAt(village, x, y));
@@ -80,18 +84,30 @@ export function createVillageView(scene, village, style, rand) {
     const prop = new THREE.Group();
     prop.position.set(wx, wy, wz);
     prop.userData = { x, y, isTile: true };
-    if (type === 'eucalyptus') addTrees(t, prop, 'conifer', 3);
-    if (type === 'broadleaf') addTrees(t, prop, 'broadleaf', 1);
+    if (type === 'eucalyptus') addTrees(t, prop, 'conifer', 3, x, y);
+    if (type === 'broadleaf') addTrees(t, prop, 'broadleaf', 1, x, y);
     if (type === 'brush') addBushes(prop);
     if (type === 'house') addHouse(prop, x, y);
     if (type === 'school') addSchool(prop, x, y);
     trimShadows(prop); // desempenho: as peças pequenas não fazem sombra
     shadowsChanged();
     prop.traverse((o) => { if (o.userData.animate) t.animated.push(o); });
+    // Peças marcadas pelo estilo com userData.moving (bandeiras, pirilampos) saem do grupo e vão
+    // sozinhas para a cena; o resto do quadrado é colado no bloco como os outros (desempenho:
+    // uma casa com bandeira custava ~30 pedidos de desenho, agora custa 1).
+    const moving = [];
+    prop.traverse((o) => { if (o.isMesh && o.userData.moving) moving.push(o); });
     if (prop.children.length) {
       t.prop = prop;
       props.push(prop);
-      if (t.animated.length) {
+      if (moving.length) {
+        prop.updateMatrixWorld(true);
+        for (const o of moving) scene.attach(o); // attach: fica no mesmo sítio do mundo
+        t.loose = moving;
+        t.merged = true;
+        t.baked = bakeTile(prop, t.swaying);
+        markDirty(x, y);
+      } else if (t.animated.length) {
         scene.add(prop); // tem partes que mexem (bandeira, luzes): fica sozinho, como antes
       } else {
         t.merged = true; // vai colado no bloco
@@ -107,7 +123,8 @@ export function createVillageView(scene, village, style, rand) {
       else scene.remove(t.prop);
       props.splice(props.indexOf(t.prop), 1);
     }
-    t.prop = null; t.swaying = []; t.animated = []; t.top = undefined; t.baked = null; t.merged = false;
+    for (const o of t.loose) scene.remove(o);
+    t.prop = null; t.swaying = []; t.animated = []; t.loose = []; t.top = undefined; t.baked = null; t.merged = false;
   }
 
   // Refaz os blocos sujos: junta os quadrados cozidos do bloco numa peça por material.
@@ -169,9 +186,12 @@ export function createVillageView(scene, village, style, rand) {
     obj.position.set(ox, ground - group.position.y - 0.02, oz); // -0.02: enterra um pouco a base
   }
 
-  function addTrees(t, group, kind, count) {
+  // ctx (o 3.º argumento) é opcional no contrato: diz ao estilo se a árvore está no meio das casas
+  // (ex.: o estilo sintra põe pinheiros-mansos e ciprestes na aldeia e eucaliptos só na serra).
+  function addTrees(t, group, kind, count, x, y) {
+    const ctx = { x, y, nearHouses: houseNeighbors(x, y) };
     for (let i = 0; i < count; i++) {
-      const tree = style.buildTree(kind, rand);
+      const tree = style.buildTree(kind, rand, ctx);
       placeOnGround(group, tree, (rand() - 0.5) * 0.45, (rand() - 0.5) * 0.45);
       tree.rotation.y = rand() * Math.PI * 2;
       group.add(tree);
@@ -190,8 +210,11 @@ export function createVillageView(scene, village, style, rand) {
 
   // A casa assenta no ponto MAIS BAIXO do seu terreno: numa encosta fica "encaixada" no
   // monte (como as casas reais), em vez de ficar a flutuar.
+  // ctx (o 2.º argumento) é opcional no contrato: quantas casas há à volta (centro denso ou
+  // periferia) e se este quadrado é um marco da vila ('chapel', 'hall'). Os outros estilos ignoram-no.
   function addHouse(group, x, y) {
-    const house = style.buildHouse(rand);
+    const ctx = { x, y, neighbors: houseNeighbors(x, y), landmark: landmarks.get(`${x},${y}`) };
+    const house = style.buildHouse(rand, ctx);
     house.rotation.y = facingRoad(x, y); // a porta vira-se para a estrada mais próxima
     house.position.y = lowestGround(group.position.x, group.position.z, 1, 1) - group.position.y;
     group.add(house);
@@ -239,6 +262,41 @@ export function createVillageView(scene, village, style, rand) {
     return x >= 0 && y >= 0 && x < village.width && y < village.height;
   }
 
+  // Quantas casas (ou a escola/quartel) há nos 8 quadrados à volta de (x, y): 0 = isolada, 8 = centro.
+  // Lê o MAPA ORIGINAL do nível (village.tiles), por isso a resposta não muda durante o jogo.
+  function houseNeighbors(x, y) {
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dy) && inside(x + dx, y + dy) && ['house', 'school'].includes(tileAt(village, x + dx, y + dy))) n++;
+      }
+    }
+    return n;
+  }
+
+  // Os marcos da vila, escolhidos SEMPRE da mesma maneira a partir do mapa:
+  //   o LARGO = o primeiro bloco 2x2 só de estrada (lendo o mapa linha a linha);
+  //   as casas coladas ao largo, por esta ordem: lado norte (oeste -> leste), leste, sul, oeste.
+  //   A 1.ª é a capela ('chapel') e a 2.ª a sociedade recreativa ('hall').
+  // Em Sintra o largo é (16,18)-(17,19): a capela fica em (16,17), a norte do largo, onde está a
+  // Capela de N. Sra. da Assunção verdadeira, e a sociedade em (18,18), a leste (a avenida para Janes).
+  // Devolve um Map "x,y" -> nome do marco (vazio se o mapa não tiver largo).
+  function findLandmarks() {
+    const found = new Map();
+    const isRoad = (x, y) => inside(x, y) && tileAt(village, x, y) === 'road';
+    for (let y = 0; y < village.height - 1; y++) {
+      for (let x = 0; x < village.width - 1; x++) {
+        if (!(isRoad(x, y) && isRoad(x + 1, y) && isRoad(x, y + 1) && isRoad(x + 1, y + 1))) continue;
+        const around = [[x, y - 1], [x + 1, y - 1], [x + 2, y], [x + 2, y + 1],
+          [x, y + 2], [x + 1, y + 2], [x - 1, y], [x - 1, y + 1]];
+        const houses = around.filter(([cx, cy]) => inside(cx, cy) && tileAt(village, cx, cy) === 'house');
+        ['chapel', 'hall'].forEach((name, i) => { if (houses[i]) found.set(`${houses[i][0]},${houses[i][1]}`, name); });
+        return found;
+      }
+    }
+    return found;
+  }
+
   // Mostra um quadrado queimado: chão de carvão e cinza, e os objetos carbonizados.
   function setBurned(x, y) {
     const t = tiles[y][x];
@@ -247,6 +305,7 @@ export function createVillageView(scene, village, style, rand) {
     // seguir o relevo (sem bordas a flutuar nas encostas).
     if (t.prop) charProp(t.prop, t.type, terrain.heightAtWorld);
     shadowsChanged();
+    for (const o of t.loose) o.visible = false; // as bandeiras ardem; os pirilampos apagam-se
     t.swaying = []; // árvores queimadas não balançam
     // Coze outra vez o quadrado (agora queimado) e marca o bloco para ser refeito no próximo frame.
     if (t.merged) {

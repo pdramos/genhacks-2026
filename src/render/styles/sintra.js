@@ -2,6 +2,11 @@
 // a zona do incêndio de 6-7 de outubro de 2018.
 // Tudo é feito aqui com formas simples (caixas, cilindros e "pedras" de 20 triângulos): sem ficheiros.
 // Segue o CONTRATO descrito em basic.js (palette, buildHouse, buildSchool, buildTree, buildBush).
+// Extra (opcional, só este estilo usa): buildHouse(rand, ctx) e buildTree(kind, rand, ctx) recebem
+// da vista um "contexto" (quantas casas há à volta, se é a capela do largo...). Sem ctx também
+// funcionam (a galeria não o passa).
+// Comparado com as fotos da Malveira da Serra (Wikimedia Commons) e o satélite: vivendas brancas
+// de telhado laranja de 4 águas, sebes de cipreste, piscinas, pinheiros-mansos; nada de prédios.
 // A cena é de OUTUBRO, no fim do verão seco: mato castanho-azeitona, relva cor de palha, sem flores.
 // As cores vêm da pesquisa (fotos e textos sobre Sintra, Cascais e as aldeias saloias).
 //
@@ -9,8 +14,9 @@
 //   1. Cores e cores do chão     2. Matemática avançada (não precisas de perceber isto agora)
 //   3. Texturas desenhadas em código (azulejos, calçada, granito...)     4. Materiais
 //   5. Geometrias partilhadas     6. Ajudantes (caixa, pau, telhado, janela, varanda...)
-//   7. Casas (casas de vila em banda, casa saloia, chalé romântico, quinta, casa de granito,
-//      café, capela)     8. Quartel dos Bombeiros     9. Árvores     10. Arbustos (mato)
+//   7. Casas (vivenda, casinhas do centro, casa saloia, café, solar, quinta, casa de granito,
+//      e os marcos: capela com coreto e sociedade recreativa)     8. Quartel dos Bombeiros
+//      e as bandeiras     9. Árvores     10. Arbustos (mato)
 import * as THREE from 'three';
 
 // =====================================================================================
@@ -19,8 +25,7 @@ import * as THREE from 'three';
 const COLORS = {
   // paredes (as paredes pintadas usam a textura de cal: estes valores são a cor da tinta)
   lime: 0xf4f1ea, limeShadow: 0xdcd6ca, cream: 0xefe3c2,
-  sintraYellow: 0xe3b23c, paleYellow: 0xf0d27a, pink: 0xe2a99a, oxRed: 0x9e3b2c,
-  sage: 0x9dbb9c, paleBlue: 0x9fbfd9, salmon: 0xe8b49a,
+  paleYellow: 0xf0d27a, salmon: 0xe8b49a,
   // pedra
   cantaria: 0xd9cfbd, granite: 0x9a958c, graniteDark: 0x7d786f, lichen: 0xb7b49a,
   // barras e caixilhos
@@ -29,13 +34,16 @@ const COLORS = {
   white: 0xffffff,
   // telhados (as telhas usam uma textura cinzenta: estes valores dão a cor)
   tile: 0xb5532f, tileAged: 0x8e4a2e, tileLichen: 0xa26a48, ridge: 0x8a3a24,
+  // vivendas da Malveira (fotos): telha laranja Marselha/Lusa nova, normal e velha
+  roofFresh: 0xd2693c, roofTypical: 0xc8643c, roofAged: 0xa9573a,
+  hedge: 0x2f4a34, hedgeLit: 0x3d5b3f, lawn: 0x6f8f3e, poolWater: 0x3fa7c9,
   // chão à volta das casas
   yardEarth: 0xbfae8a, gravel: 0xcfc6b2, gardenGreen: 0x7d8a4a,
   // bombeiros
   fireRed: 0xb3261e, doorRed: 0x8e1c17, truckRed: 0xc62828, tyre: 0x1c1c1c, chrome: 0xc8c8c8,
   beacon: 0x2a6bff, pole: 0xd8d8d8, gold: 0xffcc00,
-  // água do chafariz e toldos
-  fountainWater: 0x5d8fa3, awningGreen: 0x2f5a3c, awningRed: 0x9e3b2c, chair: 0xf2f2f2,
+  // toldos
+  awningGreen: 0x2f5a3c, awningRed: 0x9e3b2c, chair: 0xf2f2f2,
   // árvores (outubro)
   euBark: 0xc9b8a0, euPatch: 0x9c9488, euStrip: 0x8c7b66, euLeaf: 0x6f8c78, euLeafLit: 0x7e9a85,
   pineNeedle: 0x34502a, pineNeedleLit: 0x3e5b2e, pineCone: 0x8a4f2e,
@@ -43,6 +51,7 @@ const COLORS = {
   cork: 0x8c8274, corkFresh: 0x8b3a1e, corkAged: 0x7a4030, oak: 0x4f6136, oakLit: 0x5e7340,
   holm: 0x3f4f33, holmLit: 0x4b5c3c, oakBark: 0x5e564c,
   palmTrunk: 0x8a7558, palmLeaf: 0x5f7a3a, palmDry: 0x9a8a5a,
+  olive: 0x7d8a5a, oliveLit: 0x8f9a68,
   cypress: 0x2f4a34, lemon: 0x4e6a34, lemonFruit: 0xe8c62e,
   // mato (outubro: castanho-azeitona, nada de flores)
   gorse: 0x5c6e2e, gorseDry: 0x8a8a4a, rockrose: 0x4f5d3a, heather: 0x6b5a6e, heatherRust: 0x7d5c4e,
@@ -462,22 +471,110 @@ function signTex(lines, bg, fg, width = 256, height = 64) {
   }, true);
 }
 
-// Bandeira de Portugal: 2/5 verde, 3/5 vermelho, esfera armilar amarela e escudo na divisão.
-const flagTex = canvasTexture(120, 80, (ctx, w, h) => {
-  const split = w * 0.4;
-  ctx.fillStyle = '#006600'; ctx.fillRect(0, 0, split, h);
-  ctx.fillStyle = '#ff0000'; ctx.fillRect(split, 0, w - split, h);
-  ctx.strokeStyle = '#ffcc00';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(split, h / 2, 17, 0, Math.PI * 2); ctx.stroke();
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.ellipse(split, h / 2, 17, 6, 0.3, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#ff0000'; ctx.fillRect(split - 9, h / 2 - 11, 18, 21);
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(split - 6, h / 2 - 8, 12, 15);
-  ctx.fillStyle = '#003399';
-  for (const [dx, dy] of [[0, -4], [-3, 0], [0, 0], [3, 0], [0, 4]]) {
-    ctx.fillRect(split + dx - 1, h / 2 + dy - 1.5, 2, 3);
+// BANDEIRA DE PORTUGAL (Decreto de 19 de junho de 1911), desenhada uma vez num canvas 384 x 256:
+//   - proporção 2:3 (altura : comprimento);
+//   - verde junto ao mastro = 2/5 do comprimento, vermelho = 3/5;
+//   - a esfera armilar amarela tem diâmetro = 1/2 da altura e o centro EXATAMENTE na divisão
+//     verde/vermelho, a meia altura;
+//   - por cima da esfera, o escudo: orla vermelha com 7 castelos amarelos (3 em cima, 2 de cada
+//     lado) e, dentro, o escudo branco com 5 escudetes azuis (as quinas) em cruz, cada um com
+//     5 pontos brancos (os besantes).
+// Simplificada (sem as letras e pormenores finos), mas reconhecível e com as medidas certas.
+const flagTex = canvasTexture(384, 256, (ctx, w, h) => {
+  const split = w * 0.4;                                     // 2/5 verde
+  ctx.fillStyle = '#046a38'; ctx.fillRect(0, 0, split, h);
+  ctx.fillStyle = '#da291c'; ctx.fillRect(split, 0, w - split, h);
+  const cx = split, cy = h / 2, R = h / 4;                   // esfera: diâmetro = h/2
+  // a esfera armilar: anéis amarelos com contorno preto fino (primeiro o preto, por baixo)
+  const ring = (draw) => {
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 9; ctx.beginPath(); draw(); ctx.stroke();
+    ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 6.5; ctx.beginPath(); draw(); ctx.stroke();
+  };
+  ring(() => ctx.ellipse(cx, cy, R * 0.42, R - 3, 0, 0, Math.PI * 2));          // meridiano
+  ring(() => ctx.ellipse(cx, cy + R * 0.42, R * 0.9, R * 0.22, 0, 0, Math.PI));  // trópico (frente)
+  ring(() => ctx.ellipse(cx, cy - R * 0.42, R * 0.9, R * 0.22, 0, 0, Math.PI));
+  ring(() => ctx.ellipse(cx, cy, R - 3, R * 0.3, 0, 0, Math.PI * 2));            // equador
+  ring(() => ctx.ellipse(cx, cy, R - 3, R * 0.3, -0.5, 0, Math.PI * 2));         // eclíptica (inclinada)
+  ring(() => ctx.arc(cx, cy, R - 3, 0, Math.PI * 2));                             // aro de fora
+  // o escudo (largura ~0.45 do diâmetro da esfera), de base redonda
+  const shield = (sw, sh, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx - sw / 2, cy - sh / 2);
+    ctx.lineTo(cx + sw / 2, cy - sh / 2);
+    ctx.lineTo(cx + sw / 2, cy + sh / 2 - sw / 2);
+    ctx.arc(cx, cy + sh / 2 - sw / 2, sw / 2, 0, Math.PI);
+    ctx.closePath();
+    ctx.fill();
+  };
+  const SW = 2 * R * 0.46, SH = SW * 1.15;
+  shield(SW + 3, SH + 3, '#000');                            // contorno fino
+  shield(SW, SH, '#da291c');                                 // orla vermelha
+  ctx.fillStyle = '#ffd700';                                 // 7 castelos
+  const castle = (x, y) => {
+    const s = SW * 0.13;
+    ctx.fillRect(x - s / 2, y - s / 2, s, s);
+    ctx.fillRect(x - s / 2, y - s * 0.8, s * 0.28, s * 0.35);   // ameias
+    ctx.fillRect(x + s * 0.22, y - s * 0.8, s * 0.28, s * 0.35);
+  };
+  const top = cy - SH / 2 + SW * 0.1;
+  for (const dx of [-0.32, 0, 0.32]) castle(cx + dx * SW, top);
+  for (const s of [-1, 1]) for (const dy of [0.12, 0.4]) castle(cx + s * SW * 0.4, cy - SH / 2 + SH * (0.2 + dy));
+  shield(SW * 0.6, SH * 0.62, '#ffffff');                    // escudo branco de dentro
+  const q = SW * 0.15;                                       // 5 quinas azuis em cruz
+  for (const [dx, dy] of [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1]]) {
+    const qx = cx + dx * q * 1.15, qy = cy - SH * 0.04 + dy * q * 1.3;
+    ctx.fillStyle = '#003399';
+    ctx.fillRect(qx - q / 2, qy - q * 0.6, q, q * 1.2);
+    ctx.fillStyle = '#ffffff';                                // 5 besantes em cada quina
+    for (const [bx, by] of [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]]) {
+      ctx.fillRect(qx + bx * q * 0.24 - 0.8, qy + by * q * 0.3 - 0.8, 1.6, 1.6);
+    }
   }
+}, true);
+
+// Bandeira da União Europeia (fica ao lado da nacional nos edifícios públicos):
+// azul com 12 estrelas amarelas em círculo.
+const euFlagTex = canvasTexture(192, 128, (ctx, w, h) => {
+  ctx.fillStyle = '#003399'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#ffcc00';
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    star(ctx, w / 2 + Math.cos(a) * h / 3, h / 2 + Math.sin(a) * h / 3, h / 18);
+  }
+}, true);
+
+// Estrela de 5 pontas com centro (x, y) e raio r.
+function star(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 ? r * 0.4 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Bandeira da corporação de bombeiros (ESTILIZADA, não é a verdadeira de nenhuma corporação):
+// vermelha com um disco branco e uma chama vermelha e amarela ao meio. Sem letras: vista do
+// outro lado, uma bandeira mostra o desenho ao contrário, e as letras ficavam ao espelho.
+const firemenFlagTex = canvasTexture(192, 128, (ctx, w, h) => {
+  ctx.fillStyle = '#b3261e'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(w / 2, h / 2, h * 0.3, 0, Math.PI * 2); ctx.fill();
+  const flame = (scale, color) => {
+    const s = h * 0.22 * scale, cx = w / 2, cy = h / 2 + h * 0.08;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - s * 1.3);
+    ctx.quadraticCurveTo(cx + s * 0.9, cy - s * 0.2, cx + s * 0.6, cy + s * 0.4);
+    ctx.arc(cx, cy + s * 0.25, s * 0.62, 0.2, Math.PI - 0.2);
+    ctx.quadraticCurveTo(cx - s * 0.9, cy - s * 0.2, cx, cy - s * 1.3);
+    ctx.fill();
+  };
+  flame(1, '#d8261c');
+  flame(0.55, '#ffcc00');
 }, true);
 
 // Casca do pinheiro-bravo: placas avermelhadas com fendas escuras ao comprido.
@@ -520,28 +617,24 @@ const limeMat = (color) => worldMat(new THREE.Color(color).multiplyScalar(1.06),
 const azulejoMat = (tex) => worldMat(0xffffff, tex, 0.48, { roughness: 0.3, flatShading: false });
 const roofMat = (color) => mat(new THREE.Color(color).multiplyScalar(1.25), { map: roofTex });
 
-// Os 6 padrões de azulejo usados nas fachadas (cores da pesquisa: azul #3A6EA5 sobre branco #EAF0F6).
+// Os padrões de azulejo da barra dos cafés (azul #3A6EA5 sobre branco #EAF0F6).
 const AZULEJOS = [
   azulejoMat(azulejoTex('star', '#eaf0f6', '#3a6ea5')),
-  azulejoMat(azulejoTex('star', '#eef0e6', '#2f6a4a', '#d9a63a')),
   azulejoMat(azulejoTex('diamond', '#eaf0f6', '#2f5d9e', '#e3b23c')),
-  azulejoMat(azulejoTex('diamond', '#f1ece0', '#7a4a2e', '#3a6ea5')),
-  azulejoMat(azulejoTex('plain', '', '#3f7a5a')),
   azulejoMat(azulejoTex('plain', '', '#4a74a8')),
 ];
 
 const MATERIALS = {
   // paredes
   lime: limeMat(COLORS.lime), cream: limeMat(COLORS.cream),
-  sintraYellow: limeMat(COLORS.sintraYellow), paleYellow: limeMat(COLORS.paleYellow),
-  pink: limeMat(COLORS.pink), oxRed: limeMat(COLORS.oxRed), sage: limeMat(COLORS.sage),
-  paleBlue: limeMat(COLORS.paleBlue), salmon: limeMat(COLORS.salmon),
+  paleYellow: limeMat(COLORS.paleYellow), salmon: limeMat(COLORS.salmon), limeShadow: limeMat(COLORS.limeShadow),
   // pedra
   cantaria: mat(COLORS.cantaria), granite: mat(COLORS.granite), graniteDark: mat(COLORS.graniteDark),
   graniteWall: worldMat(0xffffff, graniteTex, 0.5), lichen: mat(COLORS.lichen),
   calcada: worldMat(0xffffff, calcadaTex, 0.5),
   // telhados
   tile: roofMat(COLORS.tile), tileAged: roofMat(COLORS.tileAged), tileLichen: roofMat(COLORS.tileLichen),
+  roofFresh: roofMat(COLORS.roofFresh), roofTypical: roofMat(COLORS.roofTypical), roofAged: roofMat(COLORS.roofAged),
   ridge: mat(COLORS.ridge), flatRoof: mat(0x9a948a),
   // barras, caixilhos, portas
   saloioBlue: mat(COLORS.saloioBlue), ochre: mat(COLORS.ochre), green: mat(COLORS.green),
@@ -553,19 +646,23 @@ const MATERIALS = {
   planks: mat(COLORS.brown, { map: planksTex }),
   // chão à volta das casas
   yardEarth: mat(COLORS.yardEarth), gravel: mat(COLORS.gravel), gardenGreen: mat(COLORS.gardenGreen),
-  // bombeiros, café, chafariz
+  lawn: mat(COLORS.lawn), hedge: mat(COLORS.hedge), hedgeLit: mat(COLORS.hedgeLit),
+  poolWater: mat(COLORS.poolWater, { roughness: 0.1, metalness: 0.1 }),
+  // bombeiros e café
   fireRed: mat(COLORS.fireRed), garageDoor: mat(COLORS.doorRed, { map: garageTex }),
   truckRed: mat(COLORS.truckRed, { roughness: 0.4 }), tyre: mat(COLORS.tyre),
   chrome: mat(COLORS.chrome, { metalness: 0.6, roughness: 0.3 }),
   pole: mat(COLORS.pole, { metalness: 0.3 }), gold: mat(COLORS.gold, { metalness: 0.5 }),
-  flag: mat(0xffffff, { map: flagTex, side: THREE.DoubleSide }),
+  flag: mat(0xffffff, { map: flagTex, side: THREE.DoubleSide, flatShading: false }),
+  euFlag: mat(0xffffff, { map: euFlagTex, side: THREE.DoubleSide, flatShading: false }),
+  firemenFlag: mat(0xffffff, { map: firemenFlagTex, side: THREE.DoubleSide, flatShading: false }),
   bombeirosSign: mat(0xffffff, { map: signTex(['BOMBEIROS', 'VOLUNTÁRIOS'], '#1f2a44', '#ffffff') }),
   cafeSign: mat(0xffffff, { map: signTex(['CAFÉ'], '#f2efe6', '#2e5e3a', 128, 48) }),
+  hallSign: mat(0xffffff, { map: signTex(['SOCIEDADE RECREATIVA'], '#ffffff', '#2f5d9e', 256, 32) }),
   alSign: mat(0xffffff, { map: signTex(['AL'], '#2f5d9e', '#ffffff', 64, 48) }),
   awningGreen: mat(0xffffff, { map: stripesTex('#2f5a3c') }),
   awningRed: mat(0xffffff, { map: stripesTex('#9e3b2c') }),
   chair: mat(COLORS.chair, { roughness: 0.5 }),
-  fountainWater: mat(COLORS.fountainWater, { roughness: 0.1, metalness: 0.2 }),
   // árvores
   euBark: mat(COLORS.euBark), euPatch: mat(COLORS.euPatch),
   euStrip: mat(COLORS.euStrip, { side: THREE.DoubleSide }),
@@ -577,6 +674,7 @@ const MATERIALS = {
   oak: mat(COLORS.oak), oakLit: mat(COLORS.oakLit), holm: mat(COLORS.holm), holmLit: mat(COLORS.holmLit),
   oakBark: mat(COLORS.oakBark),
   palmTrunk: mat(COLORS.palmTrunk), palmLeaf: mat(COLORS.palmLeaf), palmDry: mat(COLORS.palmDry),
+  olive: mat(COLORS.olive), oliveLit: mat(COLORS.oliveLit),
   cypress: mat(COLORS.cypress), lemon: mat(COLORS.lemon), lemonFruit: mat(COLORS.lemonFruit),
   // mato
   gorse: mat(COLORS.gorse), gorseDry: mat(COLORS.gorseDry), rockrose: mat(COLORS.rockrose),
@@ -585,15 +683,13 @@ const MATERIALS = {
   acacia: mat(COLORS.acacia), acaciaFeather: mat(COLORS.acaciaFeather), dryGrass: mat(COLORS.dryGrass),
 };
 
-// Combinações de cores das fachadas pintadas: [parede, molduras/cunhais].
-// Em Sintra e Lisboa: amarelo, ocre, rosa, verde e azul pombalinos, com cantaria ou molduras brancas.
-const FACADES = [
-  [MATERIALS.sintraYellow, MATERIALS.whiteTrim], [MATERIALS.paleYellow, MATERIALS.cantaria],
-  [MATERIALS.pink, MATERIALS.whiteTrim], [MATERIALS.oxRed, MATERIALS.cantaria],
-  [MATERIALS.sage, MATERIALS.whiteTrim], [MATERIALS.paleBlue, MATERIALS.whiteTrim],
-  [MATERIALS.lime, MATERIALS.cantaria], [MATERIALS.cream, MATERIALS.cantaria],
-  [MATERIALS.salmon, MATERIALS.whiteTrim], [MATERIALS.lime, MATERIALS.ochre],
+// Paredes das vivendas: quase todas brancas; de vez em quando amarelo-claro, salmão ou creme.
+const VILLA_WALLS = [
+  MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime, MATERIALS.lime,
+  MATERIALS.lime, MATERIALS.paleYellow, MATERIALS.salmon, MATERIALS.cream,
 ];
+// Telhados das vivendas: laranja vivo (telha nova), o laranja normal e algum mais velho.
+const VILLA_ROOFS = [MATERIALS.roofTypical, MATERIALS.roofTypical, MATERIALS.roofFresh, MATERIALS.roofAged];
 const DOORS = [MATERIALS.green, MATERIALS.brown, MATERIALS.oxblood, MATERIALS.navy];
 const ROOFS = [MATERIALS.tile, MATERIALS.tile, MATERIALS.tileAged, MATERIALS.tileLichen];
 
@@ -623,6 +719,9 @@ const GEOMETRIES = {
   bell: new THREE.CylinderGeometry(0.012, 0.022, 0.035, 8),
   finial: new THREE.SphereGeometry(0.016, 6, 4),
   turretCap: new THREE.ConeGeometry(0.17, 0.2, 4).rotateY(Math.PI / 4),   // pirâmide de base quadrada
+  coretoBase: new THREE.CylinderGeometry(0.15, 0.16, 0.05, 8),            // coreto: estrado octogonal
+  coretoRail: new THREE.CylinderGeometry(0.135, 0.135, 0.035, 8, 1, true), // gradeamento
+  coretoRoof: new THREE.ConeGeometry(0.17, 0.12, 8),                      // telhado em bico
   chairLeg: new THREE.CylinderGeometry(0.003, 0.003, 0.03, 4),
   tableTop: new THREE.CylinderGeometry(0.025, 0.025, 0.006, 10),
   // sombra suave no chão debaixo da casa: um quadrado deitado
@@ -861,18 +960,6 @@ function chimney(g, roof, x, z, size, above, bodyMaterial, pierced = false) {
   }
 }
 
-// Platibanda: o muro baixo que esconde o beiral na fachada da frente, com cornija por baixo,
-// capeamento por cima e dois pináculos nas pontas.
-function platibanda(g, wall, eave, height, material, trim) {
-  const front = wall.d / 2;
-  box(g, trim, wall.w + 0.03, 0.025, 0.04, 0, eave + 0.012, front + 0.005);                 // cornija
-  box(g, material, wall.w + 0.01, height, 0.035, 0, eave + 0.025 + height / 2, front - 0.01);
-  box(g, trim, wall.w + 0.025, 0.014, 0.05, 0, eave + 0.025 + height + 0.007, front - 0.01); // capeamento
-  for (const side of [-1, 1]) {
-    box(g, trim, 0.035, 0.05, 0.035, side * (wall.w / 2 - 0.01), eave + 0.04 + height + 0.025, front - 0.01);
-  }
-}
-
 // Muro baixo caiado com capeamento de telha (muro de quintal), de x1 a x2, à profundidade z.
 function gardenWall(g, x1, x2, z, height = 0.1) {
   const len = Math.abs(x2 - x1);
@@ -908,24 +995,84 @@ function groundHouse(house, lot) {
 }
 
 // =====================================================================================
-// 7. CASAS
-// Numa vila (Malveira da Serra) as casas ficam EM BANDA, coladas à rua: a fachada fica perto
-// da frente do quadrado (z = +0.36) e há um passeio de calçada até à rua. Assim, quadrados de
-// casa lado a lado formam uma rua a sério. A porta fica sempre virada para +z.
+// 7. CASAS — como as da Malveira da Serra VERDADEIRA (fotos e satélite, ver docs/research).
+// A Malveira não é uma cidade de prédios coloridos: é uma aldeia saloia que cresceu em
+// vivendas ("moradias"). Quase todas as casas são:
+//   - brancas (cal), com 1 ou 2 pisos;
+//   - telhado de 4 águas, pouco inclinado (~27°), de telha laranja (Marselha/Lusa);
+//   - num lote com jardim, muro branco baixo com portão de ferro, sebes altas de cipreste
+//     e, muitas vezes, uma piscina (há mais de 100 piscinas à volta da aldeia!).
+// No centro (à volta do largo) as casas são pequenas e ficam encostadas umas às outras:
+// "cubos brancos com chapéu laranja" em degraus pela encosta. Por isso, um quadrado de casa
+// no centro tem 2 ou 3 casinhas; um quadrado na periferia tem UMA vivenda com o seu jardim.
+//
+// buildHouse(rand, ctx) — ctx é OPCIONAL (a galeria não o passa). A vista (village3d.js) diz:
+//   ctx.x, ctx.y     -> o quadrado (para escolher, sempre da mesma maneira, as casas com bandeira)
+//   ctx.neighbors    -> quantas casas há nos 8 quadrados à volta (0 = isolada, 8 = centro denso)
+//   ctx.landmark     -> 'chapel' (a capela do largo) ou 'hall' (a sociedade recreativa), ou nada
+// A porta fica sempre virada para +z (a vista roda a casa para a estrada).
 // =====================================================================================
-export function buildHouse(rand) {
-  const r = rand();
-  let house;
-  if (r < 0.46) house = rowHouse(rand);             // casa de vila em banda (2-3 pisos)
-  else if (r < 0.6) house = saloioCottage(rand);    // casa saloia térrea
-  else if (r < 0.69) house = cafeHouse(rand);       // café/tasca no rés-do-chão
-  else if (r < 0.78) house = romanticVilla(rand);   // chalé romântico de Sintra
-  else if (r < 0.87) house = quinta(rand);          // quinta murada
-  else if (r < 0.96) house = stoneCottage(rand);    // casa de granito de alojamento local
-  else house = chapel(rand);                        // capela com sineira e chafariz
+export function buildHouse(rand, ctx) {
+  const kind = ctx ? houseKind(rand, ctx) : GALLERY_HOUSES[galleryIndex++ % GALLERY_HOUSES.length];
+  const house = HOUSE_BUILDERS[kind](rand);
   groundHouse(house, house.userData.lot);
-  mergeByMaterial(house);
+  mergeByMaterial(house);                       // as bandeiras ficam de fora (keepSeparate)
   return shadows(house);
+}
+
+// Na galeria (sem ctx) mostramos cada tipo de casa por esta ordem, para se ver tudo.
+const GALLERY_HOUSES = ['villaPool', 'cluster', 'saloioPair', 'villaFlag', 'cafe', 'chapel', 'hall', 'manor'];
+let galleryIndex = 0;
+
+const HOUSE_BUILDERS = {
+  villa: (rand) => villa(rand, {}),
+  villaPool: (rand) => villa(rand, { pool: true }),
+  villaFlag: (rand) => villa(rand, { flag: true }),
+  cluster: (rand) => villageCluster(rand),
+  saloio: (rand) => saloioCottage(rand, false),
+  saloioPair: (rand) => saloioCottage(rand, true),
+  cafe: (rand) => cafeHouse(rand),
+  quinta: (rand) => quinta(rand),
+  manor: (rand) => quintaManor(rand),
+  stone: (rand) => stoneCottage(rand),
+  chapel: (rand) => chapelLargo(rand),
+  hall: (rand) => clubHall(rand),
+};
+
+// Que casa vai neste quadrado? Depende de quantas casas há à volta (centro denso ou periferia).
+// As bandeiras nas varandas são raras (~1 casa em 30) e escolhidas pelo quadrado (tileHash),
+// por isso aparecem sempre nas mesmas casas.
+function houseKind(rand, ctx) {
+  if (ctx.landmark === 'chapel' || ctx.landmark === 'hall') return ctx.landmark;
+  if (ctx.x !== undefined && tileHash(ctx.x, ctx.y) < 0.035) return 'villaFlag';
+  const n = ctx.neighbors ?? 3;
+  const r = rand();
+  if (n >= 5) {                                  // centro: casinhas encostadas
+    if (r < 0.62) return 'cluster';
+    if (r < 0.77) return 'saloioPair';
+    if (r < 0.9) return 'cafe';
+    return 'villa';
+  }
+  if (n >= 2) {                                  // bairros: vivendas e algumas casas saloias
+    if (r < 0.5) return 'villa';
+    if (r < 0.68) return 'villaPool';
+    if (r < 0.82) return 'cluster';
+    if (r < 0.94) return 'saloio';
+    return 'stone';
+  }
+  if (r < 0.4) return 'villaPool';               // periferia: vivendas com piscina, quintas
+  if (r < 0.65) return 'villa';
+  if (r < 0.77) return 'quinta';
+  if (r < 0.87) return 'manor';
+  if (r < 0.95) return 'stone';
+  return 'saloio';
+}
+
+// Um número "ao calhas" entre 0 e 1, mas SEMPRE o mesmo para o mesmo quadrado (x, y).
+function tileHash(x, y) {
+  let h = Math.imul(x * 73856093 ^ y * 19349663, 2654435761);
+  h = Math.imul(h ^ (h >>> 15), 2246822519);
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
 }
 
 // Um "corpo" de edifício: um grupo cujo centro fica em (x, z) dentro do quadrado.
@@ -936,148 +1083,209 @@ function bodyAt(g, x, z) {
   return body;
 }
 
-// H1 — Casa de vila em banda (Sintra/Lisboa): 2 ou 3 pisos, fachada pintada de cor OU forrada
-// a azulejo, cunhais e molduras de cantaria, varandas de ferro, platibanda ou beirado,
-// chaminé alta. Atrás: um quintal murado com um limoeiro ou um estendal.
-function rowHouse(rand) {
+// Sebe alta de cipreste aparada (as "paredes verdes" que dividem os lotes na Malveira).
+function hedge(g, x, z, w, d, h) {
+  box(g, MATERIALS.hedge, w, h, d, x, h / 2, z);
+  box(g, MATERIALS.hedgeLit, w - 0.01, 0.012, d - 0.01, x, h + 0.004, z);   // topo aparado, mais claro
+}
+
+// Piscina: bordo de pedra branca e água azul-turquesa.
+function pool(g, x, z, w, d) {
+  box(g, MATERIALS.whiteTrim, w + 0.04, 0.016, d + 0.04, x, 0.008, z);
+  box(g, MATERIALS.poolWater, w, 0.004, d, x, 0.017, z);
+}
+
+// Portão de ferro (verde-escuro ou preto) entre dois pilares brancos, em x, à profundidade z.
+function ironGate(g, x, z, width, material) {
+  for (const s of [-1, 1]) {
+    box(g, MATERIALS.lime, 0.035, 0.11, 0.035, x + s * (width / 2 + 0.017), 0.055, z);
+    box(g, MATERIALS.tile, 0.045, 0.012, 0.045, x + s * (width / 2 + 0.017), 0.116, z);
+  }
+  box(g, material, width, 0.006, 0.006, x, 0.085, z);
+  box(g, material, width, 0.006, 0.006, x, 0.02, z);
+  const bars = Math.max(3, Math.round(width / 0.018));
+  for (let i = 0; i <= bars; i++) box(g, material, 0.004, 0.075, 0.004, x - width / 2 + (i * width) / bars, 0.05, z);
+}
+
+// Árvore de jardim: pinheiro-manso pequeno, palmeira, cipreste ou limoeiro.
+function gardenTree(rand) {
+  const v = rand();
+  if (v < 0.4) { const t = stonePine(rand); t.scale.setScalar(0.55); return t; }
+  if (v < 0.62) { const t = palm(rand); t.scale.setScalar(0.8); return t; }
+  if (v < 0.82) return cypress(rand);
+  return lemonTree(rand);
+}
+
+// H1 — VIVENDA ("moradia"), a casa mais comum da Malveira.
+// Branca (às vezes amarelo-claro ou salmão), 1 ou 2 pisos, telhado de 4 águas laranja com beirado
+// branco, chaminé, muitas vezes uma ala em "L" ou um alpendre de colunas brancas. No lote: muro
+// branco baixo com portão de ferro, sebe de cipreste ao fundo, relva (rega) ou terra seca,
+// às vezes uma piscina, e uma árvore de jardim. opts.flag = bandeira de Portugal na varanda.
+function villa(rand, opts) {
   const g = new THREE.Group();
-  const floors = rand() < 0.55 ? 2 : 3;
-  const floorH = 0.29, plinthH = 0.06;
-  const eave = plinthH + floors * floorH;            // 0.64 ou 0.93
-  const wall = { w: 0.88, d: 0.54 };
-  const frontZ = 0.36;
-  const body = bodyAt(g, 0, frontZ - wall.d / 2);
-  const tiled = rand() < 0.32;                       // fachada de azulejo
-  const [paint, trim] = tiled
-    ? [pick(rand, [MATERIALS.lime, MATERIALS.cream]), pick(rand, [MATERIALS.whiteTrim, MATERIALS.cantaria])]
-    : pick(rand, FACADES);
+  const twoFloors = opts.flag || rand() < 0.5;
+  const floorH = 0.2, plinth = 0.03;
+  const eave = plinth + (twoFloors ? 2 : 1) * floorH + 0.02;      // 0.25 ou 0.45
+  const wall = { w: 0.42 + rand() * 0.12, d: 0.3 + rand() * 0.08 };
+  const side = rand() < 0.5 ? -1 : 1;                              // a casa fica deste lado; o jardim do outro
+  const bx = side * 0.1, bz = -0.1;
+  const body = bodyAt(g, bx, bz);
+  const paint = pick(rand, VILLA_WALLS);
+  const roofMaterial = pick(rand, VILLA_ROOFS);
   walls(body, wall, eave, paint);
-  if (tiled) {
-    // o azulejo cobre a fachada entre os cunhais, do soco até ao beiral
-    const h = eave - plinthH - 0.01;
-    onWall(body, wall, 'front', 0, plinthH + h / 2, wall.w - 0.09, h, 0.003, pick(rand, AZULEJOS));
+  baseBand(body, wall, plinth, pick(rand, [MATERIALS.granite, MATERIALS.cantaria, MATERIALS.limeShadow]));
+  const roof = hipRoof(body, wall, eave, 27, 0.035, roofMaterial, MATERIALS.ridge);
+  // janelas e porta: caixilhos brancos, castanhos ou verdes; às vezes portadas
+  const frame = pick(rand, [MATERIALS.whiteTrim, MATERIALS.whiteTrim, MATERIALS.brown, MATERIALS.green]);
+  const framed = { frame, frameSize: 0.014, sill: MATERIALS.cantaria };
+  const doorX = -side * wall.w * 0.18;
+  opening(body, wall, 'front', doorX, 0.12, 0.08, 0.17, pick(rand, DOORS), { ...framed, door: true });
+  opening(body, wall, 'front', doorX + side * 0.15, 0.15, 0.1, 0.1, MATERIALS.glass, framed);
+  if (wall.w > 0.48) opening(body, wall, 'front', doorX - side * 0.11, 0.15, 0.08, 0.1, MATERIALS.glass, framed);
+  opening(body, wall, 'back', 0, 0.15, 0.1, 0.1, MATERIALS.glass, framed);
+  opening(body, wall, side > 0 ? 'right' : 'left', 0, 0.15, 0.09, 0.1, MATERIALS.glass, framed);
+  let terrace = null;                                              // { y, z, w, x }: onde pendurar a bandeira
+  if (twoFloors) {
+    const y2 = plinth + floorH + 0.11;
+    for (const f of [-0.3, 0, 0.3]) opening(body, wall, 'front', f * wall.w, y2, 0.09, 0.11, MATERIALS.glass, framed);
+    opening(body, wall, 'back', 0.1, y2, 0.09, 0.1, MATERIALS.glass, framed);
+    if (opts.flag || rand() < 0.55) {
+      // varanda do 1.º andar: laje e parapeito branco (as varandas da Malveira são de alvenaria)
+      const bw = wall.w * 0.55, deep = 0.07;
+      const floorY = plinth + floorH + 0.015;
+      box(body, MATERIALS.whiteTrim, bw, 0.02, deep, 0, floorY, wall.d / 2 + deep / 2);
+      box(body, paint, bw, 0.06, 0.016, 0, floorY + 0.04, wall.d / 2 + deep - 0.008);
+      for (const s of [-1, 1]) box(body, paint, 0.016, 0.06, deep, s * (bw / 2 - 0.008), floorY + 0.04, wall.d / 2 + deep / 2);
+      box(body, MATERIALS.whiteTrim, bw + 0.01, 0.01, 0.024, 0, floorY + 0.075, wall.d / 2 + deep - 0.008);
+      terrace = { x: 0, y: floorY + 0.08, z: wall.d / 2 + deep };
+    }
   }
-  quoins(body, wall, eave, trim, 0.045);
-  baseBand(body, wall, plinthH, pick(rand, [MATERIALS.cantaria, MATERIALS.granite]));
-  for (let i = 1; i < floors; i++) {                 // friso entre pisos
-    box(body, trim, wall.w + 0.024, 0.016, wall.d + 0.024, 0, plinthH + i * floorH, 0);
+  chimney(body, roof, side * (wall.w / 2 - 0.08), -0.06, 0.05, 0.07, paint);
+  // ala em "L" (1 piso) virada para a frente, do lado da casa, OU um alpendre com colunas
+  if (!terrace && rand() < 0.45) {
+    const ww = 0.2 + rand() * 0.06, wd = 0.22;
+    const wing = bodyAt(g, bx + side * (wall.w / 2 - ww / 2), bz + wall.d / 2 + wd / 2 - 0.06);
+    const wingWall = { w: ww, d: wd };
+    walls(wing, wingWall, 0.25, paint);
+    baseBand(wing, wingWall, plinth, MATERIALS.limeShadow);
+    hipRoof(wing, wingWall, 0.25, 27, 0.03, roofMaterial, MATERIALS.ridge);
+    opening(wing, wingWall, 'front', 0, 0.15, 0.1, 0.1, MATERIALS.glass, framed);
+  } else if (!terrace) {
+    porch(body, wall, rand, roofMaterial);
   }
-  rowHouseFront(body, wall, rand, { floors, floorH, plinthH, trim });
-  rowHouseBack(body, wall, floors, floorH, plinthH, trim);
-  // telhado: com platibanda (60%) ou com beirado e cornija
-  const roofMaterial = pick(rand, ROOFS);
-  let roof;
-  if (rand() < 0.6) {
-    platibanda(body, wall, eave, 0.07, tiled ? trim : paint, trim);
-    roof = hipRoof(body, wall, eave + 0.02, 25, 0, roofMaterial, MATERIALS.ridge, false);
-  } else {
-    box(body, trim, wall.w + 0.012, 0.03, wall.d + 0.012, 0, eave - 0.005, 0);   // cornija
-    roof = hipRoof(body, wall, eave + 0.01, 25, 0.006, roofMaterial, MATERIALS.ridge, false);
-  }
-  chimney(body, roof, (rand() < 0.5 ? -1 : 1) * 0.26, -0.1, 0.07, 0.13, paint);
-  backyard(g, rand, frontZ - wall.d);
-  g.userData.lot = { w: wall.w, d: wall.d, z: body.position.z, sidewalk: frontZ };
+  // o lote: muro branco à frente com portão, sebe ao fundo, jardim e (às vezes) piscina
+  const gateX = doorX + bx;
+  gardenWall(g, -0.44, gateX - 0.08, 0.425, 0.07);
+  gardenWall(g, gateX + 0.08, 0.44, 0.425, 0.07);
+  ironGate(g, gateX, 0.425, 0.12, rand() < 0.6 ? MATERIALS.green : MATERIALS.iron);
+  if (rand() < 0.7) hedge(g, 0, -0.405, 0.86, 0.05, 0.13 + rand() * 0.07);
+  else if (!opts.pool) hedge(g, -side * 0.405, -0.05, 0.05, 0.62, 0.16);
+  const freeX = -side * 0.29;                                       // o lado livre do lote
+  const irrigated = opts.pool || rand() < 0.4;
+  box(g, irrigated ? MATERIALS.lawn : MATERIALS.yardEarth, 0.3, 0.008, 0.7, freeX, 0.004, 0.02);
+  box(g, MATERIALS.gravel, 0.12, 0.006, 0.4 - (bz + wall.d / 2), gateX, 0.003, (0.42 + bz + wall.d / 2) / 2);   // caminho
+  if (opts.pool) pool(g, freeX, -0.08, 0.15 + rand() * 0.04, 0.26);
+  const tree = gardenTree(rand);
+  tree.position.set(freeX + side * 0.02, 0, opts.pool ? 0.27 : 0.05 + rand() * 0.2);
+  g.add(tree);
+  if (opts.flag) balconyFlag(body, terrace ?? { x: 0, y: eave - 0.04, z: wall.d / 2 + 0.01 });
+  g.userData.lot = { w: wall.w, d: wall.d, z: bz };
   return g;
 }
 
-// A fachada da casa em banda: 3 vãos (esquerda, meio, direita) em cada piso.
-// Rés-do-chão: a porta num dos vãos e janelas com grade nos outros (ou uma montra de loja).
-// Andares: janelas com moldura; no 1.º andar, muitas vezes portas de sacada com varanda de ferro.
-function rowHouseFront(body, wall, rand, { floors, floorH, plinthH, trim }) {
-  const bays = [-0.28, 0, 0.28];
-  const door = pick(rand, DOORS);
-  const doorBay = pick(rand, [0, 1, 2]);
-  const shop = rand() < 0.2;                                     // loja no rés-do-chão
-  const framed = { frame: trim, frameSize: 0.018, sill: trim };
-  const fill = () => (rand() < 0.75 ? MATERIALS.glass : MATERIALS.green);
-  bays.forEach((x, i) => {
-    if (i === doorBay) {
-      opening(body, wall, 'front', x, 0.12, 0.12, 0.24, door, { ...framed, door: true });
-    } else if (shop) {
-      opening(body, wall, 'front', x, 0.15, 0.17, 0.19, MATERIALS.glass, { frame: MATERIALS.brown, frameSize: 0.014 });
-    } else {
-      const grille = rand() < 0.5 ? MATERIALS.iron : undefined;
-      opening(body, wall, 'front', x, 0.2, 0.11, 0.15, fill(), { ...framed, grille });
-    }
-  });
-  const balconies = rand() < 0.65;
-  for (let f = 1; f < floors; f++) {
-    const floorY = plinthH + f * floorH;
-    for (const x of bays) {
-      if (f === 1 && balconies) {
-        opening(body, wall, 'front', x, floorY + 0.125, 0.12, 0.22, fill(), framed);   // porta de sacada
-        ironBalcony(body, wall, x, floorY + 0.008, 0.18);
-      } else {
-        opening(body, wall, 'front', x, floorY + 0.15, 0.12, 0.16, fill(), framed);
-      }
-    }
-  }
+// Alpendre: laje branca com telha por cima, apoiada em 3 colunas brancas, à frente da porta.
+function porch(body, wall, rand, roofMaterial) {
+  const pw = wall.w * 0.62, deep = 0.1, h = 0.2;
+  const z = wall.d / 2 + deep / 2;
+  for (const s of [-1, 0, 1]) box(body, MATERIALS.whiteTrim, 0.018, h, 0.018, s * (pw / 2 - 0.012), h / 2, z + deep / 2 - 0.012);
+  const slab = box(body, roofMaterial, pw + 0.03, 0.02, deep + 0.03, 0, h + 0.015, z + 0.005);
+  slab.rotation.x = 0.18;                                           // cai um pouco para a frente
+  box(body, MATERIALS.gravel, pw, 0.01, deep, 0, 0.005, z);
 }
 
-// As traseiras: janelas mais pequenas, sem moldura, e a porta para o quintal.
-function rowHouseBack(body, wall, floors, floorH, plinthH, trim) {
-  opening(body, wall, 'back', 0.2, 0.12, 0.1, 0.22, MATERIALS.brown, { door: true });
-  opening(body, wall, 'back', -0.2, 0.2, 0.1, 0.13, MATERIALS.glass, { sill: trim });
-  for (let f = 1; f < floors; f++) {
-    for (const x of [-0.2, 0.2]) {
-      opening(body, wall, 'back', x, plinthH + f * floorH + 0.15, 0.1, 0.13, MATERIALS.glass, { sill: trim });
-    }
-  }
-}
-
-// Quintal das traseiras: terra, muro caiado ao fundo e de um lado, e um limoeiro ou um estendal.
-function backyard(g, rand, backZ) {
-  const depth = backZ + 0.44;
-  box(g, MATERIALS.yardEarth, 0.86, 0.01, depth, 0, 0.005, backZ - depth / 2);
-  gardenWall(g, -0.44, 0.44, -0.43, 0.11);
-  gardenWallZ(g, -0.43, backZ, -0.43, 0.11);
-  if (rand() < 0.55) {
-    const tree = lemonTree(rand);
-    tree.position.set(0.22, 0, (backZ - 0.43) / 2);
-    g.add(tree);
-  } else {
-    laundryLine(g, (backZ - 0.43) / 2);
-  }
-}
-
-// Estendal: 2 postes, um fio e 3 peças de roupa a secar.
-function laundryLine(g, z) {
-  for (const x of [-0.25, 0.25]) box(g, MATERIALS.brown, 0.01, 0.22, 0.01, x, 0.11, z);
-  box(g, MATERIALS.iron, 0.5, 0.003, 0.003, 0, 0.21, z);
-  [MATERIALS.white, MATERIALS.saloioBlue, MATERIALS.pink].forEach((cloth, i) => {
-    box(g, cloth, 0.05, 0.06, 0.004, -0.12 + i * 0.12, 0.18, z);
-  });
-}
-
-// H2 — Casa saloia térrea (a casa rural da região de Lisboa): caiada de branco, barra e cunhais
-// pintados de azul ou ocre, telhado de 4 águas e uma chaminé grande com buraquinhos.
-// À frente: um pátio com muro baixo caiado e vasos.
-function saloioCottage(rand) {
+// H2 — Casinhas do centro: 2 ou 3 cubos brancos pequenos encostados, de alturas diferentes,
+// com telhado laranja de 4 águas (ou de 2 águas nas mais velhas, com barra azul ou ocre).
+// Vistos de longe, os quadrados de centro formam a "mancha" branca e laranja das fotos.
+const CLUSTER_SLOTS = [[-0.2, 0.17], [0.2, -0.16], [0.21, 0.22], [-0.21, -0.2]];
+function villageCluster(rand) {
   const g = new THREE.Group();
-  const wall = { w: 0.74, d: 0.46 };
-  const eave = 0.36;
-  const body = bodyAt(g, 0, 0.06);
-  const band = pick(rand, [MATERIALS.saloioBlue, MATERIALS.saloioBlue, MATERIALS.ochre]);
-  walls(body, wall, eave, MATERIALS.lime);
-  baseBand(body, wall, 0.06, band);
-  quoins(body, wall, eave, band, 0.035);
-  const roof = hipRoof(body, wall, eave, 30, 0.05, pick(rand, ROOFS), MATERIALS.ridge);
-  const framed = { frame: band, frameSize: 0.02 };
-  const shutter = rand() < 0.5 ? MATERIALS.green : MATERIALS.glass;
-  opening(body, wall, 'front', -0.12, 0.13, 0.11, 0.24, pick(rand, DOORS), { ...framed, door: true });
-  opening(body, wall, 'front', 0.17, 0.21, 0.11, 0.12, shutter, framed);
-  opening(body, wall, 'back', 0, 0.21, 0.1, 0.12, MATERIALS.green, framed);
-  opening(body, wall, 'right', 0, 0.21, 0.1, 0.12, shutter, framed);
-  opening(body, wall, 'left', 0, 0.21, 0.1, 0.12, MATERIALS.green, framed);
-  chimney(body, roof, (rand() < 0.5 ? -1 : 1) * 0.24, 0, 0.09, 0.2, MATERIALS.lime, true);
-  // pátio da frente: chão de saibro, muro caiado com um portão aberto em frente à porta
-  box(g, MATERIALS.gravel, 0.84, 0.01, 0.14, 0, 0.005, 0.36);
-  gardenWall(g, -0.44, -0.2, 0.42);
-  gardenWall(g, -0.04, 0.44, 0.42);
-  gardenWallZ(g, 0.29, 0.42, -0.43);
-  gardenWallZ(g, 0.29, 0.42, 0.43);
-  pottedPlants(g, rand, 0.05, 0.33);
-  g.userData.lot = { w: wall.w, d: wall.d, z: 0.06 };
+  const count = rand() < 0.5 ? 2 : 3;
+  const first = Math.floor(rand() * 2);                 // 2 arrumações possíveis, nenhuma se sobrepõe
+  const slots = [CLUSTER_SLOTS[first], CLUSTER_SLOTS[first + 1], CLUSTER_SLOTS[(first + 3) % 4]].slice(0, count);
+  let lot = null;
+  for (const [x, z] of slots) {
+    const w = 0.3 + rand() * 0.06, d = 0.26 + rand() * 0.04;
+    const info = smallHouse(g, rand, x + (rand() - 0.5) * 0.03, z + (rand() - 0.5) * 0.03, w, d);
+    if (!lot) lot = info;
+  }
+  box(g, MATERIALS.yardEarth, 0.84, 0.008, 0.84, 0, 0.004, 0);
+  if (rand() < 0.5) {                                    // um quintal com uma árvore
+    const tree = rand() < 0.5 ? lemonTree(rand) : cypress(rand);
+    const [fx, fz] = CLUSTER_SLOTS[(first + 2) % 4];
+    tree.position.set(fx, 0, fz);
+    g.add(tree);
+  }
+  g.userData.lot = lot;
+  return g;
+}
+
+// Uma casinha (cubo branco, 1 ou 2 pisos) com o centro em (x, z). Devolve o seu "lot".
+function smallHouse(g, rand, x, z, w, d) {
+  const body = bodyAt(g, x, z);
+  const wall = { w, d };
+  const eave = rand() < 0.45 ? 0.43 : 0.25;
+  const old = rand() < 0.2;                               // casa saloia antiga: barra pintada
+  const paint = old ? MATERIALS.lime : pick(rand, VILLA_WALLS);
+  walls(body, wall, eave, paint);
+  const band = old ? pick(rand, [MATERIALS.saloioBlue, MATERIALS.ochre]) : MATERIALS.limeShadow;
+  baseBand(body, wall, old ? 0.05 : 0.03, band);
+  const roofMaterial = pick(rand, old ? ROOFS : VILLA_ROOFS);
+  const roof = old
+    ? gableRoof(body, wall, eave, 28, 0.03, roofMaterial, paint, MATERIALS.ridge)
+    : hipRoof(body, wall, eave, 27, 0.03, roofMaterial, MATERIALS.ridge);
+  const framed = { frame: old ? band : MATERIALS.whiteTrim, frameSize: 0.014, sill: MATERIALS.cantaria };
+  opening(body, wall, 'front', -w * 0.22, 0.11, 0.07, 0.16, pick(rand, DOORS), { ...framed, door: true });
+  opening(body, wall, 'front', w * 0.2, 0.15, 0.08, 0.09, rand() < 0.7 ? MATERIALS.glass : MATERIALS.green, framed);
+  opening(body, wall, 'back', 0, 0.15, 0.08, 0.09, MATERIALS.glass, framed);
+  if (eave > 0.3) {
+    opening(body, wall, 'front', -w * 0.22, 0.33, 0.07, 0.09, MATERIALS.glass, framed);
+    opening(body, wall, 'front', w * 0.2, 0.33, 0.07, 0.09, MATERIALS.glass, framed);
+  }
+  if (rand() < 0.5) chimney(body, roof, w * 0.3, -d * 0.15, 0.045, 0.07, paint, old);
+  return { w, d, z };
+}
+
+// H3 — Casa saloia térrea (a casa rural antiga da região de Lisboa, ao longo das estradas EN):
+// comprida e baixa, caiada de branco, barra e cunhais azuis ou ocre, telhado de 2 águas,
+// janelas pequenas e uma chaminé grande com buraquinhos. pair = 2 casas coladas em banda.
+function saloioCottage(rand, pair) {
+  const g = new THREE.Group();
+  const parts = pair ? [[-0.215, 0.42], [0.215, 0.42]] : [[0, 0.74]];
+  let lot = null;
+  for (const [x, w] of parts) {
+    const wall = { w, d: 0.44 };
+    const eave = pair ? 0.27 + rand() * 0.06 : 0.3;
+    const body = bodyAt(g, x, 0.04);
+    const band = pick(rand, [MATERIALS.saloioBlue, MATERIALS.saloioBlue, MATERIALS.ochre]);
+    walls(body, wall, eave, MATERIALS.lime);
+    baseBand(body, wall, 0.06, band);
+    quoins(body, wall, eave, band, 0.03);
+    const roof = gableRoof(body, wall, eave, 28, 0.035, pick(rand, ROOFS), MATERIALS.lime, MATERIALS.ridge);
+    const framed = { frame: band, frameSize: 0.018 };
+    const shutter = rand() < 0.5 ? MATERIALS.green : MATERIALS.glass;
+    opening(body, wall, 'front', -w * 0.17, 0.12, 0.09, 0.2, pick(rand, DOORS), { ...framed, door: true });
+    opening(body, wall, 'front', w * 0.22, 0.18, 0.09, 0.1, shutter, framed);
+    opening(body, wall, 'back', 0, 0.18, 0.08, 0.1, MATERIALS.green, framed);
+    chimney(body, roof, w * 0.3, 0, 0.08, 0.15, MATERIALS.lime, true);
+    if (!lot) lot = { w: pair ? 0.86 : w, d: wall.d, z: 0.04 };
+  }
+  // à frente: pátio de saibro, muro caiado e vasos
+  box(g, MATERIALS.gravel, 0.84, 0.01, 0.16, 0, 0.005, 0.35);
+  gardenWall(g, -0.44, -0.2, 0.425, 0.08);
+  gardenWall(g, -0.04, 0.44, 0.425, 0.08);
+  pottedPlants(g, rand, 0.05, 0.34);
+  if (!pair) hedge(g, 0, -0.405, 0.86, 0.05, 0.15);
+  g.userData.lot = lot;
   return g;
 }
 
@@ -1090,20 +1298,19 @@ function pottedPlants(g, rand, x, z) {
   }
 }
 
-// H3 — Café/tasca de esquina: rés-do-chão com montras, toldo às riscas e a placa "CAFÉ",
-// barra de azulejo, esplanada de calçada com mesas brancas. Muitas vezes com um andar por cima.
+// H4 — Café/pastelaria da avenida (a rua comercial para Janes): casa branca de 1 ou 2 pisos
+// com montras, toldo às riscas, a placa "CAFÉ", barra de azulejo e esplanada com mesas brancas.
 function cafeHouse(rand) {
   const g = new THREE.Group();
   const twoFloors = rand() < 0.6;
-  const eave = twoFloors ? 0.7 : 0.44;
+  const eave = twoFloors ? 0.62 : 0.42;
   const wall = { w: 0.84, d: 0.46 };
-  const frontZ = 0.3;
+  const frontZ = 0.28;
   const body = bodyAt(g, 0, frontZ - wall.d / 2);
-  const paint = pick(rand, [MATERIALS.lime, MATERIALS.sintraYellow, MATERIALS.cream, MATERIALS.paleBlue]);
+  const paint = pick(rand, [MATERIALS.lime, MATERIALS.lime, MATERIALS.cream, MATERIALS.paleYellow]);
   const trim = MATERIALS.whiteTrim;
   walls(body, wall, eave, paint);
   onWall(body, wall, 'front', 0, 0.1, wall.w - 0.09, 0.12, 0.003, pick(rand, AZULEJOS));   // barra de azulejo
-  quoins(body, wall, eave, MATERIALS.cantaria, 0.045);
   baseBand(body, wall, 0.04, MATERIALS.cantaria);
   const frame = { frame: MATERIALS.brown, frameSize: 0.014 };
   opening(body, wall, 'front', -0.27, 0.13, 0.12, 0.25, MATERIALS.glass, { ...frame, door: true });
@@ -1112,17 +1319,16 @@ function cafeHouse(rand) {
   awning(body, wall, rand);
   signBoard(body, wall, 0, 0.37, 0.24, 0.07, MATERIALS.cafeSign, MATERIALS.whiteTrim);
   if (twoFloors) {
-    box(body, trim, wall.w + 0.012, 0.016, wall.d + 0.016, 0, 0.42, 0);                     // friso
     for (const x of [-0.27, 0, 0.27]) {
-      opening(body, wall, 'front', x, 0.56, 0.12, 0.2, MATERIALS.glass, { frame: trim, frameSize: 0.018 });
-      ironBalcony(body, wall, x, 0.445, 0.17);
+      opening(body, wall, 'front', x, 0.52, 0.11, 0.15, MATERIALS.glass, { frame: trim, frameSize: 0.016 });
     }
   }
-  flatRoof(body, wall, eave, paint, trim);
-  // esplanada: 2 mesas com 2 cadeiras cada, na calçada
-  for (const x of [-0.08, 0.24]) cafeTable(g, x, 0.38);
-  backyard(g, rand, frontZ - wall.d);
-  g.userData.lot = { w: wall.w, d: wall.d, z: body.position.z, sidewalk: frontZ };
+  hipRoof(body, wall, eave, 27, 0.035, pick(rand, VILLA_ROOFS), MATERIALS.ridge);
+  for (const x of [-0.08, 0.24]) cafeTable(g, x, 0.36);           // esplanada
+  box(g, MATERIALS.calcada, 0.9, 0.012, 0.45 - frontZ, 0, 0.006, frontZ + (0.45 - frontZ) / 2);
+  box(g, MATERIALS.yardEarth, 0.86, 0.01, 0.38, 0, 0.005, -0.24);
+  hedge(g, 0, -0.405, 0.86, 0.05, 0.12);
+  g.userData.lot = { w: wall.w, d: wall.d, z: body.position.z };
   return g;
 }
 
@@ -1161,69 +1367,68 @@ function cafeTable(g, x, z) {
   }
 }
 
-// H4 — Chalé romântico de Sintra (fim do séc. XIX): 2 pisos pintados de rosa, ocre ou
-// vermelho-sangue-de-boi, cornijas brancas, telhado inclinado e uma torre quadrada com
-// telhado em pirâmide. Jardim com saibro, um cipreste e muro com portão.
-function romanticVilla(rand) {
+// H5 — Solar de quinta na encosta (como a Quinta da Felicidade, por cima da aldeia):
+// casa de 2 pisos creme ou branca, telhado de 2 águas e uma torre quadrada com telhado em
+// pirâmide. Jardim de saibro murado, sebe e um pinheiro-manso.
+function quintaManor(rand) {
   const g = new THREE.Group();
   const wall = { w: 0.6, d: 0.46 };
-  const eave = 0.62;
-  const body = bodyAt(g, -0.04, -0.04);
-  const paint = pick(rand, [MATERIALS.pink, MATERIALS.sintraYellow, MATERIALS.oxRed, MATERIALS.paleYellow]);
+  const eave = 0.56;
+  const body = bodyAt(g, -0.04, -0.06);
+  const paint = pick(rand, [MATERIALS.cream, MATERIALS.lime, MATERIALS.paleYellow]);
   const trim = MATERIALS.whiteTrim;
   walls(body, wall, eave, paint);
-  baseBand(body, wall, 0.05, MATERIALS.cantaria);
-  quoins(body, wall, eave, trim, 0.035);
-  box(body, trim, wall.w + 0.014, 0.018, wall.d + 0.014, 0, 0.33, 0);                      // friso
-  gableRoof(body, wall, eave, 40, 0.05, pick(rand, ROOFS), paint, MATERIALS.ridge);
-  const rise = (wall.d / 2) * Math.tan(THREE.MathUtils.degToRad(40));
-  for (const side of [-1, 1]) place(body, GEOMETRIES.finial, trim, side * (wall.w / 2 + 0.03), eave + rise + 0.05, 0);
-  const framed = { frame: trim, frameSize: 0.02, sill: trim };
-  opening(body, wall, 'front', -0.06, 0.14, 0.11, 0.26, pick(rand, DOORS), { ...framed, door: true });
-  opening(body, wall, 'front', -0.22, 0.2, 0.1, 0.16, MATERIALS.glass, framed);
-  opening(body, wall, 'front', -0.22, 0.48, 0.1, 0.18, MATERIALS.glass, framed);
-  opening(body, wall, 'front', -0.06, 0.47, 0.1, 0.2, MATERIALS.glass, framed);
-  ironBalcony(body, wall, -0.06, 0.36, 0.16);
+  baseBand(body, wall, 0.05, MATERIALS.granite);
+  quoins(body, wall, eave, MATERIALS.cantaria, 0.035);
+  box(body, trim, wall.w + 0.014, 0.018, wall.d + 0.014, 0, 0.3, 0);                      // friso
+  gableRoof(body, wall, eave, 32, 0.04, pick(rand, VILLA_ROOFS), paint, MATERIALS.ridge);
+  const framed = { frame: MATERIALS.cantaria, frameSize: 0.02, sill: MATERIALS.cantaria };
+  opening(body, wall, 'front', -0.06, 0.13, 0.1, 0.24, pick(rand, DOORS), { ...framed, door: true });
+  opening(body, wall, 'front', -0.22, 0.18, 0.09, 0.14, MATERIALS.glass, framed);
+  opening(body, wall, 'front', -0.22, 0.44, 0.09, 0.15, MATERIALS.glass, framed);
+  opening(body, wall, 'front', -0.06, 0.43, 0.09, 0.17, MATERIALS.glass, framed);
+  ironBalcony(body, wall, -0.06, 0.33, 0.15);
   for (const x of [-0.15, 0.15]) {
-    opening(body, wall, 'back', x, 0.2, 0.1, 0.15, MATERIALS.glass, framed);
-    opening(body, wall, 'back', x, 0.48, 0.1, 0.15, MATERIALS.glass, framed);
+    opening(body, wall, 'back', x, 0.18, 0.09, 0.14, MATERIALS.glass, framed);
+    opening(body, wall, 'back', x, 0.44, 0.09, 0.14, MATERIALS.glass, framed);
   }
-  opening(body, wall, 'left', 0, 0.48, 0.1, 0.15, MATERIALS.glass, framed);
   villaTurret(body, wall, paint, trim);
-  // jardim: saibro, um cipreste ao canto e muro com portão
-  const tree = cypress(rand);
-  tree.position.set(-0.33, 0, 0.33);
+  const tree = stonePine(rand);
+  tree.scale.setScalar(0.7);
+  tree.position.set(-0.3, 0, 0.3);
   g.add(tree);
-  gardenWall(g, -0.44, -0.16, 0.43);
-  gardenWall(g, 0.04, 0.44, 0.43);
-  g.userData.lot = { w: wall.w, d: wall.d, z: -0.04, yard: MATERIALS.gravel };
+  hedge(g, 0, -0.405, 0.86, 0.05, 0.18);
+  gardenWall(g, -0.44, -0.16, 0.425, 0.1);
+  gardenWall(g, 0.04, 0.44, 0.425, 0.1);
+  ironGate(g, -0.06, 0.425, 0.16, MATERIALS.iron);
+  g.userData.lot = { w: wall.w, d: wall.d, z: -0.06, yard: MATERIALS.gravel };
   return g;
 }
 
-// A torre do chalé, no canto da frente à direita: sai um pouco da casa e sobe até 0.95,
+// A torre do solar, no canto da frente à direita: sai um pouco da casa e sobe até 0.85,
 // com cornija branca, janelas estreitas e um telhado em pirâmide com um pináculo de ferro.
 function villaTurret(body, wall, paint, trim) {
-  const size = 0.2, top = 0.95;
+  const size = 0.2, top = 0.85;
   const turret = bodyAt(body, wall.w / 2 - 0.08, wall.d / 2 - 0.06);
   const tw = { w: size, d: size };
   walls(turret, tw, top, paint);
-  baseBand(turret, tw, 0.05, MATERIALS.cantaria);
+  baseBand(turret, tw, 0.05, MATERIALS.granite);
   box(turret, trim, size + 0.03, 0.03, size + 0.03, 0, top + 0.005, 0);                    // cornija
   place(turret, GEOMETRIES.turretCap, MATERIALS.tileAged, 0, top + 0.02 + 0.1, 0);
   place(turret, GEOMETRIES.finial, MATERIALS.iron, 0, top + 0.23, 0);
-  const framed = { frame: trim, frameSize: 0.014, sill: trim };
+  const framed = { frame: MATERIALS.cantaria, frameSize: 0.014, sill: trim };
   for (const face of ['front', 'right']) {
-    opening(turret, tw, face, 0, 0.48, 0.07, 0.17, MATERIALS.glass, framed);
-    opening(turret, tw, face, 0, 0.78, 0.07, 0.13, MATERIALS.glass, framed);
+    opening(turret, tw, face, 0, 0.44, 0.07, 0.15, MATERIALS.glass, framed);
+    opening(turret, tw, face, 0, 0.7, 0.07, 0.12, MATERIALS.glass, framed);
   }
 }
 
-// H5 — Quinta murada: muro caiado à volta (com capeamento de telha), portão de ferro entre
+// H6 — Quinta murada saloia: muro caiado à volta (com capeamento de telha), portão de ferro entre
 // dois pilares com bolas de pedra, e uma casa branca em "L" ao fundo. No pátio: uma palmeira,
 // um pinheiro-manso pequeno ou dois limoeiros.
 function quinta(rand) {
   const g = new THREE.Group();
-  const H = 0.13;
+  const H = 0.11;
   gardenWall(g, -0.44, -0.09, 0.43, H);
   gardenWall(g, 0.09, 0.44, 0.43, H);
   gardenWall(g, -0.44, 0.44, -0.43, H);
@@ -1235,23 +1440,23 @@ function quinta(rand) {
   // corpo principal, ao fundo
   const main = bodyAt(g, -0.1, -0.22);
   const mainWall = { w: 0.5, d: 0.3 };
-  walls(main, mainWall, 0.4, MATERIALS.lime);
+  walls(main, mainWall, 0.34, MATERIALS.lime);
   baseBand(main, mainWall, 0.05, band);
-  quoins(main, mainWall, 0.4, band, 0.03);
-  const roof = hipRoof(main, mainWall, 0.4, 28, 0.03, roofMaterial, MATERIALS.ridge);
+  quoins(main, mainWall, 0.34, band, 0.03);
+  const roof = hipRoof(main, mainWall, 0.34, 27, 0.03, roofMaterial, MATERIALS.ridge);
   const framed = { frame: band, frameSize: 0.018 };
-  opening(main, mainWall, 'front', 0.0, 0.13, 0.1, 0.24, pick(rand, DOORS), { ...framed, door: true });
-  opening(main, mainWall, 'front', -0.16, 0.22, 0.09, 0.13, MATERIALS.green, framed);
-  opening(main, mainWall, 'left', 0, 0.22, 0.09, 0.13, MATERIALS.green, framed);
-  chimney(main, roof, -0.15, -0.04, 0.07, 0.16, MATERIALS.lime, true);
+  opening(main, mainWall, 'front', 0.0, 0.12, 0.09, 0.2, pick(rand, DOORS), { ...framed, door: true });
+  opening(main, mainWall, 'front', -0.16, 0.2, 0.09, 0.11, MATERIALS.green, framed);
+  opening(main, mainWall, 'left', 0, 0.2, 0.09, 0.11, MATERIALS.green, framed);
+  chimney(main, roof, -0.15, -0.04, 0.07, 0.14, MATERIALS.lime, true);
   // ala virada para o pátio (o "L")
   const wing = bodyAt(g, 0.27, -0.17);
   const wingWall = { w: 0.22, d: 0.34 };
-  walls(wing, wingWall, 0.33, MATERIALS.lime);
+  walls(wing, wingWall, 0.28, MATERIALS.lime);
   baseBand(wing, wingWall, 0.05, band);
-  hipRoof(wing, wingWall, 0.33, 28, 0.03, roofMaterial, MATERIALS.ridge);
-  opening(wing, wingWall, 'front', 0, 0.19, 0.09, 0.13, MATERIALS.glass, framed);
-  opening(wing, wingWall, 'left', 0.12, 0.19, 0.09, 0.13, MATERIALS.green, framed);
+  hipRoof(wing, wingWall, 0.28, 27, 0.03, roofMaterial, MATERIALS.ridge);
+  opening(wing, wingWall, 'front', 0, 0.17, 0.09, 0.11, MATERIALS.glass, framed);
+  opening(wing, wingWall, 'left', 0.12, 0.17, 0.09, 0.11, MATERIALS.green, framed);
   // árvore do pátio
   const v = rand();
   let tree;
@@ -1272,36 +1477,36 @@ function quinta(rand) {
 // Portão da quinta: 2 pilares caiados com capa de cantaria e uma bola em cima, e grades de ferro.
 function quintaGate(g) {
   for (const sx of [-1, 1]) {
-    box(g, MATERIALS.lime, 0.05, 0.22, 0.05, sx * 0.09, 0.11, 0.43);
-    box(g, MATERIALS.cantaria, 0.065, 0.016, 0.065, sx * 0.09, 0.228, 0.43);
-    place(g, GEOMETRIES.finial, MATERIALS.cantaria, sx * 0.09, 0.252, 0.43);
+    box(g, MATERIALS.lime, 0.05, 0.2, 0.05, sx * 0.09, 0.1, 0.43);
+    box(g, MATERIALS.cantaria, 0.065, 0.016, 0.065, sx * 0.09, 0.208, 0.43);
+    place(g, GEOMETRIES.finial, MATERIALS.cantaria, sx * 0.09, 0.232, 0.43);
   }
-  for (const y of [0.03, 0.16]) box(g, MATERIALS.iron, 0.13, 0.008, 0.008, 0, y, 0.43);
-  for (let i = 0; i < 6; i++) box(g, MATERIALS.iron, 0.005, 0.15, 0.005, -0.055 + i * 0.022, 0.095, 0.43);
+  for (const y of [0.03, 0.15]) box(g, MATERIALS.iron, 0.13, 0.008, 0.008, 0, y, 0.43);
+  for (let i = 0; i < 6; i++) box(g, MATERIALS.iron, 0.005, 0.14, 0.005, -0.055 + i * 0.022, 0.09, 0.43);
 }
 
-// H6 — Casa de granito de alojamento local (o tipo de casa atingido em 2018 na Malveira):
+// H7 — Casa de granito de alojamento local (o tipo de casa atingido em 2018 na Malveira):
 // paredes de granito à vista, telhado de telha velha, a plaquinha azul "AL" ao lado da porta
 // e, ao lado, um anexo de madeira (foram os anexos que arderam). Muro de granito à frente.
 function stoneCottage(rand) {
   const g = new THREE.Group();
   const wall = { w: 0.5, d: 0.4 };
-  const eave = 0.36;
+  const eave = 0.32;
   const body = bodyAt(g, -0.12, 0.0);
   walls(body, wall, eave, MATERIALS.graniteWall);
-  const roof = gableRoof(body, wall, eave, 30, 0.05, pick(rand, [MATERIALS.tileAged, MATERIALS.tileLichen]),
+  const roof = gableRoof(body, wall, eave, 28, 0.05, pick(rand, [MATERIALS.tileAged, MATERIALS.tileLichen]),
     MATERIALS.graniteWall, MATERIALS.ridge);
   const stone = { frame: MATERIALS.cantaria, frameSize: 0.025 };
-  opening(body, wall, 'front', -0.08, 0.12, 0.1, 0.23, pick(rand, [MATERIALS.green, MATERIALS.brown]), { ...stone, door: true });
-  opening(body, wall, 'front', 0.13, 0.21, 0.09, 0.12, MATERIALS.green, stone);
-  opening(body, wall, 'back', 0, 0.21, 0.09, 0.12, MATERIALS.green, stone);
-  opening(body, wall, 'left', 0, 0.21, 0.09, 0.12, MATERIALS.glass, stone);
-  signBoard(body, wall, -0.2, 0.24, 0.045, 0.034, MATERIALS.alSign, MATERIALS.saloioBlue); // placa "AL"
-  chimney(body, roof, 0.17, 0, 0.07, 0.12, MATERIALS.graniteWall);
+  opening(body, wall, 'front', -0.08, 0.12, 0.1, 0.22, pick(rand, [MATERIALS.green, MATERIALS.brown]), { ...stone, door: true });
+  opening(body, wall, 'front', 0.13, 0.2, 0.09, 0.11, MATERIALS.green, stone);
+  opening(body, wall, 'back', 0, 0.2, 0.09, 0.11, MATERIALS.green, stone);
+  opening(body, wall, 'left', 0, 0.2, 0.09, 0.11, MATERIALS.glass, stone);
+  signBoard(body, wall, -0.2, 0.23, 0.045, 0.034, MATERIALS.alSign, MATERIALS.saloioBlue); // placa "AL"
+  chimney(body, roof, 0.17, 0, 0.07, 0.1, MATERIALS.graniteWall);
   woodenAnnex(g, 0.29, -0.06);
   // muro de pedra seca de granito à frente, com uma abertura para a porta
-  box(g, MATERIALS.graniteWall, 0.18, 0.09, 0.06, -0.35, 0.045, 0.41);
-  box(g, MATERIALS.graniteWall, 0.56, 0.08, 0.06, 0.16, 0.04, 0.41);
+  box(g, MATERIALS.graniteWall, 0.18, 0.08, 0.06, -0.35, 0.04, 0.41);
+  box(g, MATERIALS.graniteWall, 0.56, 0.07, 0.06, 0.16, 0.035, 0.41);
   g.userData.lot = { w: 0.8, d: wall.d, z: 0, yard: MATERIALS.yardEarth };
   return g;
 }
@@ -1320,54 +1525,126 @@ function woodenAnnex(g, x, z) {
   }
 }
 
-// H7 — Capela branca (ermida) com sineira: frontão virado para a rua, cunhais e porta de
-// cantaria, óculo redondo, um sino na sineira e uma cruz no topo. Ao lado, um chafariz.
+// MARCO 1 — A Capela de Nossa Senhora da Assunção e o Largo do Rochio (o centro da aldeia).
+// A vista escolhe UM quadrado de casa colado ao largo (ver village3d.js, findLandmarks).
+// Capela caiada pequena, empena virada para o largo, uma sineira e telhado de telha laranja.
+// Ao lado, o coreto octogonal com telhado e dois bancos. A capela NÃO tem bandeira:
+// na vida real as igrejas portuguesas não hasteiam a bandeira nacional.
+function chapelLargo(rand) {
+  const g = new THREE.Group();
+  const chapelGroup = chapel(rand);
+  chapelGroup.position.set(-0.17, 0, -0.08);
+  chapelGroup.scale.setScalar(1.1);
+  g.add(chapelGroup);
+  bandstand(g, 0.24, 0.2);
+  for (const z of [-0.2, 0.0]) {                                   // bancos de jardim
+    box(g, MATERIALS.brown, 0.03, 0.012, 0.12, 0.38, 0.035, z);
+    box(g, MATERIALS.iron, 0.03, 0.03, 0.012, 0.38, 0.015, z - 0.05);
+    box(g, MATERIALS.iron, 0.03, 0.03, 0.012, 0.38, 0.015, z + 0.05);
+  }
+  const tree = stonePine(rand);                                    // pinheiro-manso do largo
+  tree.scale.setScalar(0.75);
+  tree.position.set(0.25, 0, -0.27);
+  g.add(tree);
+  box(g, MATERIALS.calcada, 0.9, 0.012, 0.9, 0, 0.006, 0);
+  g.userData.lot = { w: 0.44, d: 0.66, z: -0.08 };
+  return g;
+}
+
+// Capela branca (ermida) com sineira: frontão virado para a rua, cunhais e porta de
+// cantaria, óculo redondo, um sino na sineira e uma cruz no topo.
 function chapel(rand) {
   const g = new THREE.Group();
   const face = { w: 0.4, d: 0.6 };                       // vista de fora: 0.4 de largura, 0.6 de fundo
-  const eave = 0.5;
+  const eave = 0.42;
   // a nave: construída "de lado" (cumeeira ao longo de x) e rodada 90°: a empena fica na frente
   const nave = new THREE.Group();
   nave.rotation.y = Math.PI / 2;
   g.add(nave);
   const naveWall = { w: face.d, d: face.w };
   walls(nave, naveWall, eave, MATERIALS.lime);
-  const roof = gableRoof(nave, naveWall, eave, 35, 0.04, pick(rand, ROOFS), MATERIALS.lime, MATERIALS.ridge);
+  const roof = gableRoof(nave, naveWall, eave, 32, 0.035, MATERIALS.tile, MATERIALS.lime, MATERIALS.ridge);
   const band = pick(rand, [MATERIALS.ochre, MATERIALS.saloioBlue, MATERIALS.cantaria]);
   baseBand(g, face, 0.06, band);
   quoins(g, face, eave, MATERIALS.cantaria, 0.04);
-  opening(g, face, 'front', 0, 0.15, 0.12, 0.28, MATERIALS.brown, { frame: MATERIALS.cantaria, frameSize: 0.025, door: true });
-  onWall(g, face, 'front', 0, 0.4, 0.07, 0.07, 0.012, MATERIALS.cantaria);                 // óculo
-  onWall(g, face, 'front', 0, 0.4, 0.04, 0.04, 0.016, MATERIALS.glass);
+  opening(g, face, 'front', 0, 0.14, 0.12, 0.26, MATERIALS.brown, { frame: MATERIALS.cantaria, frameSize: 0.025, door: true });
+  onWall(g, face, 'front', 0, 0.35, 0.07, 0.07, 0.012, MATERIALS.cantaria);                 // óculo
+  onWall(g, face, 'front', 0, 0.35, 0.04, 0.04, 0.016, MATERIALS.glass);
   for (const side of ['left', 'right']) {
-    opening(g, face, side, 0.05, 0.33, 0.06, 0.13, MATERIALS.glass, { frame: MATERIALS.cantaria, frameSize: 0.015 });
+    opening(g, face, side, 0.05, 0.28, 0.06, 0.12, MATERIALS.glass, { frame: MATERIALS.cantaria, frameSize: 0.015 });
   }
   bellGable(g, face.d / 2, eave + roof.rise);
-  fountain(g, 0.31, 0.33);
-  g.userData.lot = { w: face.w, d: face.d, z: 0, sidewalk: face.d / 2 };
   return g;
 }
 
 // Sineira: um pedaço de parede por cima da empena, com um arco, o sino e uma cruz.
 function bellGable(g, frontZ, peakY) {
   const z = frontZ - 0.03;
-  const bottom = peakY - 0.08, top = peakY + 0.24;
-  box(g, MATERIALS.lime, 0.18, top - bottom, 0.05, 0, (top + bottom) / 2, z);
-  box(g, MATERIALS.hole, 0.08, 0.11, 0.052, 0, top - 0.09, z);                             // arco
-  place(g, GEOMETRIES.bell, MATERIALS.iron, 0, top - 0.09, z);
-  const cap = new THREE.Mesh(wedgeGeometry(0.2, 0.065, 0.05, 0.1), MATERIALS.cantaria);
+  const bottom = peakY - 0.08, top = peakY + 0.2;
+  box(g, MATERIALS.lime, 0.16, top - bottom, 0.05, 0, (top + bottom) / 2, z);
+  box(g, MATERIALS.hole, 0.07, 0.1, 0.052, 0, top - 0.08, z);                              // arco
+  place(g, GEOMETRIES.bell, MATERIALS.iron, 0, top - 0.08, z);
+  const cap = new THREE.Mesh(wedgeGeometry(0.18, 0.065, 0.05, 0.09), MATERIALS.cantaria);
   cap.position.set(0, top, z);
   g.add(cap);
   box(g, MATERIALS.iron, 0.012, 0.08, 0.012, 0, top + 0.09, z);                           // cruz
   box(g, MATERIALS.iron, 0.05, 0.012, 0.012, 0, top + 0.1, z);
 }
 
-// Chafariz: tanque de granito com água, um espaldar de pedra e uma bica de ferro.
-function fountain(g, x, z) {
-  box(g, MATERIALS.granite, 0.13, 0.06, 0.09, x, 0.03, z);
-  box(g, MATERIALS.fountainWater, 0.11, 0.005, 0.07, x, 0.058, z);
-  box(g, MATERIALS.cantaria, 0.1, 0.16, 0.03, x, 0.08, z - 0.055);
-  box(g, MATERIALS.iron, 0.01, 0.01, 0.04, x, 0.11, z - 0.03);
+// Coreto: estrado octogonal de pedra, 8 colunas finas brancas, gradeamento e telhado em bico.
+function bandstand(g, x, z) {
+  place(g, GEOMETRIES.coretoBase, MATERIALS.cantaria, x, 0.025, z);
+  place(g, GEOMETRIES.coretoRail, MATERIALS.iron, x, 0.07, z);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    box(g, MATERIALS.whiteTrim, 0.012, 0.18, 0.012, x + Math.cos(a) * 0.12, 0.14, z + Math.sin(a) * 0.12);
+  }
+  place(g, GEOMETRIES.coretoRoof, MATERIALS.tile, x, 0.29, z);
+  place(g, GEOMETRIES.finial, MATERIALS.iron, x, 0.36, z);
+}
+
+// MARCO 2 — Sociedade Familiar Recreativa (o clube da aldeia, fundado em 1941): um salão comprido
+// branco com telhado de 2 águas, portas e janelas altas, uma placa e a bandeira de Portugal num
+// mastro curto preso à parede, inclinado a 45° por cima da porta (como nas coletividades).
+function clubHall(rand) {
+  const g = new THREE.Group();
+  const wall = { w: 0.82, d: 0.42 };
+  const eave = 0.32;
+  const body = bodyAt(g, 0, 0.0);
+  walls(body, wall, eave, MATERIALS.lime);
+  baseBand(body, wall, 0.05, MATERIALS.saloioBlue);
+  quoins(body, wall, eave, MATERIALS.saloioBlue, 0.03);
+  gableRoof(body, wall, eave, 25, 0.035, pick(rand, VILLA_ROOFS), MATERIALS.lime, MATERIALS.ridge);
+  const framed = { frame: MATERIALS.whiteTrim, frameSize: 0.016, sill: MATERIALS.cantaria };
+  opening(body, wall, 'front', 0, 0.13, 0.14, 0.24, MATERIALS.green, { ...framed, door: true });
+  for (const x of [-0.3, -0.17, 0.17, 0.3]) opening(body, wall, 'front', x, 0.17, 0.08, 0.16, MATERIALS.glass, framed);
+  for (const x of [-0.25, 0, 0.25]) opening(body, wall, 'back', x, 0.17, 0.08, 0.14, MATERIALS.glass, framed);
+  signBoard(body, wall, -0.16, 0.285, 0.34, 0.045, MATERIALS.hallSign, MATERIALS.whiteTrim);
+  box(g, MATERIALS.calcada, 0.9, 0.012, 0.22, 0, 0.006, 0.34);
+  hedge(g, 0, -0.405, 0.86, 0.05, 0.12);
+  // mastro de parede a 45°, ao lado da porta (sai bem para fora, para a bandeira não bater no beiral)
+  const fz = wall.d / 2, fy = 0.2, len = 0.2;
+  const tip = { x: 0.1, y: fy + len * Math.SQRT1_2, z: fz + len * Math.SQRT1_2 };
+  stick(body, GEOMETRIES.flagPole, MATERIALS.pole, 0.1, fy, fz, tip.x, tip.y, tip.z);
+  box(body, MATERIALS.iron, 0.03, 0.03, 0.012, 0.1, fy, fz + 0.004);                        // suporte
+  place(body, GEOMETRIES.finial, MATERIALS.gold, tip.x, tip.y + 0.006, tip.z);
+  const flag = makeFlag(MATERIALS.flag, 0.12, 0.08);
+  flag.mesh.position.set(tip.x, tip.y - 0.045, tip.z);
+  body.add(flag.mesh);
+  g.userData.animate = (t) => flag.animate(t, 'alongWall');
+  g.userData.lot = { w: wall.w, d: wall.d, z: 0 };
+  return g;
+}
+
+// A bandeira de Portugal pendurada no parapeito de uma varanda (como depois de um jogo de futebol):
+// fica encostada à varanda, a cair, e mexe-se um pouco com o vento.
+function balconyFlag(body, spot) {
+  const w = 0.13, h = 0.087;                                        // 2:3
+  const flag = makeFlag(MATERIALS.flag, w, h, 'hanging');
+  flag.mesh.position.set(spot.x - w / 2, spot.y - h / 2, spot.z + 0.006);
+  body.add(flag.mesh);
+  const root = body.parent;
+  root.userData.animate = (t) => flag.animate(t, 'hanging');
 }
 
 // =====================================================================================
@@ -1384,11 +1661,17 @@ export function buildSchool(rand) {
   officeAndTower(g);
   const beacons = fireEngine(g, garage.position.x - 0.2, 0.25);
   ambulance(g, garage.position.x, 0.24);
-  box(g, MATERIALS.fireRed, 0.022, 0.05, 0.022, 0.14, 0.025, 0.42);                       // marco de água
-  const flag = flagPole(g, 0.39, 0.39);
-  mergeByMaterial(g);                                       // a bandeira e as luzes ficam de fora
+  box(g, MATERIALS.fireRed, 0.022, 0.05, 0.022, 0.1, 0.025, 0.42);                        // marco de água
+  // os 3 mastros à entrada (como em todos os quartéis portugueses): a União Europeia, Portugal
+  // ao meio (o mais alto) e a bandeira da corporação
+  const flags = [
+    flagPole(g, 0.2, 0.4, 0.5, MATERIALS.euFlag),
+    flagPole(g, 0.29, 0.4, 0.58, MATERIALS.flag),
+    flagPole(g, 0.38, 0.4, 0.5, MATERIALS.firemenFlag),
+  ];
+  mergeByMaterial(g);                                       // as bandeiras e as luzes ficam de fora
   g.userData.animate = (t) => {
-    flag.animate(t);
+    for (const flag of flags) flag.animate(t, 'south');
     // pirilampos azuis a piscar, um de cada vez
     const on = Math.sin(t * 9) > 0;
     beacons[0].emissiveIntensity = on ? 2.5 : 0.15;
@@ -1468,6 +1751,7 @@ function fireEngine(g, x, z) {
     const material = new THREE.MeshStandardMaterial({ color: COLORS.beacon, emissive: COLORS.beacon, emissiveIntensity: 1 });
     const light = box(t, material, 0.022, 0.012, 0.016, bx, 0.094, 0.08);
     light.userData.keepSeparate = true;
+    light.userData.moving = true;                       // pisca: a vista deixa-o solto na cena
     light.userData.noShadow = true;
     return material;
   });
@@ -1486,52 +1770,108 @@ function ambulance(g, x, z) {
   }
 }
 
-// Mastro com a bandeira de Portugal. Devolve { animate } para a fazer ondular ao vento.
-function flagPole(g, px, pz) {
-  const poleTop = 0.62;
+// Mastro com uma bandeira (2:3). Devolve { animate } para a fazer ondular ao vento.
+function flagPole(g, px, pz, poleTop, material) {
   stick(g, GEOMETRIES.flagPole, MATERIALS.pole, px, 0, pz, px, poleTop, pz);
   place(g, GEOMETRIES.finial, MATERIALS.gold, px, poleTop + 0.012, pz);
-  const flagW = 0.18, flagH = 0.12;
-  const flagGeo = new THREE.PlaneGeometry(flagW, flagH, 8, 1);   // geometria própria: vai ser dobrada
-  flagGeo.translate(flagW / 2, 0, 0);                             // o lado verde fica junto ao mastro
-  const flag = new THREE.Mesh(flagGeo, MATERIALS.flag);
-  flag.rotation.y = Math.PI;                                      // voa para dentro do quarteirão (-x)
-  flag.position.set(px - 0.01, poleTop - flagH / 2 - 0.01, pz);
-  flag.userData.keepSeparate = true;
-  g.add(flag);
-  const pos = flagGeo.attributes.position;
+  const flag = makeFlag(material, 0.16, 0.107);
+  flag.mesh.position.set(px, poleTop - 0.107 / 2 - 0.01, pz);
+  g.add(flag.mesh);
+  return flag;
+}
+
+// UMA BANDEIRA que ondula. Cada bandeira tem a sua geometria (é dobrada a cada frame, no
+// processador: são só ~50 pontos). O lado da tralha (o verde, junto ao mastro) fica em x = 0.
+// animate(t, mode):
+//   'south'     -> bandeira num mastro solto: voa para SUL no mundo (+z). Nesta noite o vento
+//                  vem de norte (5°), por isso as bandeiras apontam para a vila e para o mar.
+//   'alongWall' -> mastro preso a uma parede: voa ao longo da parede, para o lado mais a sul.
+//   'hanging'   -> pendurada numa varanda: fica a cair, só mexe um pouco.
+// Como uma bandeira verdadeira, vista do outro lado mostra o desenho ao espelho: com o vento de
+// norte, quem olha de oeste vê a frente (verde junto ao mastro) e quem olha de leste vê o verso.
+const flagEuler = new THREE.Euler(), flagQuat = new THREE.Quaternion();
+let flagCount = 0;
+function makeFlag(material, w, h) {
+  const geo = new THREE.PlaneGeometry(w, h, 10, 3);
+  geo.translate(w / 2, 0, 0);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.userData.keepSeparate = true;                   // não juntar com as outras peças (mexe-se)
+  mesh.userData.moving = true;                         // a vista deixa-a solta na cena (village3d.js)
+  mesh.userData.noShadow = true;
+  const pos = geo.attributes.position;
   const original = pos.array.slice();
-  const animate = (t) => {
+  const phase = flagCount++ * 1.7;                    // cada bandeira ondula com o seu atraso
+  let aimed = false;
+  const animate = (t, mode) => {
+    if (!aimed && mesh.parent) {
+      // O vento é no MUNDO, mas a casa está rodada (olha para a estrada). Medimos para onde a
+      // bandeira aponta no mundo (yaw) e rodamo-la o que falta. Funciona com a bandeira dentro
+      // da casa ou solta na cena (a vista solta-a, ver village3d.js).
+      mesh.getWorldQuaternion(flagQuat);
+      const yaw = flagEuler.setFromQuaternion(flagQuat, 'YXZ').y;
+      let target = yaw;
+      if (mode === 'south') target = -Math.PI / 2;                                // +x -> +z (sul)
+      if (mode === 'alongWall') target = yaw + (-Math.sin(yaw) >= 0 ? 0 : Math.PI); // o lado mais a sul
+      mesh.rotation.y += target - yaw;
+      aimed = true;
+    }
+    const hanging = mode === 'hanging';
     for (let i = 0; i < pos.count; i++) {
-      const x = original[i * 3];                                  // 0 no mastro, flagW na ponta
-      pos.array[i * 3 + 2] = Math.sin(x * 30 - t * 6) * 0.02 * (x / flagW);
+      const x = original[i * 3], y = original[i * 3 + 1];
+      const k = x / w;                                 // 0 no mastro, 1 na ponta
+      const wave = Math.sin(x * (hanging ? 50 : 38) - t * (hanging ? 3 : 8) + phase + y * 6);
+      pos.array[i * 3 + 2] = hanging ? 0.003 + wave * 0.003 : wave * 0.016 * k;
+      if (!hanging) pos.array[i * 3 + 1] = y - k * k * 0.01;       // a ponta cai um bocadinho
     }
     pos.needsUpdate = true;
   };
-  return { animate };
+  return { mesh, animate };
 }
 
 // =====================================================================================
 // 9. ÁRVORES DA SERRA DE SINTRA (outubro)
 // 'conifer'   = as que ardem muito: eucalipto, pinheiro-bravo e pinheiro-manso.
-// 'broadleaf' = folhosas nativas que travam o fogo: sobreiro, azinheira, carvalho-cerquinho.
+// 'broadleaf' = folhosas que travam o fogo: sobreiro, azinheira, carvalho-cerquinho, oliveira.
+// buildTree(kind, rand, ctx) — ctx é OPCIONAL: ctx.nearHouses = quantas casas há nos 8 quadrados
+// à volta. Nas fotos, DENTRO da aldeia não há eucaliptos: há pinheiros-mansos de copa achatada,
+// ciprestes (as sebes altas e escuras), palmeiras nos jardins e oliveiras nos quintais velhos.
+// Os eucaliptos e os pinheiros-bravos ficam na serra e nos vales.
 // Alturas (cerca de 0.6 x as reais): eucalipto 1.15-1.35, pinheiro-bravo 0.9-1.1,
 // pinheiro-manso 0.85-1.05, carvalho 0.7-0.85, sobreiro 0.6-0.75, azinheira 0.55-0.7.
 // =====================================================================================
-export function buildTree(kind, rand) {
+export function buildTree(kind, rand, ctx) {
   const g = new THREE.Group();
   const r = rand();
+  const inVillage = (ctx?.nearHouses ?? 0) >= 2;
   let tree;
   if (kind === 'conifer') {
-    if (r < 0.4) tree = eucalyptus(rand);
-    else if (r < 0.75) tree = maritimePine(rand);
+    if (inVillage) {
+      if (r < 0.5) tree = stonePine(rand);
+      else if (r < 0.75) { tree = cypress(rand); tree.scale.setScalar(1.45); }   // cipreste alto
+      else tree = maritimePine(rand);
+    } else if (r < 0.35) tree = eucalyptus(rand);
+    else if (r < 0.8) tree = maritimePine(rand);
     else tree = stonePine(rand);
+  } else if (inVillage) {
+    if (r < 0.3) tree = oliveTree(rand);
+    else if (r < 0.5) tree = palm(rand);
+    else if (r < 0.75) tree = corkOak(rand);
+    else tree = holmOak(rand);
   } else {
     if (r < 0.5) tree = corkOak(rand);
     else if (r < 0.8) tree = holmOak(rand);
     else tree = portugueseOak(rand);
   }
   g.add(tree);
+  // Na serra o pinhal é fechado (70-90% de copa nas fotos e no satélite): junto a cada árvore
+  // grande nasce muitas vezes um pinheiro novo, para o manto verde-escuro não ter buracos.
+  if (kind === 'conifer' && !inVillage && rand() < 0.6) {
+    const young = maritimePine(rand);
+    const ang = rand() * Math.PI * 2;
+    young.scale.setScalar(0.5 + rand() * 0.15);
+    young.position.set(Math.cos(ang) * 0.17, 0, Math.sin(ang) * 0.17);
+    g.add(young);
+  }
   mergeByMaterial(g);
   return shadows(g);
 }
@@ -1565,8 +1905,8 @@ function eucalyptus(rand) {
   for (let i = 0; i < n; i++) {
     const ang = (i / n) * Math.PI * 2 + rand() * 0.7;
     const dist = 0.08 + rand() * 0.12;
-    const s = 0.045 + rand() * 0.02;
-    const sy = s * 2.2;                                         // esticado: folhas a pender
+    const s = 0.06 + rand() * 0.025;
+    const sy = s * 2;                                           // esticado: folhas a pender
     const wanted = H * (0.62 + (i / (n - 1)) * 0.27 + rand() * 0.06);
     const cy = Math.min(wanted, H - sy * 1.15);
     const cx = topX + Math.cos(ang) * dist;
@@ -1579,7 +1919,8 @@ function eucalyptus(rand) {
   return t;
 }
 
-// C2 — Pinheiro-bravo: tronco alto, nu e avermelhado, copa irregular e escura só lá em cima.
+// C2 — Pinheiro-bravo: tronco avermelhado, nu em baixo, e uma copa escura, irregular e cheia
+// na metade de cima (nas fotos, os pinhais da serra formam um manto verde-escuro contínuo).
 function maritimePine(rand) {
   const t = new THREE.Group();
   const H = 0.9 + rand() * 0.2;
@@ -1589,15 +1930,16 @@ function maritimePine(rand) {
   const topY = H * 0.8;
   stick(t, GEOMETRIES.pineTrunk, MATERIALS.pineBark, 0, 0, 0, bend, midY, 0, 1.15);
   stick(t, GEOMETRIES.pineTrunk, MATERIALS.pineBark, bend, midY, 0, topX, topY, 0, 0.8);
-  const n = 3 + (rand() < 0.5 ? 1 : 0);
+  const n = 5 + (rand() < 0.5 ? 1 : 0);
   for (let i = 0; i < n; i++) {
     const ang = (i / n) * Math.PI * 2 + rand() * 0.6;
-    const dist = 0.05 + rand() * 0.06;
-    const s = 0.12 + rand() * 0.04;
-    const sy = s * 0.5;
+    const low = i >= 3;                                         // 3 tufos lá em cima, 2-3 mais abaixo
+    const dist = low ? 0.1 + rand() * 0.05 : 0.04 + rand() * 0.06;
+    const s = low ? 0.11 + rand() * 0.03 : 0.14 + rand() * 0.04;
+    const sy = s * 0.6;
     const cx = topX + Math.cos(ang) * dist;
     const cz = Math.sin(ang) * dist;
-    const cy = H - sy * 1.15 - rand() * 0.08;
+    const cy = low ? H * (0.58 + rand() * 0.1) : H - sy * 1.1 - rand() * 0.08;
     if (i < 2) stick(t, GEOMETRIES.twig, MATERIALS.pineBark, topX, topY - 0.04, 0, cx, cy, cz, 1.5);
     clump(t, rand, rand() < 0.55 ? MATERIALS.pineNeedle : MATERIALS.pineNeedleLit, cx, cy, cz, s, sy, s);
   }
@@ -1622,13 +1964,13 @@ function stonePine(rand) {
   for (let i = 0; i < n; i++) {
     const ang = (i / n) * Math.PI * 2 + rand() * 0.4;
     const dist = i === 0 ? 0 : 0.1 + rand() * 0.08;
-    const s = 0.11 + rand() * 0.03;
+    const s = 0.13 + rand() * 0.03;
     const cx = lean + Math.cos(ang) * dist;
     const cz = Math.sin(ang) * dist;
     const cy = crownY - dist * 0.3 - rand() * 0.02;              // as pontas descem um pouco
     if (i > 0 && i < 4) stick(t, GEOMETRIES.limb, MATERIALS.stonePineBark, lean, topY - 0.03, 0, cx * 0.85, cy - 0.03, cz * 0.85, 0.45);
     const material = i === 0 || rand() < 0.35 ? MATERIALS.stonePineLit : MATERIALS.stonePine;
-    clump(t, rand, material, cx, cy, cz, s, s * 0.35, s);
+    clump(t, rand, material, cx, cy, cz, s, s * 0.45, s);
   }
   return t;
 }
@@ -1737,6 +2079,19 @@ function lemonTree(rand) {
   stick(t, GEOMETRIES.twig, MATERIALS.oakBark, 0, 0, 0, 0, 0.12, 0, 2.5);
   clump(t, rand, MATERIALS.lemon, 0, 0.2, 0, 0.1, 0.09, 0.1);
   for (let i = 0; i < 5; i++) dot(t, rand, MATERIALS.lemonFruit, 0.018, 0, 0.2, 0, 0.1, 0.09, 0.1);
+  return t;
+}
+
+// Oliveira (nos quintais velhos da aldeia): tronco curto e torcido, copa baixa cinzento-esverdeada.
+function oliveTree(rand) {
+  const t = new THREE.Group();
+  const lean = (rand() - 0.5) * 0.08;
+  stick(t, GEOMETRIES.oakTrunk, MATERIALS.oakBark, 0, 0, 0, lean, 0.14, 0.02, 0.7);
+  stick(t, GEOMETRIES.limb, MATERIALS.oakBark, lean, 0.13, 0.02, lean + 0.08, 0.24, -0.03);
+  stick(t, GEOMETRIES.limb, MATERIALS.oakBark, lean, 0.13, 0.02, lean - 0.07, 0.25, 0.04);
+  for (const [x, y, z, s] of [[0.06, 0.3, -0.02, 0.13], [-0.07, 0.31, 0.04, 0.12], [0, 0.37, 0, 0.12]]) {
+    clump(t, rand, rand() < 0.5 ? MATERIALS.olive : MATERIALS.oliveLit, lean + x, y, z, s, s * 0.7, s);
+  }
   return t;
 }
 
