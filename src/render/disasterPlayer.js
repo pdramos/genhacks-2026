@@ -9,6 +9,8 @@ import { runDisaster } from '../sim/fire.js';
 import { resolveIgnition, canIgnite } from '../sim/ignition.js';
 import { planFromChanges } from './runState.js';
 import { windForLevel, STEP_MINUTES } from '../sim/weather.js';
+import { remainingBudget } from '../sim/actions.js';
+import { compareNight, nightLessons } from '../sim/counterfactual.js';
 import { playIgnition } from './ignitionCinematic.js';
 import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, showResultCard } from './ui/hud.js';
 import { lostHouses, describeLostHouses } from './mapHints.js';
@@ -187,9 +189,30 @@ function showResult(outcome, lastStep) {
   const lost = lostHouses(game.village, lastStep);
   markLostHouses(lost); // círculos vermelhos, visíveis no "Look around"
   setPhase('result');
-  // O cartão do fim: estrelas, onde se perderam casas, a história real e as fontes.
-  const card = showResultCard(outcome, label, game.level, describeLostHouses(lost, game.level.places));
+  // O cartão do fim: estrelas, onde se perderam casas, a comparação dos planos, a história real e as fontes.
+  const card = showResultCard(outcome, label, game.level, describeLostHouses(lost, game.level.places), compareThisNight(outcome, label));
   addRetryButton(card);
+}
+
+// "Same night, three plans": a simulação volta a jogar ESTA noite (mesma semente, mesmo cigarro,
+// mesmo vento) sem fazer nada e com o plano de um perito, para o jogador comparar com o seu.
+// Também dá 0 a 2 lições curtas. Se alguma coisa falhar, devolve null: o cartão aparece na mesma,
+// só sem a comparação (é melhor do que o jogo ficar preso no fim).
+function compareThisNight(outcome, schoolName) {
+  try {
+    const comparison = compareNight(game.level, game.seed, outcome);
+    const lessons = nightLessons({
+      ...comparison,
+      spent: game.level.budget - remainingBudget(game.buildState),
+      budget: game.level.budget,
+      windFrom: compassName(windForLevel(game.level)(0).direction),
+      schoolName,
+    });
+    return { ...comparison, lessons };
+  } catch (error) {
+    console.warn('Could not compare plans for this night:', error);
+    return null;
+  }
 }
 
 // O botão "Try again (same night)": recomeça com o MESMO plano e a MESMA semente

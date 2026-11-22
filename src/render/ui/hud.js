@@ -228,7 +228,9 @@ function starSvg(filled) {
 // level (opcional) = o nível: mostra "o que aconteceu de verdade" (level.aftermath) e as fontes.
 // lostText (opcional) = uma linha a dizer ONDE se perderam casas (ex.: "2 at the quinta in the forest"),
 //   para o jogador perceber o que mudar no plano. As casas perdidas também ficam marcadas no mapa.
-export function showResultCard(outcome, schoolLabel = 'School', level = {}, lostText = '') {
+// comparison (opcional) = { player, nothing, expert, lucky, lessons } (de src/sim/counterfactual.js):
+//   a mesma noite jogada com outros planos. Mostra "Same night, three plans" (ver compareSection).
+export function showResultCard(outcome, schoolLabel = 'School', level = {}, lostText = '', comparison = null) {
   const allSaved = outcome.schoolSaved && outcome.housesSaved === outcome.housesTotal;
   const stars = countStars(outcome);
   const card = document.createElement('div');
@@ -264,6 +266,18 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
   const lost = card.querySelector('.result-lost');
   if (lostText) lost.textContent = lostText;
   else lost.remove();
+  // A comparação dos planos, logo por baixo dos números. Numa "noite de sorte" (não fazer nada
+  // também salvava tudo) aparece uma faixa lá em cima, para o jogador não pensar que foi só mérito.
+  if (comparison) {
+    card.classList.add('has-compare');
+    card.querySelector('.result-stats').after(compareSection(comparison, schoolLabel));
+    if (comparison.lucky) {
+      const lucky = document.createElement('div');
+      lucky.className = 'result-lucky';
+      lucky.textContent = 'Lucky night: the fire died out on its own';
+      card.querySelector('.result-title').after(lucky);
+    }
+  }
   // A história real e as fontes (com textContent: o texto do nível nunca vira HTML).
   const story = card.querySelector('.result-story');
   if (level.aftermath) card.querySelector('.story-text').textContent = level.aftermath;
@@ -299,6 +313,59 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
   card.querySelector('[data-do="again"]').addEventListener('click', () => location.reload());
   document.body.append(card);
   return card;
+}
+
+// "Same night, three plans": uma linha por plano (o teu, não fazer nada, o do perito), cada uma
+// com uma barra (casas salvas / total), o número e as estrelas. Por baixo, as lições (0 a 2).
+// Se o nível não tiver plano do perito (expert = null), essa linha não aparece.
+function compareSection({ player, nothing, expert, lessons = [] }, schoolLabel) {
+  const section = document.createElement('div');
+  section.className = 'result-compare';
+  const heading = document.createElement('div');
+  heading.className = 'story-heading';
+  heading.textContent = expert ? 'Same night, three plans' : 'Same night, two plans';
+  section.append(heading);
+  section.append(compareRow('Your plan', player, schoolLabel, true));
+  section.append(compareRow('Doing nothing', nothing, schoolLabel));
+  if (expert) section.append(compareRow('Expert plan', expert, schoolLabel));
+  if (lessons.length) {
+    const list = document.createElement('ul');
+    list.className = 'compare-lessons';
+    for (const lesson of lessons) {
+      const item = document.createElement('li');
+      item.textContent = lesson;
+      list.append(item);
+    }
+    section.append(list);
+  }
+  return section;
+}
+
+// Uma linha da comparação. result = { housesSaved, housesTotal, schoolSaved, stars }.
+// A cor da barra segue as estrelas: 3 verde, 2 dourado, 1 laranja, 0 vermelho.
+// isPlayer = true na linha do jogador (fica destacada).
+function compareRow(name, result, schoolLabel, isPlayer = false) {
+  const row = document.createElement('div');
+  row.className = `compare-row stars-${result.stars}` + (isPlayer ? ' player' : '');
+  row.innerHTML = `
+    <span class="compare-name"><span class="compare-plan"></span></span>
+    <span class="compare-bar"><span class="compare-fill"></span></span>
+    <span class="compare-number"></span>
+    <span class="compare-stars">${[1, 2, 3].map((n) => starSvg(n <= result.stars)).join('')}</span>`;
+  row.querySelector('.compare-plan').textContent = name;
+  // Sem o edifício importante não há estrelas: dizemos porquê por baixo do nome.
+  if (!result.schoolSaved) {
+    const note = document.createElement('small');
+    note.className = 'compare-note';
+    note.textContent = `${schoolLabel} lost`;
+    row.querySelector('.compare-name').append(note);
+  }
+  const share = result.housesTotal ? result.housesSaved / result.housesTotal : 0;
+  row.querySelector('.compare-fill').style.width = `${Math.round(share * 100)}%`;
+  row.querySelector('.compare-number').textContent = `${result.housesSaved}/${result.housesTotal}`;
+  row.querySelector('.compare-stars').setAttribute('aria-label', `${result.stars} of 3 stars`);
+  row.title = `${name}: ${result.housesSaved} of ${result.housesTotal} houses saved, ${schoolLabel.toLowerCase()} ${result.schoolSaved ? 'saved' : 'lost'}`;
+  return row;
 }
 
 // ---------- Pequenas ajudas ----------
