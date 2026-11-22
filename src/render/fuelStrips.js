@@ -4,7 +4,8 @@
 // (isWorkable em src/sim/actions.js). Aqui só fazemos as contas para o DESENHO:
 //   - que quadrados pintar com um tom suave (faixa) e quais levam cadeado (parque);
 //   - por onde passa o contorno entre os dois;
-//   - o texto "steep +30%" quando o declive torna a ação mais cara.
+//   - o texto "steep +30%" quando o declive torna a ação mais cara;
+//   - que quadrados brilham com a ferramenta escolhida (onde ela pode ser usada agora).
 // Não usa Three.js, por isso é testado no Node (tests/fuelStrips.test.js).
 
 // Os tipos onde faz sentido trabalhar (vegetação, incluindo o que o jogador já mudou).
@@ -55,4 +56,22 @@ export function stripEdges(map) {
 export function slopeNote(baseCost, cost) {
   if (cost <= baseCost) return '';
   return `steep +${Math.ceil(((cost - baseCost) / baseCost) * 100)}%`;
+}
+
+// Os quadrados onde a ferramenta escolhida pode ser usada AGORA (para os fazer brilhar).
+// check(x, y) é a verificação da simulação (checkAction com a ferramenta): diz { ok } ou { ok, reason }.
+// Devolve { tiles, noMoney }:
+//   tiles   = lista de {x, y} onde a ação dá;
+//   noMoney = quantos quadrados só falham por falta de dinheiro (para explicar porque não há nenhum).
+export function usableTiles(width, height, check) {
+  const tiles = [];
+  let noMoney = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const result = check(x, y);
+      if (result.ok) tiles.push({ x, y });
+      else if (result.reason === 'not-enough-money') noMoney++;
+    }
+  }
+  return { tiles, noMoney };
 }
