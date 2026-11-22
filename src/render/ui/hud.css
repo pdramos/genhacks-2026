@@ -340,6 +340,69 @@ body.briefing #hud, body.briefing #info { visibility: hidden; }
 /* Onde se perderam casas, no cartão do fim */
 .result-lost { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--red); }
 
+/* "Same night, three plans": o teu plano, não fazer nada e o plano do perito, na MESMA noite */
+.result-compare {
+  margin-top: 12px; padding: 8px 12px 10px; text-align: left;
+  border: 3px solid var(--ink); border-radius: 16px; background: #fff;
+}
+/* Cada linha: nome | barra | número | estrelas */
+.compare-row {
+  display: grid; grid-template-columns: 6.6em 1fr 4.6em auto; align-items: center; gap: 8px;
+  margin-top: 5px; padding: 3px 6px; border: 2px solid transparent; border-radius: 10px;
+}
+.compare-row.player { border-color: var(--ink); background: var(--cream-deep); }
+.compare-name { display: flex; flex-direction: column; line-height: 1.1; font-size: 13.5px; font-weight: 600; }
+.compare-row.player .compare-name { font-weight: 700; }
+.compare-note { font-size: 11px; font-weight: 600; color: var(--red); }
+.compare-bar {
+  height: 12px; border: 2px solid var(--ink); border-radius: 999px; background: #efe4d0; overflow: hidden;
+}
+.compare-fill { display: block; height: 100%; background: var(--green); }
+.compare-row.stars-2 .compare-fill { background: var(--gold); }
+.compare-row.stars-1 .compare-fill { background: var(--orange); }
+.compare-row.stars-0 .compare-fill { background: var(--red); }
+.compare-number { font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.compare-stars { display: flex; gap: 1px; }
+.compare-stars .star { width: 15px; height: 15px; stroke-width: 2.4; animation: none; }
+/* As lições da noite: frases curtas por baixo das barras */
+.compare-lessons { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; line-height: 1.35; }
+.compare-lessons li + li { margin-top: 3px; }
+/* "Lucky night": a faixa no topo quando não fazer nada também salvava tudo */
+.result-lucky {
+  margin: -4px auto 10px; width: fit-content; padding: 3px 14px; border: 3px solid var(--ink); border-radius: 999px;
+  background: var(--gold); font-size: 14px; font-weight: 700;
+}
+/* Com a comparação o cartão fica mais alto. Para caber no ecrã: o cartão fica mais largo (os três
+   botões cabem numa linha e as lições ocupam menos linhas), os números de cima ficam mais pequenos
+   e a história real encolhe (desliza por dentro). */
+.result-card.has-compare { width: min(580px, calc(100% - 32px)); }
+.result-card.has-compare .result-stars { margin-bottom: 8px; }
+.result-card.has-compare .result-stars .star { width: 40px; height: 40px; }
+.result-card.has-compare .result-stat { padding: 6px; }
+.result-card.has-compare .result-icon { width: 40px; height: 40px; }
+.result-card.has-compare .result-story { max-height: 14vh; }
+/* Ecrãs com pouca altura (portátil pequeno): o cartão desliza por dentro, como no telemóvel,
+   e os botões ficam colados em baixo. (Abaixo de 520px manda o bloco "Ecrãs baixos".) */
+@media (min-height: 521px) and (max-height: 760px) {
+  .result-card.has-compare { max-height: calc(100dvh - 24px); overflow-y: auto; padding-bottom: 0; }
+  .result-card.has-compare .result-title { margin: 0 auto 8px; }
+  .result-card.has-compare .result-story { max-height: none; overflow: visible; }
+  .result-card.has-compare .result-buttons {
+    position: sticky; bottom: 0; margin: 12px -20px 0; padding: 10px 20px 12px;
+    background: var(--cream); border-top: 3px solid var(--ink);
+  }
+}
+@media (max-height: 520px) {
+  .result-compare { margin-top: 8px; padding: 6px 10px 8px; }
+  .compare-row { margin-top: 3px; padding: 2px 6px; }
+  .compare-lessons { font-size: 13px; margin-top: 6px; }
+  .result-lucky { margin: 0 auto 6px; font-size: 13px; }
+  /* Aqui desliza a carta toda (ver o bloco "Ecrãs baixos" lá em baixo), não a história */
+  .result-card.has-compare .result-story { max-height: none; }
+  .result-card.has-compare .result-icon { width: 32px; height: 32px; }
+  .result-card.has-compare .result-stars .star { width: 32px; height: 32px; }
+}
+
 /* "Back to results": aparece depois do "Look around" */
 .back-to-results { position: fixed; left: 50%; bottom: 20px; z-index: 30; transform: translateX(-50%); }
 .back-to-results:hover { transform: translateX(-50%) translateY(-2px); }
