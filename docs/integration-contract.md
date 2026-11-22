@@ -96,3 +96,51 @@ Fluxo do botão "Start disaster":
 5. `setPhase('result')`
 
 Quem integra no fim é o agente MERGER.
+
+---
+
+# Ronda "dificuldade" (22/11/2026) — tickets #12, #13, #14
+
+Decisões do estudante: manter a cena do cigarro e a fase de construção; o jogo está fácil demais; aprovou as 4 mudanças e pediu um mapa maior.
+Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limpar todo o mato → 2,95 (3★ em 19/20); ao calhas → 2,0.
+
+## Simulação (dono: agente SIM-DIFF)
+- **`src/sim/ignition.js` (novo):** `pickIgnition(level, seed)` → `{x, y}`. Escolhe de `level.ignitionCandidates` (lista de `{x,y}`, cada um um quadrado de vegetação colado a uma estrada) de forma determinística pela semente. Se não houver candidatos, usa `level.ignition`.
+- **`src/sim/actions.js`:**
+  - `isWorkable(village, x, y)` → `true` se o quadrado estiver a ≤ 2 quadrados (Chebyshev) de uma casa ou da escola, ou a ≤ 1 de uma estrada. Senão, é Parque Natural.
+  - `applyAction` passa a recusar fora destas faixas com o motivo **`'protected-area'`**. A ordem das verificações é: `outside`, `already-changed`, `protected-area`, `invalid-target`, `not-enough-money`.
+  - `actionCost(village, x, y, actionName)` → custo base × fator de declive. O fator é 1 no plano e cresce com a diferença de altura para os vizinhos; a constante fica documentada.
+  - `applyAction`/`undoAction` usam este custo, e o reembolso devolve exatamente o que foi pago.
+  - `checkAction` (já existe) devolve também o custo.
+- O `runDisaster` não muda de assinatura. Quem chama passa `ignition: pickIgnition(level, seed)`.
+- **Constantes de equilíbrio** ficam num só sítio, `src/sim/balance.js` (novo), importadas pelos outros: orçamento por nível se não vier no JSON, fator de declive e os limites das estrelas, se forem precisos.
+
+## Mapa (dono: agente MAP)
+- `data/levels/sintra.json` passa a ser **32×32**, com `heights`, `ignitionCandidates` (≥ 4, em pelo menos 2 estradas diferentes da serra), `ignition` (o primeiro candidato, para compatibilidade) e `budget` (provisório; o agente BALANCE afina-o).
+- O mapa conta a mesma história, só que maior: serra com 2–3 estradas, a EN247, a vila com o largo e o quartel `S` 2×2, e a costa e o mar a sudoeste. O `demo.json` fica 20×20.
+
+## Desenho e desempenho (dono: agente PERF)
+- `src/render/village3d.js` + estilos: menos chamadas de desenho.
+  - Juntar a geometria por material em cada quadrado, e usar instancing para coisas repetidas (tufos de erva, arbustos).
+  - Objetos pequenos sem sombra.
+  - A API da vista não muda; `setTileType`/`setBurned` continuam por quadrado.
+- Medir e reportar draw calls e FPS no demo 20×20 e em Sintra 32×32.
+
+## Interface (dono: agente UI-DIFF)
+- **Fase de construção:**
+  - faixas trabalháveis visíveis, com um contorno ou tom suave;
+  - quadrados de Parque Natural com um 🔒 discreto e o toast "Protected natural park — you can only clear the legal fuel strips" ao clicar;
+  - custo real ao passar o rato (já existe uma pré-visualização; mostrar o preço com o declive).
+- **Semente:** cada jogo novo sorteia uma semente no browser (`Math.random` só na interface; a simulação recebe a semente). "Play again" faz um jogo novo; um "Try again (same night)" mantém o plano e a semente.
+- **O cinemático** usa a ignição escolhida (`pickIgnition`), e o carro passa na estrada desse candidato.
+- **Câmara:** enquadra o mapa maior.
+- O dono é responsável por `buildPanel.js`, `disasterPlayer.js`, `ignitionCinematic.js`, `main.js` (câmara) e `hud.css`.
+
+## Equilíbrio (dono: agente BALANCE, depois da junção)
+`tests/balance.test.js` simula sementes 1–30 por estratégia e garante:
+- **nada:** média < 0,5★;
+- **"limpar tudo o que é permitido, a começar no topo":** cerca de 1★ (≤ 1,3);
+- **um bom plano escrito no teste:** ≥ 2★ na maioria das sementes;
+- **3★:** < 35% mesmo para o bom plano.
+
+Afina o orçamento, os custos, o fator de declive, as constantes do fogo (com cuidado, sem partir os testes do fogo) e os limites das estrelas.
