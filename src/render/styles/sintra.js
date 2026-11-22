@@ -82,9 +82,16 @@ export const bushesPerTile = 6;
 //   - a cúpula a nordeste, de cume pelado cor de ferrugem;
 //   - a oeste, mato baixo cor de caqui a descer para a costa e o Guincho (o mar a sudoeste);
 //   - a sul e a leste, Janes, Alcorvim, Alcabideche e Cascais: casinhas brancas ao longe.
+// Nas fotos o ar é limpo e o céu azul-forte: a crista da serra recorta-se, verde-escura, contra o
+// céu. Por isso este estilo pede um nevoeiro de dia mais LONGE e azulado (e não uma neblina branca).
+// (Como o do lighting.js, main.js ainda o afasta na proporção do tamanho do mapa: ~1.55x aqui.)
+export const dayFog = { color: 0xa9cbe6, near: 44, far: 140 };
+
 export const backdrop = {
   metresPerLevel: 31, minMetres: 85,
-  lift: { above: 330, factor: 1.9 },   // a serra ao fundo, exagerada ~2x (no mapa o relevo é ~1.3x)
+  lift: { above: 330, factor: 2.6 },   // a serra ao fundo, exagerada (é cenário: o morro "enche" o céu como nas fotos)
+  range: 200,  // o chão vai até longe: o nevoeiro azul apaga-o antes de se ver a ponta
+  blend: 6,    // a serra começa logo a seguir à borda do mapa
   // o terreno "de fundo" em metros: continua o declive do mapa (alto a norte, baixo a sul)
   base(x, z) {
     let m = 210 - z * 7.5;
@@ -97,20 +104,34 @@ export const backdrop = {
     { x: -14, z: -25, metres: 487, radius: 9, cover: 'pine', tors: 70, sanctuary: true },  // Peninha
     { x: -5, z: -33, metres: 455, radius: 9, cover: 'pine', tors: 30 },                    // cumeada
     { x: 5, z: -41, metres: 490, radius: 13, cover: 'pine', tors: 50 },                    // Monge
-    { x: 14, z: -31, metres: 460, radius: 10, cover: 'pine', tors: 25 },                   // cumeada para leste
+    { x: 11, z: -36, metres: 450, radius: 10, cover: 'pine', tors: 25 },                   // cumeada para leste
     { x: -26, z: -30, metres: 430, radius: 10, cover: 'pine', tors: 30 },                  // cumeada para oeste
     { x: 55, z: -52, metres: 528, radius: 18, cover: 'pine', tors: 40 },                   // Cruz Alta
-    { x: 23, z: -22, metres: 415, radius: 7, cover: 'pine', bareTop: true, tors: 45 },     // cúpula NE
+    // a cúpula NE (o "morro" das fotos): redonda, com um cume grande e pelado cor de ferrugem
+    { x: 20, z: -21, metres: 460, radius: 10.5, dome: true, cover: 'pine', bareTop: true, bareRadius: 0.42, tors: 25 },
     { x: -40, z: -28, metres: 300, radius: 14, cover: 'scrub', tors: 25 },                 // para o Cabo da Roca
     { x: -30, z: -2, metres: 215, radius: 10, cover: 'scrub' },
+    // metres: 0 = só pinhal, sem levantar o chão. A encosta sul da serra a leste (pinhal cerrado,
+    // como no mapa) e os vales a sul da vila, com pinhal escuro (fotos e satélite)
+    { x: 5, z: -21, metres: 0, radius: 7, cover: 'pine' },
+    { x: 26, z: -8, metres: 0, radius: 8, cover: 'pine' },
+    { x: -7, z: 26, metres: 0, radius: 5, cover: 'pine' },
+    { x: 3, z: 31, metres: 0, radius: 5, cover: 'pine' },
+    { x: -15, z: 31, metres: 0, radius: 5, cover: 'pine' },
   ],
+  // penedos grandes no ombro leste da cúpula (nas fotos, os "tors" de granito cinzento)
+  torClusters: [{ x: 25, z: -21, radius: 2.8, count: 18, size: 1.8 }],
+  pines: { range: 90, max: 24000, denseScale: 1.3 }, // pinhal cerrado, de copas grandes
+  hedgeRows: { count: 30, length: 4.5 },                // sebes escuras compridas entre os campos
   scrubWest: -20,
-  lowlandTrees: 0.03,
+  lowlandTrees: 0.05,
   // a costa, de norte para sul e depois para leste (o mar fica à direita de quem a percorre)
   coast: [[-80, -90], [-66, -40], [-54, 0], [-42, 24], [-35, 40], [-28, 52], [-10, 70], [20, 84], [60, 94], [160, 100]],
   colours: {
-    pine: 0x2b3f26, pineLit: 0x3d5531, scrub: 0x7d7a4c, scrubDark: 0x5f6238, granite: 0x8f8c85,
-    bare: 0x8c5a3c, field: 0x76813f, fieldDry: 0xb5a675, sand: 0xd8caa2, sea: 0x2a6f8e, track: 0xd6c9a6,
+    // cor-de-azeitona (mato e campos verdes); a cor de palha só em manchas de restolho
+    pine: 0x2b3f26, pineLit: 0x3d5531, pineFloor: 0x2f3b24, scrub: 0x6f7444, scrubDark: 0x5a5f36,
+    granite: 0x8f8c85, bare: 0x74503a, field: 0x6f7d3c, fieldDry: 0xa99b68, sand: 0xd8caa2,
+    sea: 0x2a6f8e, track: 0xd6c9a6, hedge: 0x2a4230,
   },
   // aceiros e carreiros de terra clara a subir a encosta a noroeste (fotos e satélite)
   tracks: [

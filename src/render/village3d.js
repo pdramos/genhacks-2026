@@ -38,7 +38,8 @@ import('./charring.js').then((m) => { if (m.charProp) charProp = m.charProp; }).
 
 export function createVillageView(scene, village, style, rand, options = {}) {
   const halfX = (village.width - 1) / 2, halfZ = (village.height - 1) / 2;
-  const terrain = createTerrain(scene, village, style.palette, { verticalScale: options.terrainScale });
+  // Com cenário à volta, o chão continua para lá do mapa: nada de ribanceira de "ilha".
+  const terrain = createTerrain(scene, village, style.palette, { verticalScale: options.terrainScale, cliff: !style.backdrop });
   // O cenário à volta do mapa (serra, mar, povoações ao longe), se o estilo o tiver.
   if (style.backdrop) createBackdrop(scene, village, terrain, style.backdrop);
   let shadowListener = null; // quem quer saber que as sombras mudaram (ver onShadowsChanged)

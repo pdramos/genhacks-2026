@@ -51,7 +51,8 @@ const scene = new THREE.Scene();
 // O tamanho do mapa manda na câmara, nas sombras e no nevoeiro (o mapa de Sintra é 32x32).
 const mapSize = Math.max(village.width, village.height);
 // Metade do mapa (+ uma margem) tem de ter sombras do sol.
-const lights = addLights(scene, mapSize / 2 + 2); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
+// style.dayFog (opcional): o estilo escolhe o nevoeiro de dia (Sintra: ar limpo, a serra nítida).
+const lights = addLights(scene, mapSize / 2 + 2, { dayFog: style.dayFog }); // lights.setTimeOfDay(t): 0 = dia, 1 = noite (o fogo real foi às 22:50)
 if (lowGpu) lights.sun.shadow.mapSize.set(1024, 1024);
 
 // Se a janela ainda não tem tamanho (ex.: aberta escondida), innerHeight é 0 e a proporção dava

@@ -10,9 +10,12 @@
 //   const terrain = createTerrain(scene, village, palette, options)
 //                                     options.verticalScale = quanto sobe cada nível de altura
 //                                     (por omissão LEVEL_HEIGHT; o nível pode pedir mais relevo)
+//                                     options.cliff = false -> sem ribanceira (quando há cenário à
+//                                     volta, o chão continua para lá do mapa e não há "ilha")
 //   terrain.groundHeight(x, y)     -> altura do chão (unidades 3D) no CENTRO do quadrado (x, y).
 //                                     Nos quadrados de água devolve a altura da superfície da água.
 //   terrain.heightAtWorld(wx, wz)  -> altura do chão num ponto qualquer do mundo (para pôr árvores)
+//   terrain.colourAtWorld(wx, wz, out) -> a cor do chão nesse ponto (o cenário usa-a junto à borda)
 //   terrain.setSurface(x, y, type) -> muda o aspeto do chão num quadrado
 //                                     (um tipo de quadrado, ou 'burned' = carvão preto e cinza)
 //   terrain.pickTile(raycaster)    -> {x, y} do quadrado onde o "raio" bate, ou null
@@ -100,6 +103,7 @@ function makeSurfaceRecipes(P) {
 // =====================================================================================
 export function createTerrain(scene, village, palette, options = {}) {
   const levelHeight = options.verticalScale ?? LEVEL_HEIGHT;
+  const hasCliff = options.cliff !== false;
   const W = village.width, H = village.height;
   const halfX = (W - 1) / 2, halfZ = (H - 1) / 2;
   const recipes = makeSurfaceRecipes(palette);
@@ -235,7 +239,8 @@ export function createTerrain(scene, village, palette, options = {}) {
         const k = j * cols + i;
         const [gx, gy] = gridToTile(i, j);
         const [wx, wz] = rimOffset(i, j, gx, gy);
-        const edgeDrop = isRim(i, j) ? 0.06 : 0; // a borda arredonda um pouco para baixo
+        // a borda arredonda um pouco para baixo (sem ribanceira não: o chão continua lá fora)
+        const edgeDrop = isRim(i, j) && hasCliff ? 0.06 : 0;
         positions.set([wx, heightAt(gx, gy) - edgeDrop, wz], k * 3);
         colourAt(gx, gy, c);
         colours.set([c.r, c.g, c.b], k * 3);
@@ -279,7 +284,7 @@ export function createTerrain(scene, village, palette, options = {}) {
   // e os cantos são arredondados para dentro: assim a ilha não é um quadrado perfeito.
   function rimOffset(i, j, gx, gy) {
     let wx = gx - halfX, wz = gy - halfZ;
-    if (!isRim(i, j)) return [wx, wz];
+    if (!isRim(i, j) || !hasCliff) return [wx, wz]; // sem ribanceira, a borda é reta (o cenário continua-a)
     const [nx, nz] = outwardDirection(i, j);
     const push = 0.04 + noise(gx * 0.9, gy * 0.9, 7) * 0.32 - cornerPull(gx, gy);
     return [wx + nx * push, wz + nz * push];
@@ -305,6 +310,7 @@ export function createTerrain(scene, village, palette, options = {}) {
 
   // ---------- 3e. Ribanceira com camadas de terra ----------
   const cliff = buildCliff();
+  cliff.visible = hasCliff;
   scene.add(cliff);
 
   // A volta da ilha, em ordem: lista de índices (i, j) dos vértices da borda.
@@ -786,7 +792,12 @@ export function createTerrain(scene, village, palette, options = {}) {
     animateWater(t);
   }
 
-  return { groundHeight, heightAtWorld, setSurface, pickTile, update, levelHeight, baseY: BASE_Y };
+  // A cor do chão num ponto do mundo (o mesmo que a malha usa).
+  function colourAtWorld(wx, wz, out) {
+    return colourAt(wx + halfX, wz + halfZ, out);
+  }
+
+  return { groundHeight, heightAtWorld, colourAtWorld, setSurface, pickTile, update, levelHeight, baseY: BASE_Y };
 }
 
 // Um tufo de erva: 4 folhas finas e compridas em leque (e não um cone, que parecia um espigão).

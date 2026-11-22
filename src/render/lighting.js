@@ -97,12 +97,15 @@ const NIGHT = {
 };
 
 // Céu, nevoeiro e luzes. `size` = metade do tamanho da área que tem de ter sombras.
+// options.dayFog = { color, near, far } (opcional): o nevoeiro de DIA que um estilo prefere
+// (ex.: Sintra, com a serra ao fundo, quer o ar limpo e azul das fotos, e não uma neblina branca).
 // Devolve { sun, fill, hemi, setTimeOfDay(t) }: t = 0 é dia (sol forte), t = 1 é noite.
-export function addLights(scene, size = 16) {
+export function addLights(scene, size = 16, options = {}) {
+  const dayFog = options.dayFog ?? DAY.fog;
   const sky = makeSky();
   scene.background = sky.texture;
   // Nevoeiro na cor do horizonte: o canto mais longe do tabuleiro fica levemente enevoado.
-  scene.fog = new THREE.Fog(DAY.fog.color, DAY.fog.near, DAY.fog.far);
+  scene.fog = new THREE.Fog(dayFog.color, dayFog.near, dayFog.far);
   // Luz do céu (azul fresco) + reflexo do chão (castanho claro e quente).
   const hemi = new THREE.HemisphereLight(DAY.hemiSky, DAY.hemiGround, DAY.hemi);
   scene.add(hemi);
@@ -132,9 +135,9 @@ export function addLights(scene, size = 16) {
     lerpColor(hemi.groundColor, DAY.hemiGround, NIGHT.hemiGround, k);
     hemi.intensity = lerp(DAY.hemi, NIGHT.hemi, k);
     scene.environmentIntensity = lerp(DAY.env, NIGHT.env, k);
-    lerpColor(scene.fog.color, DAY.fog.color, NIGHT.fog.color, k);
-    scene.fog.near = lerp(DAY.fog.near, NIGHT.fog.near, k);
-    scene.fog.far = lerp(DAY.fog.far, NIGHT.fog.far, k);
+    lerpColor(scene.fog.color, dayFog.color, NIGHT.fog.color, k);
+    scene.fog.near = lerp(dayFog.near, NIGHT.fog.near, k);
+    scene.fog.far = lerp(dayFog.far, NIGHT.fog.far, k);
     sky.paint(k);
   }
 

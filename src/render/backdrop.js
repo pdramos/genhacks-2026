@@ -11,19 +11,27 @@
 //   spec.base(x, z)                     -> altura (metros) do terreno "de fundo" num ponto do mundo
 //   spec.lift    = { above, factor }      -> exagera a serra acima de `above` metros (é cenário:
 //                                          assim o morro "enche" o céu como nas fotos)
-//   spec.peaks   = [{ x, z, metres, radius, cover: 'pine'|'scrub'|'bare', sanctuary? }]
+//   spec.peaks   = [{ x, z, metres, radius, cover: 'pine'|'scrub'|'bare', sanctuary?, tors?,
+//                     bareTop?, bareRadius?, dome? }]  (metres: 0 = só cobertura, sem levantar o chão;
+//                                          bareRadius = o tamanho do cume pelado, em partes do raio)
+//   spec.range   = até onde vai o cenário (por omissão 130); spec.blend = em quantas unidades o
+//                  chão passa da borda do mapa para a serra (por omissão 9)
+//   spec.pines   = { range, max, denseScale } -> o pinhal: até onde, quantas árvores no máximo e
+//                  quanto maiores são as do pinhal cerrado (por omissão 75, 7000, 1)
+//   spec.torClusters = [{ x, z, radius, count, size }] -> montes de penedos de granito soltos
+//   spec.hedgeRows = { count, length } -> sebes escuras compridas a dividir os campos
 //   spec.coast   = [[x, z], ...]        -> a linha da costa (o mar fica do lado ESQUERDO de quem a
 //                                          percorre), ou nada se não houver mar
-//   spec.colours = { pine, pineLit, scrub, scrubDark, granite, bare, field, fieldDry, sand, sea }
+//   spec.colours = { pine, pineLit, scrub, scrubDark, granite, bare, field, fieldDry, sand, sea,
+//                    pineFloor?, hedge? }  (pineFloor = o chão por baixo do pinhal)
 //   spec.tracks  = [{ x0, z0, x1, z1, turns }] -> caminhos de terra claros em zigue-zague
 //   spec.towns   = [{ x, z, radius, count }]   -> povoações ao longe (casinhas brancas)
 // Coordenadas do mundo: o centro do mapa é (0, 0); -z é o norte; +x é o leste.
 import * as THREE from 'three';
 
-const R = 130;          // até onde vai o cenário (depois disso, só nevoeiro)
 const HOLE_INSET = 1.5; // por baixo do mapa não desenhamos nada (o mapa tapa)
-const EDGE_DROP = 0.07; // junto ao mapa o cenário fica um pouco mais baixo que a borda
-const BLEND = 9;        // em quantas unidades o cenário passa da borda do mapa para a serra
+const EDGE_DROP = 0.02; // junto ao mapa o cenário fica um tudo-nada mais baixo que a borda
+const EDGE_FADE = 5;    // nas primeiras 5 unidades fora do mapa, a cor do chão vai passando da do mapa para a do cenário
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -45,6 +53,8 @@ function noise(x, y, seed) {
 
 export function createBackdrop(scene, village, terrain, spec) {
   const halfW = village.width / 2, halfH = village.height / 2;
+  const R = spec.range ?? 130;    // até onde vai o cenário (depois disso, só nevoeiro)
+  const BLEND = spec.blend ?? 9;  // em quantas unidades o cenário passa da borda do mapa para a serra
   const toY = (metres) => terrain.baseY + ((metres - spec.minMetres) / spec.metresPerLevel) * terrain.levelHeight;
   const seaY = toY(0) + 0.05;
 
@@ -67,9 +77,11 @@ export function createBackdrop(scene, village, terrain, spec) {
   }
 
   // Os montes: cada pico "levanta" o terreno à sua volta (sem baixar o que já é alto).
+  // p.dome = true: um morro REDONDO (cume largo e abaulado), e não um pico em bico.
   function peakInfluence(x, z, p) {
     const d = Math.hypot(x - p.x, z - p.z) / p.radius;
-    return Math.exp(-d * d * 1.6);
+    const e = d * d;
+    return Math.exp(p.dome ? -(e * e * 1.1 + e * 0.5) : -e * 1.6);
   }
 
   // Altura em METROS (antes de passar para a escala do mapa).
@@ -96,10 +108,17 @@ export function createBackdrop(scene, village, terrain, spec) {
   // Altura no MUNDO: junto ao mapa segue a borda do mapa; mais longe, a serra.
   function heightAt(x, z) {
     const d = outside(x, z);
-    if (d <= 0) return terrain.heightAtWorld(x, z) - 0.4;           // escondido por baixo do mapa
-    const ex = clamp(x, -halfW + 0.5, halfW - 0.5), ez = clamp(z, -halfH + 0.5, halfH - 0.5);
+    // escondido por baixo do mapa, mas só um pouco (senão, junto à borda, via-se uma "dobra")
+    if (d <= 0) return terrain.heightAtWorld(x, z) - 0.05;
+    // a altura da BORDA do mapa mesmo ao lado (e não meio quadrado para dentro): assim não fica degrau
+    const [ex, ez] = edgePoint(x, z);
     const edge = terrain.heightAtWorld(ex, ez) - EDGE_DROP;
     return lerp(edge, toY(metresAt(x, z)), smooth(clamp(d / BLEND, 0, 1)));
+  }
+
+  // O ponto da borda do mapa mais perto de (x, z).
+  function edgePoint(x, z) {
+    return [clamp(x, -halfW + 0.02, halfW - 0.02), clamp(z, -halfH + 0.02, halfH - 0.02)];
   }
 
   // ---------- A cor ----------
@@ -111,27 +130,36 @@ export function createBackdrop(scene, village, terrain, spec) {
     for (const p of spec.peaks) {
       const w = peakInfluence(x, z, { ...p, radius: p.radius * 1.6 });
       cover[p.cover] = Math.max(cover[p.cover], w);
-      if (p.bareTop) cover.bare = Math.max(cover.bare, peakInfluence(x, z, { ...p, radius: p.radius * 0.35 }));
+      if (p.bareTop) cover.bare = Math.max(cover.bare, peakInfluence(x, z, { ...p, radius: p.radius * (p.bareRadius ?? 0.35) }));
     }
     return cover;
   }
   function colourAt(x, z, m, out) {
     const n = noise(x * 0.4, z * 0.4, 43), n2 = noise(x * 1.3, z * 1.3, 44);
-    // campos e quintas (o que está longe dos montes)
-    out.copy(C.field).lerp(C.fieldDry, smooth(n));
+    // campos e quintas (o que está longe dos montes): verdes, com manchas de restolho seco
+    out.copy(C.field).lerp(C.fieldDry, smooth(clamp((n - 0.5) * 2.5, 0, 1)));
     const cover = coverAt(x, z);
     const westScrub = spec.scrubWest ? clamp((spec.scrubWest - x) / 12, 0, 1) * clamp((m - 60) / 80, 0, 1) : 0;
     const scrub = Math.max(cover.scrub, westScrub);
     if (scrub > 0) out.lerp(tmp.copy(C.scrub).lerp(C.scrubDark, n2), smooth(clamp(scrub * 1.4, 0, 1)));
-    if (cover.pine > 0) out.lerp(tmp.copy(C.pine).lerp(C.pineLit, n2 * 0.6), smooth(clamp(cover.pine * 1.5 - n * 0.3, 0, 1)));
+    // debaixo do pinhal o chão é caruma escura (as clareiras leem-se como mata, não como campo)
+    if (cover.pine > 0) out.lerp(tmp.copy(C.pineFloor ?? C.pine).lerp(C.pine, n2 * 0.6), smooth(clamp(cover.pine * 1.5 - n * 0.3, 0, 1)));
     // granito à vista nas partes mais altas
     if (m > 380) out.lerp(C.granite, clamp((m - 380) / 120, 0, 1) * smooth(clamp((n2 - 0.45) * 3, 0, 1)) * 0.8);
     if (cover.bare > 0) out.lerp(C.bare, smooth(clamp(cover.bare * 1.6 - n2 * 0.4, 0, 1)));
     // areia e rocha molhada junto ao mar
     const c = coastDistance(x, z);
     if (c < 2.5) out.lerp(C.sand, smooth(clamp(1 - c / 2.5, 0, 1)));
-    return out.multiplyScalar(0.9 + noise(x * 3, z * 3, 45) * 0.18);
+    out.multiplyScalar(0.9 + noise(x * 3, z * 3, 45) * 0.18);
+    // junto ao mapa, a cor continua a do chão do mapa (assim não se vê a borda do "tabuleiro")
+    const d = outside(x, z);
+    if (d < EDGE_FADE && terrain.colourAtWorld) {
+      const [ex, ez] = edgePoint(x, z);
+      out.lerp(terrain.colourAtWorld(ex, ez, edgeColour), 1 - smooth(clamp(d / EDGE_FADE, 0, 1)));
+    }
+    return out;
   }
+  const edgeColour = new THREE.Color();
 
   // ---------- A malha ----------
   // Uma grelha com quadradinhos de 0.5 perto do mapa, cada vez maiores para longe (até 4).
@@ -182,6 +210,7 @@ export function createBackdrop(scene, village, terrain, spec) {
   group.add(buildPines());
   const tors = buildTors();
   if (tors) group.add(tors);
+  if (spec.hedgeRows) group.add(buildHedgeRows());
   for (const p of spec.peaks) if (p.sanctuary) group.add(buildSanctuary(p));
   for (const t of spec.tracks ?? []) group.add(buildTrack(t));
   if (spec.towns?.length) group.add(buildTowns());
@@ -200,15 +229,21 @@ export function createBackdrop(scene, village, terrain, spec) {
 
   // Pinhal ao longe: milhares de cones verde-escuros (UMA peça só, desenhada de uma vez).
   function buildPines() {
+    const range = spec.pines?.range ?? 75, max = spec.pines?.max ?? 7000;
+    const denseScale = spec.pines?.denseScale ?? 1;
+    // quantos sítios experimentamos: ~3 por unidade quadrada (o pinhal cerrado fica mesmo cerrado)
+    const tries = Math.max(40000, Math.round(range * range * 4 * 3));
     const spots = [];
-    for (let k = 0; k < 40000 && spots.length < 7000; k++) {
-      const x = (hash(k, 1, 50) - 0.5) * 2 * 75, z = (hash(k, 2, 50) - 0.5) * 2 * 75;
+    for (let k = 0; k < tries && spots.length < max; k++) {
+      const x = (hash(k, 1, 50) - 0.5) * 2 * range, z = (hash(k, 2, 50) - 0.5) * 2 * range;
       if (outside(x, z) < 1.2) continue;
       const cover = coverAt(x, z);
       const westScrub = spec.scrubWest ? clamp((spec.scrubWest - x) / 12, 0, 1) : 0;
       // nos campos, as árvores juntam-se em pequenos bosques (manchas do ruído), não soltas
       const grove = noise(x * 0.14, z * 0.14, 46) > 0.64 ? 12 : 0;
-      const chance = cover.pine * 1.3 - cover.bare * 2 - westScrub * 0.8 + (spec.lowlandTrees ?? 0) * grove;
+      // no pinhal cerrado as copas juntam-se em maciços, com pequenas clareiras entre eles
+      const clump = cover.pine > 0.5 ? 0.5 + noise(x * 0.6, z * 0.6, 47) * 1.1 : 1;
+      const chance = cover.pine * 1.3 * clump - cover.bare * 2 - westScrub * 0.8 + (spec.lowlandTrees ?? 0) * grove;
       if (hash(k, 3, 50) > chance) continue;
       if (coastDistance(x, z) < 3) continue;
       spots.push([x, z, k]);
@@ -217,7 +252,11 @@ export function createBackdrop(scene, village, terrain, spec) {
     const mesh = new THREE.InstancedMesh(cone, new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), spots.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
     spots.forEach(([x, z, k], i) => {
-      const s = (0.7 + hash(k, 4, 50) * 0.7) * (coverAt(x, z).pine > 0.3 ? 1 : 0.6); // nos campos, árvores mais pequenas
+      const pine = coverAt(x, z).pine;
+      // pinhal cerrado: copas grandes; nos campos, árvores mais pequenas
+      // (as copas grandes só na serra: nos vales em frente à câmara tapavam a vila)
+      const big = pine > 0.5 && metresAt(x, z) > 220;
+      const s = (0.7 + hash(k, 4, 50) * 0.7) * (big ? denseScale : pine > 0.3 ? 1 : 0.6);
       m.compose(new THREE.Vector3(x, heightAt(x, z) - 0.05, z), q, new THREE.Vector3(s * 1.1, s * (0.8 + hash(k, 5, 50) * 0.5), s * 1.1));
       mesh.setMatrixAt(i, m);
       mesh.setColorAt(i, col.copy(C.pine).lerp(C.pineLit, hash(k, 6, 50)).multiplyScalar(0.85));
@@ -234,20 +273,65 @@ export function createBackdrop(scene, village, terrain, spec) {
         const ang = hash(k, 1, p.metres) * Math.PI * 2, r = Math.sqrt(hash(k, 2, p.metres)) * p.radius * 0.7;
         const x = p.x + Math.cos(ang) * r, z = p.z + Math.sin(ang) * r;
         if (outside(x, z) < 1) continue;
-        spots.push([x, z, k + p.metres * 1000]);
+        spots.push([x, z, k + p.metres * 1000, 1]);
       }
     }
+    // montes de penedos soltos (ex.: no ombro da cúpula, a nordeste)
+    (spec.torClusters ?? []).forEach((t, ti) => {
+      for (let k = 0; k < t.count; k++) {
+        const ang = hash(k, 1, 70 + ti) * Math.PI * 2, r = Math.sqrt(hash(k, 2, 70 + ti)) * t.radius;
+        const x = t.x + Math.cos(ang) * r, z = t.z + Math.sin(ang) * r;
+        if (outside(x, z) < 1) continue;
+        spots.push([x, z, k + 9000 + ti * 100, t.size ?? 1]);
+      }
+    });
     if (!spots.length) return null;
     const mesh = new THREE.InstancedMesh(
       new THREE.DodecahedronGeometry(0.35, 0),
       new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true }), spots.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-    spots.forEach(([x, z, k], i) => {
-      const s = 0.6 + hash(k, 3, 51) * 1.4;
+    spots.forEach(([x, z, k, size], i) => {
+      const s = (0.6 + hash(k, 3, 51) * 1.4) * size;
       q.setFromEuler(e.set(hash(k, 4, 51), hash(k, 5, 51) * 6, 0));
       m.compose(new THREE.Vector3(x, heightAt(x, z) + 0.1 * s, z), q, new THREE.Vector3(s, s * 0.75, s));
       mesh.setMatrixAt(i, m);
       mesh.setColorAt(i, col.copy(C.granite).multiplyScalar(0.8 + hash(k, 6, 51) * 0.35));
+    });
+    return mesh;
+  }
+
+  // Sebes compridas e escuras (cipreste, loureiro) a dividir os campos e as quintas.
+  // Cada sebe é uma fila de "caixinhas" verde-escuras que segue o chão.
+  function buildHedgeRows() {
+    const segs = [];
+    const count = spec.hedgeRows.count ?? 40, length = spec.hedgeRows.length ?? 5;
+    for (let h = 0, tries = 0; h < count && tries < count * 20; tries++) {
+      const cx = (hash(tries, 1, 80) - 0.5) * 120, cz = (hash(tries, 2, 80) - 0.5) * 120;
+      if (outside(cx, cz) < 6 || coastDistance(cx, cz) < 4) continue;
+      const cover = coverAt(cx, cz);
+      if (cover.pine > 0.35 || cover.scrub > 0.4 || metresAt(cx, cz) > 300) continue; // só nos campos
+      h++;
+      // as sebes seguem mais ou menos as mesmas direções (como os limites das propriedades)
+      const ang = (hash(tries, 3, 80) < 0.5 ? 0.35 : 1.92) + (hash(tries, 4, 80) - 0.5) * 0.4;
+      const len = length * (0.6 + hash(tries, 5, 80) * 0.8);
+      const dx = Math.cos(ang), dz = Math.sin(ang);
+      for (let t = -len / 2; t < len / 2; t += 0.35) {
+        const x = cx + dx * t, z = cz + dz * t;
+        if (outside(x, z) < 1.5) continue;
+        segs.push([x, z, ang, tries * 50 + Math.round(t * 3)]);
+      }
+    }
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.4, 0.22, 0.15).translate(0, 0.11, 0),
+      new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), segs.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
+    const hedge = new THREE.Color(spec.colours.hedge ?? 0x2f4a34);
+    const up = new THREE.Vector3(0, 1, 0), pos = new THREE.Vector3(), scale = new THREE.Vector3();
+    segs.forEach(([x, z, ang, k], i) => {
+      q.setFromAxisAngle(up, -ang);
+      m.compose(pos.set(x, heightAt(x, z) - 0.04, z), q, scale.set(1, 0.85 + hash(k, 1, 81) * 0.3, 1));
+      mesh.setMatrixAt(i, m);
+      mesh.setColorAt(i, col.copy(hedge).multiplyScalar(0.85 + hash(k, 2, 81) * 0.3));
     });
     return mesh;
   }
