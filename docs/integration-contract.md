@@ -144,3 +144,6 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
 - **3★:** < 35% mesmo para o bom plano.
 
 Afina o orçamento, os custos, o fator de declive, as constantes do fogo (com cuidado, sem partir os testes do fogo) e os limites das estrelas.
+
+**Resultado (sementes 1–30, orçamento 12 000):** nada 1,10★ (era 1,67) · ingénuo 1,17★ (era 1,67) · ao calhas 1,40★ (era 2,00) · bom plano ≥ 2★ em 73% e 3★ em 20% (era 100% e 37%).
+A meta "nada < 0,5★" **não foi cumprida** e está como `todo` no teste: o fogo da berma da estrada da Peninha (5, 6) desce para a costa, longe da vila, e os fogos a oeste da estrada x=19 nunca chegam ao quartel, por isso não fazer nada ainda dá 1–2★ em cerca de metade das sementes. As afinações do fogo que desciam abaixo de 0,5 partiam os testes da forma do fogo (elipse). Para lá chegar é preciso mexer no mapa (por exemplo, nos `ignitionCandidates` ou no sítio do quartel).

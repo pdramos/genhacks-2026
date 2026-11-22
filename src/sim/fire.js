@@ -10,8 +10,8 @@ export const FLAMMABILITY = {
   eucalyptus: 0.9,
   brush: 0.8,
   grass: 0.5,
-  house: 0.4,
-  school: 0.4,
+  house: 0.5, // era 0.4; subiu no equilíbrio (tests/balance.test.js): o fogo que entra
+  school: 0.5, // na vila tem de conseguir passar de casa em casa
   broadleaf: 0.3,
   cleared: 0.15,
   firebreak: 0,
@@ -207,14 +207,19 @@ function spreadToNeighbours(fire, wind) {
 // a favor do vento. Por isso uma estrada estreita (1 quadrado) nem sempre trava o fogo!
 // Uma brasa nunca acende água, estrada ou corta-fogo (inflamabilidade 0).
 // Decisão: casas e a ESCOLA podem pegar fogo com brasas (são edifícios, têm inflamabilidade
-// 0.4). Na vida real, muitas casas ardem por causa das brasas, não das chamas.
+// 0.5). Na vida real, muitas casas ardem por causa das brasas, não das chamas.
 
 // Abaixo desta velocidade do vento (km/h) não voam brasas.
 // Conta a RAJADA (gust) quando o nível a tem: são as rajadas que levantam as brasas.
-export const SPOT_MIN_WIND_KMH = 20;
+// (Era 20; passou a 25 no equilíbrio, junto com SPOT_CHANCE_PER_KMH: assim as brasas vêm
+// sobretudo das RAJADAS fortes, e um vento certinho de 30 km/h quase não as larga.)
+export const SPOT_MIN_WIND_KMH = 25;
 // Por cada km/h acima do mínimo, a chance de um quadrado a arder largar uma brasa num passo
-// aumenta 0.3% (vezes a força do fogo). Ex.: rajadas de 68 km/h e eucalipto (0.98) -> ~14%.
-export const SPOT_CHANCE_PER_KMH = 0.003;
+// aumenta 0.6% (vezes a força do fogo). Ex.: rajadas de 68 km/h e eucalipto (0.98) -> ~25%.
+// Era 0.003 (~14%); passou a 0.006 no equilíbrio (tests/balance.test.js): antes o fogo de Sintra
+// quase nunca saltava a EN247, e não preparar nada ainda dava quase 2 estrelas.
+// Naquela noite as rajadas chegaram a 70 km/h: muitas brasas foi o que aconteceu de verdade.
+export const SPOT_CHANCE_PER_KMH = 0.006;
 // A chance nunca passa disto, nem num temporal.
 export const SPOT_MAX_CHANCE = 0.3;
 // As brasas não vão em linha reta: desviam-se até 25 graus para cada lado do vento.

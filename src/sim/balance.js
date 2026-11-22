@@ -1,6 +1,15 @@
 // CONSTANTES DE EQUILÍBRIO: os números que decidem se o jogo é fácil ou difícil.
 // Ficam todas aqui, num só sítio, para se poderem afinar sem procurar pelo código todo.
 // (O agente/pessoa que afina a dificuldade mexe neste ficheiro e corre "npm test".)
+//
+// O teste do equilíbrio é tests/balance.test.js: joga Sintra 30 vezes com 4 estratégias e
+// imprime uma tabela de estrelas. Ronda de equilíbrio (ticket #14), o que mudou e porquê:
+//   - orçamento de Sintra 8000 -> 12000 (em data/levels/sintra.json, porque é do nível):
+//     com o fogo mais forte, 8000 não chegava para o bom plano proteger o quartel E as casas;
+//   - fogo (src/sim/fire.js, cada mudança explicada lá): mais brasas com rajadas fortes
+//     (SPOT_CHANCE_PER_KMH 0.003 -> 0.006, SPOT_MIN_WIND_KMH 20 -> 25) e casas/escola mais
+//     inflamáveis (0.4 -> 0.5). Antes, não fazer nada dava 1,67 estrelas em média.
+//   - preços, declive e estrelas ficaram iguais (os testes das ações e das estrelas usam-nos).
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.
