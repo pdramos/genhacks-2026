@@ -6,11 +6,13 @@
 import * as THREE from 'three';
 import { game, onFrame, onPhaseChange, setPhase, retrySameNight } from './main.js';
 import { runDisaster } from '../sim/fire.js';
-import { pickIgnition } from '../sim/ignition.js';
+import { resolveIgnition, canIgnite } from '../sim/ignition.js';
 import { planFromChanges } from './runState.js';
 import { windForLevel, STEP_MINUTES } from '../sim/weather.js';
 import { playIgnition } from './ignitionCinematic.js';
 import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, showResultCard } from './ui/hud.js';
+import { lostHouses, describeLostHouses } from './mapHints.js';
+import { markLostHouses } from './mapMarkers.js';
 
 // Ritmo do "filme": cada passo dura no máximo 2 segundos e o filme todo no máximo 40 segundos.
 const MAX_STEP_MS = 2000;
@@ -22,17 +24,20 @@ const EMBER_FLIGHT_MS = 1300;
 const DUSK_SECONDS = 2.5;
 
 const info = document.getElementById('info');
+// O último vento mostrado na bússola (a bússola roda com ele, ver o fim do ficheiro).
+let lastWind = null;
 
 // ---------- Botão "Start disaster" ----------
 // O aspeto (botão redondo com uma chama) está em src/render/ui/.
 const button = createStartButton(startDisaster);
 document.getElementById('hud').appendChild(button);
 
-// O botão só funciona na fase de construção; a bússola do vento só aparece durante e depois do fogo.
+// O botão só funciona na fase de construção. A bússola do vento aparece SEMPRE: na construção
+// mostra a previsão (o vento da primeira hora), para o jogador planear os corta-fogos a ver o vento.
 // body[data-phase] deixa o CSS mudar de cores conforme a fase (ex.: a caixa #info fica cor de fogo).
 function updateUi(phase) {
   button.disabled = phase !== 'build';
-  if (phase === 'build') hideWind();
+  if (phase === 'build') showWindAt(windForLevel(game.level)(0), 'Forecast');
   document.body.dataset.phase = phase;
   // O incêndio real foi às 22:50: o desastre passa-se de NOITE (e o fogo vê-se muito melhor).
   // No fim amanhece (o fogo real foi dominado de manhã), mas fica uma névoa de fumo.
@@ -58,14 +63,20 @@ async function startDisaster() {
 
   // 0) Onde cai o cigarro? O nível tem vários sítios possíveis (ignitionCandidates) e a
   //    semente deste jogo escolhe um. O jogador só o descobre agora, na cena.
-  const ignition = pickIgnition(game.level, game.seed);
+  //    resolveIgnition já conta com o plano: se lá houver um corta-fogo, o fogo começa no
+  //    quadrado que arde mais perto (o mesmo que a simulação vai usar).
+  const ignition = resolveIgnition(game.village, game.level, game.seed);
   game.ignition = ignition;
+  const willBurn = canIgnite(game.village, ignition.x, ignition.y);
 
   // 1) A cena do cigarro: um carro passa e atira uma ponta de cigarro para o mato seco.
   //    Esperamos (await) até ela acabar; o jogador pode saltá-la com um clique ou Espaço.
   //    Durante a cena escondemos a caixa #info (a cena tem as suas próprias legendas).
   info.style.visibility = 'hidden';
-  await playIgnition(game, ignition);
+  hideWind(); // a bússola da previsão sai de cena, para não ficar por baixo das barras de cinema
+  document.body.classList.add('cinematic'); // esconde os marcadores do mapa (hud.css)
+  await playIgnition(game, ignition, { willBurn });
+  document.body.classList.remove('cinematic');
   info.style.visibility = '';
 
   // 2) A simulação calcula o incêndio todo de uma vez, a partir da vila ATUAL
@@ -86,7 +97,9 @@ async function startDisaster() {
   const stepMs = Math.min(MAX_STEP_MS, MAX_TOTAL_MS / steps.length);
   const shown = new Map(); // "x,y" -> 'burning' ou 'burned' (o que já está no ecrã)
   showSnapshot(steps[0], shown, stepMs);
-  if (steps.length === 1) return showResult(outcome); // nada pegou fogo
+  // Por segurança: se o fogo não começou, apaga qualquer chama que a cena tenha deixado.
+  if (steps[0].burning.length === 0) game.fireFx.extinguish(ignition.x, ignition.y);
+  if (steps.length === 1) return showResult(outcome, steps[0]); // nada pegou fogo
   let index = 1;
   const timer = setInterval(() => {
     const currentWind = wind(index - 1); // o vento que soprou durante este passo
@@ -96,19 +109,20 @@ async function startDisaster() {
     if (index === steps.length) {
       clearInterval(timer);
       // Esperamos um passo: os últimos quadrados ainda estão a mudar (ver staggerMs).
-      setTimeout(() => showResult(outcome), stepMs);
+      setTimeout(() => showResult(outcome, steps[steps.length - 1]), stepMs);
     }
   }, stepMs);
 }
 
 // Mostra o vento de agora na bússola e inclina o fumo para o lado certo.
 // Com dados por hora, também diz a hora (ex.: "23:00").
-let lastWind = null;
-function showWindAt(wind) {
+// label = a palavra pequena por cima: "Wind" durante o fogo, "Forecast" na construção.
+// (lastWind = o último vento mostrado; está declarado lá em cima, antes do primeiro updateUi.)
+function showWindAt(wind, label = 'Wind') {
   lastWind = wind;
   const hour = wind.time ? ` · ${wind.time.slice(11, 16)}` : '';
   const gust = wind.gust ? `, gusts ${Math.round(wind.gust)}` : '';
-  showWind(`From ${compassName(wind.direction)} · ${Math.round(wind.speed)} km/h${gust}${hour}`);
+  showWind(`From ${compassName(wind.direction)} · ${Math.round(wind.speed)} km/h${gust}${hour}`, label);
   game.fireFx.setWind?.(wind.direction, wind.speed);
 }
 
@@ -165,12 +179,16 @@ function later(ms, fn) {
   else setTimeout(fn, ms);
 }
 
-function showResult(outcome) {
+// lastStep = o último snapshot da simulação: diz que casas arderam (para as marcar e dizer onde).
+function showResult(outcome, lastStep) {
   const label = game.level.schoolName || 'School'; // em Sintra: o quartel dos bombeiros
   const school = `${label} ${outcome.schoolSaved ? 'saved' : 'lost'}`;
   info.textContent = `Houses saved: ${outcome.housesSaved} / ${outcome.housesTotal} · ${school}`;
+  const lost = lostHouses(game.village, lastStep);
+  markLostHouses(lost); // círculos vermelhos, visíveis no "Look around"
   setPhase('result');
-  const card = showResultCard(outcome, label, game.level); // o cartão do fim: estrelas, a história real e as fontes
+  // O cartão do fim: estrelas, onde se perderam casas, a história real e as fontes.
+  const card = showResultCard(outcome, label, game.level, describeLostHouses(lost, game.level.places));
   addRetryButton(card);
 }
 

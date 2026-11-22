@@ -10,7 +10,7 @@
 // depois do main.js (assim o "game" já está pronto quando este código corre).
 import * as THREE from 'three';
 import { game, onTileClick, onPhaseChange, tileName } from './main.js';
-import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable } from '../sim/actions.js';
+import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable, baseCost } from '../sim/actions.js';
 import { stripMap, stripEdges, slopeNote } from './fuelStrips.js';
 import { setLevelName, setBudget, showToast, createToolCard, formatEuros, showBriefingCard } from './ui/hud.js';
 import { rakeIcon, bulldozerIcon, saplingIcon, undoIcon } from './ui/icons.js';
@@ -37,7 +37,7 @@ const PARK_LABEL = '🔒 Natural park'; // 🔒 = cadeado
 // O ícone e a dica de cada ferramenta (o nome e o preço vêm da simulação).
 const TOOL_LOOKS = {
   clearBrush: { icon: rakeIcon, hint: 'Click a brush tile to clear it' },
-  firebreak: { icon: bulldozerIcon, hint: 'Click any vegetation tile to make a firebreak' },
+  firebreak: { icon: bulldozerIcon, hint: 'Click any vegetation tile to make a firebreak (€1,000 on trees: they must be cut down)' },
   replaceTrees: { icon: saplingIcon, hint: 'Click a eucalyptus tile to plant broadleaf trees' },
   undo: { icon: undoIcon, hint: 'Click a changed tile to undo it (full refund)' },
 };
@@ -154,7 +154,6 @@ hover.visible = false;
 let hoverTile = null;
 let pointerEvent = null;
 const info = document.getElementById('info');
-const raycaster = new THREE.Raycaster();
 game.renderer.domElement.addEventListener('pointermove', (event) => {
   pointerEvent = event;
   requestHoverUpdate();
@@ -174,11 +173,10 @@ function updateHover() {
     hover.visible = false;
     return;
   }
-  const canvas = game.renderer.domElement;
-  const r = canvas.getBoundingClientRect();
-  const pointer = new THREE.Vector2(((pointerEvent.clientX - r.left) / r.width) * 2 - 1, -((pointerEvent.clientY - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(pointer, game.camera);
-  hoverTile = game.view.terrain.pickTile(raycaster);
+  // O MESMO "apanhar o quadrado" que o clique usa (main.js): primeiro as casas e as árvores,
+  // depois o chão. Antes o destaque só via o chão e, com árvores altas à frente, o quadrado
+  // destacado não era o que o clique mudava.
+  hoverTile = game.view.tileFromPointer(pointerEvent, game.camera, game.renderer.domElement);
   if (!hoverTile) { hover.visible = false; return; }
   const { x, y } = hoverTile;
   const check = selectedTool ? checkAction(buildState, x, y, selectedTool) : null;
@@ -199,8 +197,10 @@ function describe(x, y, check) {
   if (check.ok) {
     const action = ACTIONS[selectedTool];
     const cost = check.cost ?? action.cost;
-    const steep = slopeNote(action.cost, cost);
-    return `${name} — ${action.label} ${formatEuros(cost)}${steep ? ` (${steep})` : ''}`;
+    // O preço base DESTE tipo (ex.: corta-fogo em árvores = €1000); o resto é a encosta.
+    const base = baseCost(selectedTool, game.village.tiles[y][x]);
+    const notes = [base > action.cost ? 'cutting trees' : '', slopeNote(base, cost)].filter(Boolean);
+    return `${name} — ${action.label} ${formatEuros(cost)}${notes.length ? ` (${notes.join(', ')})` : ''}`;
   }
   if (check.reason === 'protected-area') return `${name} — ${PARK_LABEL}`;
   return `${name} — ${BLOCKED_MESSAGES[check.reason] || "Can't build there"}`;

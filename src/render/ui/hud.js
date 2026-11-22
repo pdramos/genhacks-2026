@@ -4,7 +4,7 @@
 // os outros módulos (buildPanel.js, disasterPlayer.js) chamam estas funções.
 // O aspeto (cores, tamanhos, animações) está em hud.css.
 import { coinIcon, flameIcon, windArrowIcon, houseIcon, schoolIcon } from './icons.js';
-import { countStars } from '../../sim/stars.js';
+import { countStars, TWO_STAR_SHARE } from '../../sim/stars.js';
 
 // ---------- Barra de cima ----------
 // Os elementos da barra de cima já existem no index.html (ids: level-name, budget, wind...).
@@ -145,8 +145,10 @@ export function createStartButton(onClick) {
 const windChip = document.getElementById('wind');
 
 // Mostra a bússola com o texto (ex.: "From NW · 30 km/h").
-export function showWind(text) {
+// label = a palavra pequena por cima ("Wind" durante o fogo, "Forecast" na construção).
+export function showWind(text, label = 'Wind') {
   document.getElementById('wind-text').textContent = text;
+  windChip.querySelector('.wind-label').textContent = label;
   windChip.hidden = false;
 }
 
@@ -179,6 +181,15 @@ export function showBriefingCard(level, onStart) {
     <div class="briefing-name"></div>
     <div class="briefing-place"></div>
     <p class="briefing-text"></p>
+    <div class="briefing-goal">
+      <div class="story-heading">Your goal</div>
+      <ul class="goal-list">
+        <li><span class="goal-stars">★</span> <span class="goal-school"></span></li>
+        <li><span class="goal-stars">★★</span> <span class="goal-share"></span></li>
+        <li><span class="goal-stars">★★★</span> and every single house</li>
+      </ul>
+      <p class="goal-hint"></p>
+    </div>
     <div class="credit">Real weather of that night: Open-Meteo (CC BY 4.0)</div>
     <div class="result-buttons">
       <button type="button" class="result-button" data-do="start">Prepare the town</button>
@@ -186,6 +197,14 @@ export function showBriefingCard(level, onStart) {
   card.querySelector('.briefing-name').textContent = level.name;
   card.querySelector('.briefing-place').textContent = level.place || '';
   card.querySelector('.briefing-text').textContent = level.briefing;
+  // As regras das estrelas (src/sim/stars.js): sem o edifício importante, 0 estrelas.
+  const school = level.schoolName || 'School';
+  card.querySelector('.goal-school').textContent = `Save the ${school.toLowerCase()} (lose it and you get no stars)`;
+  card.querySelector('.goal-share').textContent = `and at least ${Math.round(TWO_STAR_SHARE * 100)}% of the houses`;
+  // O nível pode avisar que não se sabe onde o fogo vai começar (a ignição escondida).
+  const hint = card.querySelector('.goal-hint');
+  if (level.ignitionHint) hint.textContent = level.ignitionHint;
+  else hint.remove();
   card.querySelector('[data-do="start"]').addEventListener('click', () => {
     card.remove();
     onStart?.();
@@ -205,7 +224,9 @@ function starSvg(filled) {
 // outcome = { housesSaved, housesTotal, schoolSaved } (vem da simulação).
 // schoolLabel = o nome do edifício importante deste nível (em Sintra é o quartel dos bombeiros).
 // level (opcional) = o nível: mostra "o que aconteceu de verdade" (level.aftermath) e as fontes.
-export function showResultCard(outcome, schoolLabel = 'School', level = {}) {
+// lostText (opcional) = uma linha a dizer ONDE se perderam casas (ex.: "2 at the quinta in the forest"),
+//   para o jogador perceber o que mudar no plano. As casas perdidas também ficam marcadas no mapa.
+export function showResultCard(outcome, schoolLabel = 'School', level = {}, lostText = '') {
   const allSaved = outcome.schoolSaved && outcome.housesSaved === outcome.housesTotal;
   const stars = countStars(outcome);
   const card = document.createElement('div');
@@ -226,6 +247,7 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}) {
         <span class="result-label">${schoolLabel}</span>
       </div>
     </div>
+    <p class="result-lost"></p>
     <div class="result-story">
       <div class="story-heading">What really happened</div>
       <p class="story-text"></p>
@@ -236,6 +258,10 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}) {
       <button type="button" class="result-button secondary" data-do="look">Look around</button>
       <button type="button" class="result-button" data-do="again">Play again</button>
     </div>`;
+  // Onde se perderam casas (com textContent, como o resto do texto do nível).
+  const lost = card.querySelector('.result-lost');
+  if (lostText) lost.textContent = lostText;
+  else lost.remove();
   // A história real e as fontes (com textContent: o texto do nível nunca vira HTML).
   const story = card.querySelector('.result-story');
   if (level.aftermath) card.querySelector('.story-text').textContent = level.aftermath;
@@ -252,8 +278,21 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}) {
     list.append(item);
   }
   if (!level.aftermath && !(level.sources || []).length) story.querySelector('.story-heading').remove();
-  // "Look around" fecha o cartão (para ver a vila queimada); "Play again" recomeça o nível.
-  card.querySelector('[data-do="look"]').addEventListener('click', () => card.remove());
+  // "Look around" esconde o cartão (para ver a vila queimada) e deixa um botão "Back to results"
+  // para o voltar a abrir (antes o cartão era apagado e perdiam-se o "Try again" e o "Play again").
+  // "Play again" recomeça o nível.
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'result-button back-to-results';
+  back.textContent = 'Back to results';
+  back.hidden = true;
+  back.addEventListener('click', () => { card.hidden = false; back.hidden = true; });
+  document.body.append(back);
+  card.querySelector('[data-do="look"]').addEventListener('click', () => {
+    card.hidden = true;
+    back.hidden = false;
+    back.focus();
+  });
   card.querySelector('[data-do="again"]').addEventListener('click', () => location.reload());
   document.body.append(card);
   return card;
