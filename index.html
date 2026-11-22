@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Brace</title>
+  <!-- Sem ícone de separador por agora (evita o erro 404 do favicon.ico na consola) -->
+  <link rel="icon" href="data:,">
   <!-- Tipo de letra "Fredoka" (Google Fonts), redondo e com ar de jogo -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,7 +59,7 @@
     </div>
   </header>
 
-  <div id="info">Drag to rotate · Right-drag to move · Scroll to zoom · Click a tile</div>
+  <div id="info">WASD to move · Q/E to turn · Drag to rotate · Scroll to zoom · Click a tile</div>
   <!-- Os outros módulos do jogo (construção, desastre) põem os seus botões aqui -->
   <div id="hud"></div>
 
@@ -65,5 +67,6 @@
   <script type="module" src="src/render/buildPanel.js"></script>
   <script type="module" src="src/render/disasterPlayer.js"></script>
   <script type="module" src="src/render/audioHooks.js"></script>
+  <script type="module" src="src/render/keyboardCamera.js"></script>
 </body>
 </html>
