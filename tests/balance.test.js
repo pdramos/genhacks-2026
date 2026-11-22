@@ -1,5 +1,6 @@
 // EQUILÍBRIO (ticket #14): o jogo é fácil ou difícil demais?
-// Joga o nível de Sintra 120 vezes (sementes 1-120) com 8 estratégias "escritas à mão" e conta as
+// Joga o nível de Sintra (o mapa real de Malveira da Serra) 120 vezes (sementes 1-120) com 8
+// estratégias "escritas à mão" e conta as
 // estrelas. Cada semente escolhe onde cai o cigarro (resolveIgnition) e o vento é o vento real, hora a hora.
 // Porquê 120 e não 30? Com 30 sementes, um resultado dependia muito de QUAIS sementes calhavam
 // (ex.: o ingénuo dava 1,17 nas sementes 1-30 e ~1,7 nas outras). Para ver os números "a sério",
@@ -69,31 +70,31 @@ function randomActions(state, seed) {
   }
 }
 
-// (d) Um BOM plano, pensado a olhar para o mapa e para o vento (sem saber onde cai o cigarro):
-//   - o vento vem de NORTE, por isso o fogo desce a serra e chega à vila pela EN247 (linha 12);
-//   - o quartel dos bombeiros (a "escola", em 19-20, 14-15) tem por cima uma faixa de ravina com
-//     mato e eucaliptos, colada à EN247: é a primeira coisa a proteger (sem ele, 0 estrelas);
-//   - a norte da EN247, em frente ao quartel e às casas do leste, a berma é mato debaixo dos
-//     eucaliptos: as brasas saltam a estrada e entram na vila. Corta-fogo nessa faixa
-//     (a encosta encarece);
-//   - com o que sobra, a norte da EN247 em frente à vila oeste (o fogo da estrada da Peninha
-//     desce por aí): trocar os eucaliptos por folhosas e limpar o mato dos lados.
+// (d) Um BOM plano: defender a vila, a olhar para o mapa e para o vento (sem usar os "?"):
+//   - o vento vem de NORTE, por isso o fogo desce a serra e entra em Malveira pela orla norte;
+//   - o quartel dos bombeiros (a "escola", em 19-20, 15-16) está no meio das casas e, por cima
+//     delas, há pastagem e mato até à serra (x 17-20, linhas 9-11): é a primeira coisa a
+//     proteger (sem quartel, 0 estrelas);
+//   - o resto da orla norte de Malveira (x 13-16, linhas 9-11);
+//   - a orla norte de Almoinhas Velhas e do Arneiro, a oeste (x 6-12, linhas 11-12);
+//   - com o que sobra, as primeiras casas do oeste, ao pé da EN247 (x 0-5, linhas 13-14).
 // Cada passo é [modo, x0, y0, x1, y1]: um retângulo de quadrados.
 //   'firebreak' = corta-fogo em toda a vegetação; 'clear' = limpar se for mato, senão corta-fogo;
 //   'replaceTrees' = trocar os eucaliptos por folhosas.
-// (O perito, mais abaixo, faz quase o mesmo, mas melhor: corta-fogo em vez de trocar as árvores,
-// a berma toda, e as orlas da vila. É isso que lhe dá as 3 estrelas.)
+// (O perito, mais abaixo, pensa de outra maneira: os "?" mostram onde o cigarro pode cair e o
+// vento diz para onde o fogo corre, por isso trava o fogo logo a sul de cada "?". É isso que lhe
+// dá as 3 estrelas.)
 // O plano cabe TODO no orçamento: um teste lá em baixo verifica que nenhum passo fica por fazer
 // (se os preços ou o declive mudarem, o teste avisa, em vez de o plano se estragar em silêncio).
 const GOOD_PLAN = [
-  // 1. A ravina entre a EN247 e o quartel (€3.000).
-  ['firebreak', 19, 13, 22, 13],
-  // 2. A norte da EN247: a berma de mato em frente ao quartel e às casas do leste (€3.750).
-  ['firebreak', 20, 11, 25, 11],
-  // 3. A norte da EN247, em frente à vila oeste: os eucaliptos por folhosas (€6.200) e o mato (€1.300).
-  ['replaceTrees', 10, 11, 15, 11],
-  ['clear', 8, 11, 9, 11],
-  ['clear', 16, 11, 18, 11],
+  // 1. A pastagem e o mato por cima das casas do quartel (€5.650).
+  ['clear', 17, 9, 20, 11],
+  // 2. O resto da orla norte de Malveira (€6.160).
+  ['clear', 13, 9, 16, 11],
+  // 3. A orla norte da vila oeste, Almoinhas Velhas e Arneiro (€4.500).
+  ['clear', 6, 11, 12, 12],
+  // 4. Com o que sobra: as primeiras casas do oeste, ao pé da EN247 (x 0-5, linhas 13-14, €3.280).
+  ['clear', 0, 13, 5, 14],
 ];
 
 function goodPlan(state) {
@@ -135,28 +136,34 @@ function clearAroundEveryMarker(state) {
   }
 }
 
-// (f) Só a ravina por cima do quartel (o passo 1 do bom plano, sozinho).
+// (f) Só a pastagem e o mato por cima do quartel (o passo 1 do bom plano, sozinho).
 // Antes da revisão, o "anel do quartel" sozinho dava quase o mesmo que o bom plano inteiro.
 function onlyFireStation(state) {
   applyRectangle(state, GOOD_PLAN[0]);
 }
 
 // (g) O plano de um PERITO: a resposta à pergunta "é possível não perder nenhuma casa?".
-// Foi afinado por computador (milhares de fogos de treino, nas sementes 3001-3600, não nestas) e
-// depois arrumado à mão. Só usa o que se vê no mapa (os "?" estão nos sítios verdadeiros do
-// cigarro), por isso um jogador pode descobri-lo sozinho (€19 910):
-//   - a ravina entre a EN247 e o quartel (linha 13, x 19-22): sem quartel, 0 estrelas;
-//   - TODA a berma norte da EN247 (linha 11, x 6-28, e (6, 10)): limpar o mato, corta-fogo nos
-//     eucaliptos. É daí que as brasas saltam a estrada para as casas;
-//   - as orlas da vila: (8-9, 13) a oeste e (25, 13) a leste;
-//   - alguns quadrados à volta dos "?" e da quinta: (8, 3), (18, 7), (18, 10), (21, 1), (21, 3),
-//     (22, 8), (25, 5). Valem pouco: limpar o "?" já não impede o fogo (o cigarro rola).
+// Foi afinado por computador (milhares de fogos de treino, nas sementes 3001-3480, 5001-5600 e
+// 7001-7600, não nestas) e depois arrumado à mão. Só usa o que se vê no mapa (os "?" estão nos
+// sítios verdadeiros do cigarro, e o vento é de norte), por isso um jogador pode descobri-lo
+// sozinho (€19 610). A ideia: travar o fogo logo a SUL de cada "?", antes de ele crescer:
+//   - "?" (17, 3), a norte de Malveira (€3.130): limpar (16, 2-3), corta-fogo no "?" e em
+//     (17-18, 4), trocar os eucaliptos de (15, 2). Sem isto o fogo desce a serra até ao quartel;
+//   - "?" (20, 7), na Estrada da Serra (€2.750): corta-fogo em (19, 7-8), (20, 8) e (17, 8),
+//     limpar (18, 5-7);
+//   - "?" (24, 7) e (28, 9), na floresta do leste (€5.000): corta-fogo em (23, 8-9), (27, 9), (29, 9);
+//   - "?" (2, 8) e (3, 10), na EN247 do lado da Peninha (€4.520): corta-fogo e mato limpo de
+//     (1, 8) a (3, 15), e (6, 15);
+//   - a pastagem por cima das casas do quartel (€2.960): (19, 9), (18-20, 10-11), (18, 12);
+//   - quatro quadrados soltos a sul (€1.250), onde caem algumas brasas.
 // Cada ação passa pelo applyAction (as mesmas regras do jogo: faixas da lei, preços, orçamento).
 function expertPlan(state) {
   for (const { x, y, action } of EXPERT_PLAN.actions) applyAction(state, x, y, action);
 }
 
-const EN247_ROW = 12;
+// O que os planos deste ficheiro (e o do perito) esperam encontrar no mapa.
+const FIRE_STATION = { x: 19, y: 15 }; // o canto de cima à esquerda do quartel 2x2
+const EXPECTED_MARKERS = [[2, 8], [17, 3], [20, 7], [24, 7], [28, 9], [3, 10]]; // os "?" (x, y)
 
 const STRATEGIES = {
   nothing: doNothing,
@@ -218,58 +225,55 @@ for (const [name, r] of Object.entries(results)) {
 // ---------- As metas ----------
 
 // O mapa de Sintra foi refeito com dados reais (OpenStreetMap + relevo Copernicus, 22/11/2026):
-// a EN247 já não é a linha 12, o quartel mudou de sítio e os planos escritos aqui (bom plano,
-// perito em tests/fixtures/expert-plan-sintra.json) eram para o mapa antigo. Até o agente
-// REBALANCE refazer os planos e afinar o mapa novo, as metas que dependem do mapa ficam "todo":
-// correm e mostram o resultado, mas não fazem o "npm test" falhar.
-const REBALANCE_TODO = 'rebalance pending after real-data map (the plans in this file and the expert '
-  + 'fixture were written for the old map; see docs/integration-contract.md)';
-
-test('the strategies were written for this Sintra map (if the map changes, rewrite the good plan)', { todo: REBALANCE_TODO }, () => {
+// Malveira da Serra. Os planos deste ficheiro e o do perito foram refeitos para este mapa
+// (ronda "mapa real", ver docs/integration-contract.md). Se o mapa mudar, este teste avisa.
+test('the strategies were written for this Malveira map (if the map changes, rewrite the plans)', () => {
   const village = createVillage(level);
   assert.equal(village.width, 32);
   assert.equal(village.height, 32);
-  assert.ok(village.tiles[EN247_ROW].every((type) => type === 'road'), 'the EN247 is row 12');
-  assert.equal(village.tiles[14][19], 'school', 'the fire station is at (19, 14)');
+  assert.equal(village.tiles[FIRE_STATION.y][FIRE_STATION.x], 'school', 'the fire station is at (19, 15)');
+  assert.deepEqual(level.ignitionCandidates.map(({ x, y }) => [x, y]), EXPECTED_MARKERS, 'the "?" spots moved');
 });
 
 test('doing nothing averages less than 0.5 stars', {
-  todo: 'not reached on this map (~1.5 stars over 1000 seeds): the fires that start by the west serra '
-    + 'roads stay in the west of the town and almost never reach the fire station, so doing nothing '
-    + 'still gives 1-2 stars in about half of the seeds. Only fire settings that break the fire shape '
-    + 'tests got below 0.5. See docs/integration-contract.md, "Equilibrio".',
+  todo: 'not reached on this map (~1.35 stars on seeds 1-120, ~1.55 over 1000 seeds): only the fires '
+    + 'from the two "?" north of Malveira, (17, 3) and (20, 7), usually reach the fire station; the '
+    + 'fires from the west and east "?" burn Almoinhas, Arneiro or the Janes forest and stop there, so '
+    + 'doing nothing still gives 1-2 stars in about half of the seeds. See docs/integration-contract.md, '
+    + '"Equilibrio".',
 }, () => {
   assert.ok(results.nothing.average < 0.5, `nothing: ${results.nothing.average.toFixed(2)}`);
 });
 
-test('doing nothing is much worse than the good plan (guard: before tuning it was 1.67 stars)', { todo: REBALANCE_TODO }, () => {
-  // Nas sementes 1-120 dá ~1,5 (em 1000 sementes também ~1,5). Era <= 1,2 com 30 sementes, mas
-  // essas 30 calhavam abaixo da média; a faixa de pastagem (linha 10) e a berma de mato em frente
-  // ao quartel (linha 11) também travam um pouco o fogo de quem não faz nada.
+test('doing nothing is much worse than the good plan (guard: before tuning it was 1.67 stars)', () => {
+  // No mapa real de Malveira: ~1,35 nas sementes 1-120 e ~1,55 em 1000 sementes (as noites dos
+  // "?" a oeste e a leste raramente chegam ao quartel).
   assert.ok(results.nothing.average <= 1.65, `nothing: ${results.nothing.average.toFixed(2)}`);
   assert.ok(results.good.average - results.nothing.average >= 0.5, 'the good plan must clearly pay off');
 });
 
 test('clearing everything from the top-left gives about 1 star (at most 1.3)', {
-  todo: 'not reached: it gives ~1.5 stars, the same as doing nothing (see the next test). Below 1.3 '
-    + 'needs "doing nothing" to go down first.',
+  todo: 'not reached: it gives ~1.35 stars on seeds 1-120 (~1.55 over 1000 seeds), the same as doing '
+    + 'nothing (see the next test): the whole budget goes on the forest tiles of the top rows, far from '
+    + 'every fire. Below 1.3 needs "doing nothing" to go down first.',
 }, () => {
   assert.ok(results.naive.average <= 1.3, `naive: ${results.naive.average.toFixed(2)}`);
 });
 
-test('clearing everything from the top-left is no better than doing nothing', { todo: REBALANCE_TODO }, () => {
+test('clearing everything from the top-left is no better than doing nothing', () => {
   // Gastar tudo sem pensar (as bermas das estradas da serra, de cima para baixo) não compra estrelas.
   // Antes, o ingénuo limpava os "?" sem saber e o fogo nascia em terra limpa: ~1,7 estrelas.
+  // No mapa de Malveira o dinheiro acaba nas linhas 0-2 (floresta, longe de todos os fogos).
   assert.ok(results.naive.average <= results.nothing.average + 0.2,
     `naive ${results.naive.average.toFixed(2)} vs nothing ${results.nothing.average.toFixed(2)}`);
   assert.ok(results.naive.average >= 0.7, `naive: ${results.naive.average.toFixed(2)}`);
 });
 
-test('the good plan gets 2 or more stars in more than half of the seeds', { todo: REBALANCE_TODO }, () => {
+test('the good plan gets 2 or more stars in more than half of the seeds', () => {
   assert.ok(results.good.twoOrMoreShare > 0.5, `good plan: ${percent(results.good.twoOrMoreShare)} with 2+ stars`);
 });
 
-test('3 stars stay rare (under 35% of the seeds) for every strategy except the expert plan', { todo: REBALANCE_TODO }, () => {
+test('3 stars stay rare (under 35% of the seeds) for every strategy except the expert plan', () => {
   for (const [name, r] of Object.entries(results)) {
     if (name === 'expert') continue; // o perito é a prova de que é possível (teste mais abaixo)
     assert.ok(r.threeShare < 0.35, `${name}: ${percent(r.threeShare)} with 3 stars`);
@@ -278,7 +282,7 @@ test('3 stars stay rare (under 35% of the seeds) for every strategy except the e
 
 // ---------- O plano do perito: não perder nenhuma casa é difícil, mas possível ----------
 
-test('the expert plan is legal: applyAction accepts every action, its cost is right and fits the budget', { todo: REBALANCE_TODO }, () => {
+test('the expert plan is legal: applyAction accepts every action, its cost is right and fits the budget', () => {
   const village = createVillage(level);
   const state = createBuildState(village, level.budget);
   let total = 0;
@@ -291,22 +295,22 @@ test('the expert plan is legal: applyAction accepts every action, its cost is ri
   assert.ok(total <= level.budget, `the expert plan costs ${total}, more than the budget ${level.budget}`);
 });
 
-test('saving every house is possible: the expert plan gets 3 stars in at least 50% of the seeds', { todo: REBALANCE_TODO }, () => {
+test('saving every house is possible: the expert plan gets 3 stars in at least 50% of the seeds', () => {
   assert.ok(results.expert.threeShare >= 0.5, `expert: ${percent(results.expert.threeShare)} with 3 stars`);
 });
 
-test('the expert plan gets 2 or more stars in at least 85% of the seeds', { todo: REBALANCE_TODO }, () => {
+test('the expert plan gets 2 or more stars in at least 85% of the seeds', () => {
   assert.ok(results.expert.twoOrMoreShare >= 0.85, `expert: ${percent(results.expert.twoOrMoreShare)} with 2+ stars`);
 });
 
-test('the expert plan is clearly the best strategy (thinking pays off)', { todo: REBALANCE_TODO }, () => {
+test('the expert plan is clearly the best strategy (thinking pays off)', () => {
   for (const [name, r] of Object.entries(results)) {
     if (name === 'expert') continue;
     assert.ok(results.expert.average > r.average, `expert ${results.expert.average.toFixed(2)} vs ${name} ${r.average.toFixed(2)}`);
   }
 });
 
-test('every step of the good plan really does something, and the whole plan fits the budget', { todo: REBALANCE_TODO }, () => {
+test('every step of the good plan really does something, and the whole plan fits the budget', () => {
   // Guarda da revisão: o plano antigo gastava tudo nos primeiros passos e os outros davam
   // 'not-enough-money' em todos os quadrados, sem ninguém dar por isso.
   const state = createBuildState(createVillage(level), level.budget);
@@ -317,26 +321,27 @@ test('every step of the good plan really does something, and the whole plan fits
   });
 });
 
-test('a firebreak on every cigarette spot is no shortcut: well below the good plan, few 3 stars', { todo: REBALANCE_TODO }, () => {
+test('a firebreak on every cigarette spot is no shortcut: well below the good plan, few 3 stars', () => {
   // Antes da revisão: 3 estrelas em 30 de 30 sementes, por €3.390.
   assert.ok(results.candidates.average <= results.good.average - 0.3,
     `candidates ${results.candidates.average.toFixed(2)} vs good ${results.good.average.toFixed(2)}`);
   assert.ok(results.candidates.threeShare < 0.35, `candidates: ${percent(results.candidates.threeShare)} with 3 stars`);
 });
 
-test('protecting only the fire station is not enough: below the good plan, well below the expert', { todo: REBALANCE_TODO }, () => {
+test('protecting only the fire station is not enough: below the good plan, well below the expert', () => {
   // Antes da revisão: só o anel do quartel (€4.520) dava 1,80 estrelas, quase o bom plano inteiro.
-  // A ravina do quartel é a melhor compra de todas (sem quartel, 0 estrelas), mas sozinha
-  // (€3.000) fica abaixo do bom plano e bem abaixo do perito: o resto do orçamento conta.
+  // A pastagem por cima do quartel é uma boa compra (sem quartel, 0 estrelas), mas sozinha
+  // (€5.650) fica abaixo do bom plano e bem abaixo do perito: o resto do orçamento conta.
   assert.ok(results.station.average < results.good.average,
     `station only ${results.station.average.toFixed(2)} vs good ${results.good.average.toFixed(2)}`);
   assert.ok(results.station.average <= results.expert.average - 0.5,
     `station only ${results.station.average.toFixed(2)} vs expert ${results.expert.average.toFixed(2)}`);
 });
 
-test('clearing the brush around every "?" is no shortcut: few 3 stars, well below the expert', { todo: REBALANCE_TODO }, () => {
+test('clearing the brush around every "?" is no shortcut: few 3 stars, well below the expert', () => {
   // Os "?" mostram os sítios verdadeiros do cigarro. Limpar à volta deles já não faz o fogo
-  // morrer ao nascer (o cigarro rola para o mato seco): o que salva as casas é defender a vila.
+  // morrer ao nascer (o cigarro rola para o mato seco): o que salva as casas é pensar no VENTO
+  // (travar o fogo do lado para onde ele corre, a sul de cada "?") e defender o quartel.
   assert.ok(results.markers.threeShare < 0.35, `markers: ${percent(results.markers.threeShare)} with 3 stars`);
   assert.ok(results.markers.average <= results.expert.average - 0.7,
     `markers ${results.markers.average.toFixed(2)} vs expert ${results.expert.average.toFixed(2)}`);

@@ -41,6 +41,11 @@
 //     abater eucaliptos ali custava ~€7 500. Limpar o mato custa €1 500: o perito chega a >= 2
 //     estrelas em ~94% das noites (era 88%) e 3 estrelas em ~60%;
 //   - nenhuma outra constante mudou (preços, declive, fogo, estrelas, orçamento).
+// Ronda "mapa real de Malveira da Serra" (o mapa refeito com OpenStreetMap + relevo Copernicus):
+//   - NENHUMA constante deste ficheiro mudou, nem o orçamento (€20 000): com o mapa novo, um
+//     plano novo do perito (tests/fixtures/expert-plan-sintra.json, €19 610) chega às metas
+//     (3 estrelas em ~64-70% das noites, >= 2 estrelas em ~91%). Os números estão no
+//     docs/integration-contract.md, secção "Equilíbrio".
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.

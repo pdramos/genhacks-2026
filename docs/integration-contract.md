@@ -212,3 +212,34 @@ Perito em 6000 sementes: 2,53★, ≥ 2★ 94%, 3★ 61%; em blocos de 120 semen
 O que se testou e não chegou: só a berma de mato (sem a regra do cigarro): perito ≥ 2★ ~94%, mas o ingénuo subia para ~1,75 e, com os "?" nos sítios verdadeiros, limpar à volta deles dava 3★ em 35–48%; um jardim à volta da quinta: não fazer nada subia para ~1,6; mais mato ou mais casas na vila oeste: não fazer nada quase não mudava; trocar candidatos de sítio: ganhos pequenos, por isso ficaram os mesmos 6.
 
 **Metas que continuam por cumprir (`todo` no teste):** não fazer nada < 0,5★ (é ~1,5★) e o ingénuo ≤ 1,3★ (é ~1,5★, o mesmo que não fazer nada). Os fogos das estradas da serra a oeste quase nunca chegam ao quartel, por isso não fazer nada dá 1–2★ em cerca de metade das noites. Para descer seria preciso mudar o sítio do quartel ou das estradas da serra.
+
+### Ronda "mapa real de Malveira da Serra" (22/11/2026, agente REBALANCE)
+O mapa de Sintra (`data/levels/sintra.json`) foi refeito com dados reais (OpenStreetMap + relevo Copernicus): Malveira da Serra no sopé da serra, 194 casas, o quartel em (19, 15) e 6 "?" em (2, 8), (17, 3), (20, 7), (24, 7), (28, 9) e (3, 10). Os planos do teste eram do mapa antigo e as metas que dependiam do mapa ficaram `todo` até esta ronda.
+
+**Mudanças:** nenhuma constante de `balance.js` mudou (preços, declive, faixas, cigarro, estrelas), nem o fogo, nem o mapa, nem o orçamento (€20 000; o `briefing` continua certo). Só os planos:
+- **Plano do perito novo** (`tests/fixtures/expert-plan-sintra.json`, €19 610, 37 ações), afinado por computador (guloso + subida de encosta nas sementes 3001–3480, 5001–5600 e 7001–7600; 4 ações sem efeito foram tiradas a olhar para as sementes 1–1500). Só usa o que o jogo mostra: os "?" e o vento de norte. A ideia é **travar o fogo logo a sul (a favor do vento) de cada "?"**: (17, 3) €3 130, (20, 7) €2 750, (24, 7) e (28, 9) €5 000, (2, 8) e (3, 10) €4 520; mais a pastagem por cima das casas do quartel (€2 960) e quatro quadrados soltos a sul (€1 250).
+- **Bom plano novo** (defender a vila, sem usar os "?"): limpar a pastagem e o mato por cima do quartel (x 17–20, linhas 9–11, €5 650; é também a estratégia "só o quartel"), o resto da orla norte de Malveira (x 13–16, €6 160), a orla norte de Almoinhas Velhas e do Arneiro (x 6–12, linhas 11–12, €4 500) e as primeiras casas do oeste (x 0–5, linhas 13–14, €3 280).
+- **Teste:** o teste do mapa verifica o quartel em (19, 15) e os 6 "?"; todas as metas que dependem do mapa voltaram a contar (sem `todo`).
+
+**Resultado (média de estrelas; para o bom plano e o perito também ≥ 2★ e 3★):**
+
+| estratégia | sementes 1–120 (o teste) | 121–1120 | 4001–6000 |
+|---|---|---|---|
+| nada | 1,35★ | 1,56★ | 1,48★ |
+| ingénuo | 1,35★ | 1,57★ | 1,48★ |
+| ao calhas | 1,47★ | 1,69★ | 1,59★ |
+| corta-fogo nos "?" | 1,43★ | 1,51★ | 1,44★ |
+| limpar à volta dos "?" | 1,56★ (3★ 30%) | 1,60★ (3★ 32%) | 1,58★ (3★ 30%) |
+| só o quartel | 1,67★ | 1,86★ | 1,83★ |
+| bom plano (€19 590) | 2,02★, ≥ 2★ 85%, 3★ 22% | 2,13★, 82%, 35% | 2,11★, 84%, 31% |
+| **perito (€19 610)** | **2,52★, ≥ 2★ 91%, 3★ 64%** | **2,59★, 92%, 70%** | **2,55★, 91%, 67%** |
+
+Perito por "?" (sementes 121–1120, 3★ / ≥ 2★): (3, 10) 88% / 99% · (20, 7) 80% / 93% · (2, 8) 70% / 83% · (24, 7) 65% / 98% · (17, 3) 58% / 88% · (28, 9) 55% / 87%. A noite mais difícil é (17, 3): sem nada feito, o quartel arde em ~90% dessas noites (o fogo desce a serra protegida, x 5–18, direto a Malveira).
+
+**Avisos honestos:**
+- Um plano simples "corta-fogo logo a sul de cada '?' + a pastagem do quartel" (€14 100) já dá 3★ em ~56% (1–120) e ~59% (121–1120), mas ≥ 2★ só em 77–80%. Neste mapa, salvar todas as casas é mais fácil do que no mapa antigo para quem pensa no vento; o difícil é **não perder o quartel nem 20% das casas em quase todas as noites** (≥ 2★ em ≥ 85%). Não está no teste: é o próprio perito em versão simples.
+- A guarda "3★ < 35%" passa no bom plano nas sementes do teste (22%), mas fica à justa noutras sementes (31–35%).
+- O guloso sozinho (sem subida de encosta) dava 57% / 80% nas sementes 1–120: o ≥ 2★ é o que custa.
+- Trabalhar TODOS os quadrados permitidos (~€340 000, menos à volta dos "?") dá 3★ em ~76% e ≥ 2★ em ~100%: o teto do mapa.
+
+**Metas que continuam por cumprir (`todo` no teste):** não fazer nada < 0,5★ (é ~1,35–1,56★) e o ingénuo ≤ 1,3★ (dá o mesmo que não fazer nada: gasta tudo na floresta das linhas 0–2, longe de todos os fogos). Só os fogos dos dois "?" a norte de Malveira, (17, 3) e (20, 7), costumam chegar ao quartel; os de oeste e de leste queimam Almoinhas, o Arneiro ou a floresta de Janes e param aí.
