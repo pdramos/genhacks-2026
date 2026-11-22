@@ -4,14 +4,15 @@
 // Este ficheiro só passa os cliques à simulação e mostra o resultado.
 // Também mostra as FAIXAS DE GESTÃO DE COMBUSTÍVEL: só se pode trabalhar perto das casas e
 // das estradas (com um tom suave e um contorno); o resto é Parque Natural (com um cadeado).
+// Com uma ferramenta na mão, os quadrados onde ela pode ser usada BRILHAM (a pulsar devagar).
 // O desenho dos botões e mensagens está em src/render/ui/ (hud.js e hud.css).
 //
 // É carregado pelo index.html com a sua própria tag <script type="module">,
 // depois do main.js (assim o "game" já está pronto quando este código corre).
 import * as THREE from 'three';
-import { game, onTileClick, onPhaseChange, tileName } from './main.js';
+import { game, onTileClick, onPhaseChange, onFrame, tileName } from './main.js';
 import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable, baseCost } from '../sim/actions.js';
-import { stripMap, stripEdges, slopeNote } from './fuelStrips.js';
+import { stripMap, stripEdges, slopeNote, usableTiles } from './fuelStrips.js';
 import { setLevelName, setBudget, showToast, createToolCard, formatEuros, showBriefingCard } from './ui/hud.js';
 import { rakeIcon, bulldozerIcon, saplingIcon, undoIcon } from './ui/icons.js';
 
@@ -25,21 +26,31 @@ let selectedTool = null;
 // Mensagens curtas (em inglês) para cada motivo de recusa da simulação.
 const BLOCKED_MESSAGES = {
   'not-enough-money': 'Not enough money',
-  'invalid-target': "Can't build there",
+  'invalid-target': "Can't build there — click a glowing tile",
   'already-changed': 'Already changed — undo it first',
   'outside': 'Outside the village',
   'nothing-to-undo': 'Nothing to undo here',
-  'protected-area': 'Protected natural park — you can only clear the legal fuel strips',
+  // A lei portuguesa (DL 82/2021, art. 49.º) só manda limpar faixas à volta das casas e das estradas.
+  'protected-area': 'Sintra-Cascais Natural Park: by law (DL 82/2021) clear only near houses & roads',
 };
 // O texto curto da caixa #info para um quadrado do parque (o toast acima é para o clique).
-const PARK_LABEL = '🔒 Natural park'; // 🔒 = cadeado
+const PARK_LABEL = '🔒 Natural park (DL 82/2021)'; // 🔒 = cadeado
 
 // O ícone e a dica de cada ferramenta (o nome e o preço vêm da simulação).
+// Os quadrados onde a ferramenta dá BRILHAM (ver "Os quadrados que brilham", mais abaixo).
 const TOOL_LOOKS = {
-  clearBrush: { icon: rakeIcon, hint: 'Click a brush tile to clear it' },
-  firebreak: { icon: bulldozerIcon, hint: 'Click any vegetation tile to make a firebreak (€1,000 on trees: they must be cut down)' },
-  replaceTrees: { icon: saplingIcon, hint: 'Click a eucalyptus tile to plant broadleaf trees' },
+  clearBrush: { icon: rakeIcon, hint: 'Click a glowing brush tile to clear it' },
+  firebreak: { icon: bulldozerIcon, hint: 'Click a glowing tile to make a firebreak (€1,000 on trees: they must be cut down)' },
+  replaceTrees: { icon: saplingIcon, hint: 'Click a glowing eucalyptus tile to plant broadleaf trees' },
   undo: { icon: undoIcon, hint: 'Click a changed tile to undo it (full refund)' },
+};
+
+// Quando a ferramenta não tem NENHUM quadrado que brilhe, o toast diz porquê (em vez da dica).
+const NO_TILES_MESSAGES = {
+  money: 'Not enough money for this tool anywhere — undo something first',
+  clearBrush: 'No dry scrub left to clear in the fuel strips',
+  firebreak: 'No vegetation left for a firebreak in the fuel strips',
+  replaceTrees: 'No eucalyptus left to replace in the fuel strips',
 };
 
 // ---------- Construir o painel (HTML) ----------
@@ -97,7 +108,9 @@ function selectTool(toolName) {
   for (const [name, button] of Object.entries(buttons)) {
     button.classList.toggle('selected', name === toolName);
   }
-  if (toolName) showToast(TOOL_LOOKS[toolName].hint);
+  const count = updateGlow(); // faz brilhar os quadrados onde a ferramenta dá
+  if (count === 0) showToast(noTilesMessage(), 'error');
+  else if (toolName) showToast(TOOL_LOOKS[toolName].hint);
   updateLocks(); // com uma ferramenta na mão, os cadeados ficam mais visíveis
   updateHover(); // a cor do destaque muda com a ferramenta
 }
@@ -138,6 +151,8 @@ onTileClick((tile) => {
     showToast(`${ACTIONS[selectedTool].label}: −${formatEuros(paid)}`, 'success');
   }
   updateBudget();
+  // O dinheiro e os quadrados mudaram: os que brilham também. Se já não sobra nenhum, avisa.
+  if (updateGlow() === 0) showToast(noTilesMessage(), 'error');
   updateHover();
 });
 
@@ -311,6 +326,57 @@ function updateLocks() {
   material.opacity = selectedTool && selectedTool !== 'undo' ? LOCK_OPACITY.tool : LOCK_OPACITY.idle;
 }
 
+// ---------- Os quadrados que brilham ----------
+// Com uma ferramenta na mão, TODOS os quadrados onde ela pode ser usada agora (a mesma
+// verificação do clique, checkAction, com o dinheiro que sobra) ganham um brilho suave que pulsa.
+// Assim vê-se onde clicar sem passar o rato (no telemóvel nem há rato).
+// É uma só malha com um quadradinho por quadrado: refaz-se quando a ferramenta muda e depois de
+// cada ação ou undo (o dinheiro e os quadrados mudam). Com o Undo não brilha nada: os quadrados
+// mudados já têm a moldura amarela.
+const GLOW = { color: 0xb6ffcf, low: 0.22, high: 0.5, pulseSeconds: 1.6 };
+const calmMotion = matchMedia('(prefers-reduced-motion: reduce)').matches; // sem pulsar, se o sistema pedir
+const glow = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({
+  color: GLOW.color, transparent: true, opacity: GLOW.high, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+}));
+glow.renderOrder = 4.5; // por cima do tom das faixas, por baixo do quadrado do rato
+glow.visible = false;
+game.scene.add(glow);
+let lastGlow = { tiles: [], noMoney: 0 }; // o último cálculo (para explicar quando não há nenhum)
+
+// Refaz o brilho. Devolve quantos quadrados brilham, ou null se não há nada para brilhar
+// (sem ferramenta, com o Undo ou fora da fase de construção).
+function updateGlow() {
+  if (game.phase !== 'build' || !selectedTool || selectedTool === 'undo') {
+    glow.visible = false;
+    return null;
+  }
+  const { width, height } = game.village;
+  lastGlow = usableTiles(width, height, (x, y) => checkAction(buildState, x, y, selectedTool));
+  // Um quadradinho por quadrado, um pouco mais pequeno (para se ver cada quadrado à parte).
+  const shapes = createDrapedShapes(game.view.worldPosition(0, 0), game.view.terrain.heightAtWorld);
+  const inset = 0.08;
+  for (const { x, y } of lastGlow.tiles) {
+    shapes.rect(x - 0.5 + inset, y - 0.5 + inset, x + 0.5 - inset, y + 0.5 - inset, 2, 2, 0.06);
+  }
+  glow.geometry.dispose(); // a forma antiga já não serve: liberta a memória
+  glow.geometry = shapes.geometry();
+  glow.visible = lastGlow.tiles.length > 0;
+  return lastGlow.tiles.length;
+}
+
+// A frase do toast quando a ferramenta não tem nenhum quadrado onde dê.
+function noTilesMessage() {
+  return lastGlow.noMoney > 0 ? NO_TILES_MESSAGES.money : NO_TILES_MESSAGES[selectedTool];
+}
+
+// O pulsar: a opacidade sobe e desce devagar, a cada desenho.
+onFrame((dt, t) => {
+  if (!glow.visible || calmMotion) return;
+  const wave = (1 + Math.sin((t * 2 * Math.PI) / GLOW.pulseSeconds)) / 2; // de 0 a 1
+  glow.material.opacity = GLOW.low + (GLOW.high - GLOW.low) * wave;
+});
+
 // Junta muitos retângulos "colados ao chão" numa só malha 3D.
 // Cada retângulo vai de (x0, y0) a (x1, y1) em coordenadas da grelha e é partido em
 // segX x segY bocadinhos, cada ponto à altura do chão + lift (para seguir o relevo).
@@ -337,11 +403,16 @@ function createDrapedShapes(origin, ground) {
     }
   }
 
+  // A forma 3D (pontos + triângulos) de todos os retângulos juntos.
+  function geometry() {
+    const result = new THREE.BufferGeometry();
+    result.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    result.setIndex(indices);
+    return result;
+  }
+
   function mesh(color, opacity) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    const result = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+    const result = new THREE.Mesh(geometry(), new THREE.MeshBasicMaterial({
       color, transparent: true, opacity, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     }));
@@ -349,7 +420,7 @@ function createDrapedShapes(origin, ground) {
     return result;
   }
 
-  return { rect, mesh };
+  return { rect, geometry, mesh };
 }
 
 // O desenho do cadeado (64x64 píxeis), feito em código num canvas: arco + corpo + buraco.
@@ -395,6 +466,7 @@ function showForPhase(phase) {
   stripLayer.visible = phase === 'build';
   if (phase !== 'build') {
     hover.visible = false;
+    glow.visible = false;
     for (const mark of changedMarks.values()) mark.visible = false;
   }
 }
