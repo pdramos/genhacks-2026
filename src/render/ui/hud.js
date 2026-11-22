@@ -197,6 +197,8 @@ export function showBriefingCard(level, onStart) {
   card.querySelector('.briefing-name').textContent = level.name;
   card.querySelector('.briefing-place').textContent = level.place || '';
   card.querySelector('.briefing-text').textContent = level.briefing;
+  // Os créditos do mapa e do relevo (OpenStreetMap, Copernicus), por baixo do crédito do tempo.
+  addLevelCredits(card.querySelector('.credit'), level);
   // As regras das estrelas (src/sim/stars.js): sem o edifício importante, 0 estrelas.
   const school = level.schoolName || 'School';
   card.querySelector('.goal-school').textContent = `Save the ${school.toLowerCase()} (lose it and you get no stars)`;
@@ -278,6 +280,7 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
     list.append(item);
   }
   if (!level.aftermath && !(level.sources || []).length) story.querySelector('.story-heading').remove();
+  addLevelCredits(story.querySelector('.credit'), level);
   // "Look around" esconde o cartão (para ver a vila queimada) e deixa um botão "Back to results"
   // para o voltar a abrir (antes o cartão era apagado e perdiam-se o "Try again" e o "Play again").
   // "Play again" recomeça o nível.
@@ -299,6 +302,31 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
 }
 
 // ---------- Pequenas ajudas ----------
+// Os créditos dos dados do nível (level.attribution: ex. "Map data © OpenStreetMap contributors...").
+// A licença do OpenStreetMap (ODbL) pede que o crédito se veja no jogo, por isso cada linha fica
+// por baixo de `after` (o crédito do tempo), em letra pequena. O texto entra com textContent
+// (nunca vira HTML) e um endereço "https://..." no meio da linha vira uma ligação.
+function addLevelCredits(after, level) {
+  if (!after) return;
+  let last = after;
+  for (const line of level.attribution || []) {
+    const credit = document.createElement('div');
+    credit.className = 'credit';
+    // split com um grupo () guarda os endereços na lista: [texto, endereço, texto, ...]
+    line.split(/(https?:\/\/[^\s,]*[^\s.,])/).forEach((part, index) => {
+      if (index % 2 === 0) { credit.append(part); return; }
+      const link = document.createElement('a');
+      link.href = part;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = sourceName(part) + new URL(part).pathname.replace(/\/$/, '');
+      credit.append(link);
+    });
+    last.after(credit);
+    last = credit;
+  }
+}
+
 // Um nome curto para uma fonte: "https://www.dn.pt/pais/..." -> "dn.pt".
 function sourceName(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }

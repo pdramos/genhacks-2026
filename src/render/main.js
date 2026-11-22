@@ -61,7 +61,7 @@ const viewAspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / inner
 const camera = new THREE.PerspectiveCamera(40, viewAspect(), 0.1, 400);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI * 0.42; // não deixa ir para baixo do chão
+controls.maxPolarAngle = Math.PI * 0.46; // não deixa ir para baixo do chão (mas deixa uma vista baixa, de lado)
 controls.minDistance = 4;
 // A distância a que o mapa todo cabe no ecrã (ver frameDistance, lá em baixo).
 const startDistance = frameDistance();
@@ -100,6 +100,16 @@ const view = createVillageView(scene, village, style, rand, { terrainScale: leve
 // A câmara gira à volta do chão do meio do mapa (com muito relevo, o meio já não está a y = 0).
 const middle = view.worldPosition(Math.floor(village.width / 2), Math.floor(village.height / 2));
 controls.target.set(0, middle.y * 0.6, 0);
+// style.startView (opcional): o estilo escolhe de onde a câmara começa (Sintra: de sul e mais
+// baixa, para se ver a serra e o céu por trás da vila).
+if (style.startView) {
+  const { azimuth = 45, elevation = 33, distance = 1, targetZ = 0, targetUp = 0 } = style.startView;
+  const az = THREE.MathUtils.degToRad(azimuth), el = THREE.MathUtils.degToRad(elevation);
+  const lookAt = view.worldPosition(Math.floor(village.width / 2), Math.floor(village.height / 2 + targetZ));
+  controls.target.set(0, lookAt.y + targetUp, lookAt.z);
+  camera.position.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el))
+    .multiplyScalar(startDistance * distance);
+}
 camera.position.add(controls.target);
 // O fumo inclina-se com o vento do nível; o tipo de cada quadrado diz a altura das chamas.
 // As sombras só são recalculadas quando a vila muda (construir, arder) ou quando alguém pede

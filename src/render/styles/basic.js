@@ -18,6 +18,12 @@
 //   bushesPerTile         -> quantos arbustos por quadrado de mato (senão: 3)
 //   buildTerrace(w, d, h, ctx) -> muro de suporte debaixo das casas em encosta (topo em y=0, desce h)
 //   backdrop              -> o cenário à volta do mapa (serra, mar, povoações): ver src/render/backdrop.js
+//   terrainUplift         -> { above, factor }: os níveis acima de `above` sobem `factor` vezes mais
+//                            (só desenho: a serra mais íngreme por trás da vila, ver terrain.js)
+//   startView             -> { azimuth, elevation, distance, targetZ, targetUp }: de onde a câmara
+//                            começa (graus a partir do sul, para leste; graus acima do horizonte;
+//                            parte da distância "o mapa todo cabe"; onde olha: quadrados a partir
+//                            do meio, + = para sul, e unidades acima do chão)
 import * as THREE from 'three';
 
 const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...opts });

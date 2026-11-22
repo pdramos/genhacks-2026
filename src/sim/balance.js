@@ -46,6 +46,10 @@
 //     plano novo do perito (tests/fixtures/expert-plan-sintra.json, €19 610) chega às metas
 //     (3 estrelas em ~64-70% das noites, >= 2 estrelas em ~91%). Os números estão no
 //     docs/integration-contract.md, secção "Equilíbrio".
+// Ronda "não fazer nada perde" (os "?" passaram para onde o fogo chega mesmo à Malveira):
+//   - NENHUMA constante deste ficheiro mudou, nem o fogo, nem o orçamento. Mudaram os sítios do
+//     cigarro no mapa (ignitionCandidates) e o plano do perito; não fazer nada desce de ~1,5 para
+//     ~0,65 estrelas. Ver docs/integration-contract.md, secção "Equilíbrio".
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.

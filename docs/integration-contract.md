@@ -138,8 +138,8 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
 
 ## Equilíbrio (dono: agente BALANCE, depois da junção)
 `tests/balance.test.js` simula sementes 1–120 por estratégia (era 1–30 até à ronda "o fogo nasce sempre", mais abaixo; `BALANCE_SEEDS=1000 BALANCE_FIRST_SEED=4001 npm test` corre outras sementes) e garante:
-- **nada:** média < 0,5★ (`todo`, ver abaixo);
-- **"limpar tudo o que é permitido, a começar no topo":** cerca de 1★ (≤ 1,3) (`todo`; o que se garante é que não é melhor do que não fazer nada);
+- **nada:** média < 0,5★ (por cumprir; desde a ronda "não fazer nada perde", mais abaixo, o teste garante < 0,75★ e 3★ em menos de 15% das sementes);
+- **"limpar tudo o que é permitido, a começar no topo":** cerca de 1★ (≤ 1,3), e não melhor do que não fazer nada;
 - **um bom plano escrito no teste:** ≥ 2★ na maioria das sementes;
 - **3★:** < 35% mesmo para o bom plano.
 
@@ -243,3 +243,33 @@ Perito por "?" (sementes 121–1120, 3★ / ≥ 2★): (3, 10) 88% / 99% · (20,
 - Trabalhar TODOS os quadrados permitidos (~€340 000, menos à volta dos "?") dá 3★ em ~76% e ≥ 2★ em ~100%: o teto do mapa.
 
 **Metas que continuam por cumprir (`todo` no teste):** não fazer nada < 0,5★ (é ~1,35–1,56★) e o ingénuo ≤ 1,3★ (dá o mesmo que não fazer nada: gasta tudo na floresta das linhas 0–2, longe de todos os fogos). Só os fogos dos dois "?" a norte de Malveira, (17, 3) e (20, 7), costumam chegar ao quartel; os de oeste e de leste queimam Almoinhas, o Arneiro ou a floresta de Janes e param aí.
+
+### Ronda "não fazer nada perde" (22/11/2026)
+A revisão da ronda anterior: não fazer nada ainda dava **1,45★** (sementes 1–200: 57% com ≥ 2★ e 20% com 3★) e 1,49★ em 200 sementes "de jogo" (números grandes, como o `newSeed` do browser). Um jurado que só carrega em "Start" ganhava 2 ou 3 estrelas em mais de metade das noites. A causa: com o vento forte de norte o fogo corre numa faixa **estreita** para sul (os flancos andam ~1/6 da cabeça), por isso os fogos dos "?" de oeste e de leste — (2, 8), (3, 10), (24, 7), (28, 9) — só queimavam a vila do oeste ou Janes (20–30 casas, menos de 20% das 194) e nunca o quartel. Além disso (2, 8) ficava mesmo por cima da EN247: com a estrada a sul (a favor do vento) o fogo morria logo no primeiro quadrado em ~1 de cada 3 noites.
+
+**O que se testou e não chegou:** mais mato nos campos da vila oeste (G → B nas linhas 12–16): quase nada (±0,05★); o cigarro a arder mais tempo no primeiro quadrado: nada (a regra do fogo reparte a mesma probabilidade pelos passos); qualquer "?" a leste da estrada x = 25 dá ~1,6★ (o fogo queima a coluna de Janes, x 27–31, ~35 casas, e para na estrada x = 26). Um mapa de perigo (cada berma de estrada da serra como "?", 100 sementes) mostrou que só as bermas a norte da Malveira (x 15–22) e a curva da EN247 em (4–5, 8–9) põem o quartel em perigo.
+
+**Mudanças** (nenhuma constante de `balance.js`, nem o fogo, nem as estrelas, nem o orçamento):
+- **Os "?"** (`ignitionCandidates`): (5, 9) na curva da EN247 do lado da Peninha (onde o fogo verdadeiro atravessou a estrada; é a nova ignição fixa), (17, 3), (20, 5), (20, 7) e (20, 10) na serra e na Estrada da Serra por cima da Malveira, e (22, 1) na estrada dos Capuchos. Cada um tem a estrada a norte, oeste ou leste e mato a sul (o fogo não morre logo contra a estrada). As bermas novas (20, 5), (20, 10) e (22, 1) passam a mato seco (`B`, escolha de jogo, como antes); as antigas da floresta, (24, 7) e (28, 9), voltam a eucalipto (`E`, como no OpenStreetMap).
+- **Plano do perito novo** (`tests/fixtures/expert-plan-sintra.json`, €20 000, 45 ações; guloso + subida de encosta nas sementes 3001–3400 e 5001–5300): corta-fogo e mato limpo a sul de cada "?", e um corta-fogo na ravina por cima do quartel (x 19, linhas 3–11), por onde descem os fogos da Estrada da Serra.
+- **Teste:** os dois `todo` passam a testes a sério. "Não fazer nada" tem agora a meta **< 0,75★ e 3★ em menos de 15% das sementes** (a meta antiga, < 0,5★, continua por cumprir: ver abaixo); "o ingénuo ≤ 1,3★" já se cumpre e deixou de ser `todo`.
+
+**Resultado:**
+
+| estratégia | sementes 1–120 (o teste) | 121–1120 | 200 sementes de jogo |
+|---|---|---|---|
+| nada | 0,59★ (≥ 2★ 21%, 3★ 12%) | 0,73★ (27%, 13%) | 0,63★ (23%, 9%) |
+| ingénuo | 0,79★ | 0,94★ | |
+| ao calhas | 0,82★ | 0,88★ | |
+| corta-fogo nos "?" | 0,72★ | 0,77★ | |
+| limpar à volta dos "?" | 1,08★ (3★ 26%) | 0,94★ (3★ 20%) | |
+| só o quartel | 1,14★ | 1,38★ | |
+| bom plano (€18 590) | 1,62★, ≥ 2★ 64%, 3★ 20% | 1,81★, 76%, 19% | |
+| **perito (€20 000)** | **2,49★, ≥ 2★ 88%, 3★ 73%** | **2,53★, 89%, 72%** | **2,51★, 91%, 68%** |
+
+Sem fazer nada, por "?" (sementes 1–200): (17, 3) 0,34★ · (20, 5) 0,28★ · (20, 10) 0,53★ · (20, 7) 0,86★ · (5, 9) 0,88★ · (22, 1) 1,24★. O quartel arde em ~3 de cada 4 noites.
+
+**Avisos honestos:**
+- A meta "< 0,5★" do contrato **não se cumpre** (~0,6–0,7★). O que falta: o fogo de (5, 9) morre sozinho em ~1 de cada 4 noites (o vento empurra-o um pouco para oeste, contra a EN247) e o de (22, 1) pára muitas vezes nas casas do alto, sem chegar à Malveira. Descer mais pediria mexer no fogo (flancos mais largos), o que mudaria os testes da forma do fogo.
+- O lado leste (Janes) deixou de ter "?": nenhum sítio de lá punha a vila em perigo a sério com vento de norte.
+- O perito ficou um pouco mais fácil (3★ ~70%, era ~65%): os "?" estão mais juntos, por isso a mesma defesa (a ravina por cima do quartel) serve a vários.

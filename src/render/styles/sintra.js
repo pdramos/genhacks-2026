@@ -87,9 +87,22 @@ export const bushesPerTile = 6;
 // (Como o do lighting.js, main.js ainda o afasta na proporção do tamanho do mapa: ~1.55x aqui.)
 export const dayFog = { color: 0xa9cbe6, near: 44, far: 140 };
 
+// A Malveira é um MORRO: nas fotos a vila sobe a encosta em socalcos e, por trás, a serra
+// levanta-se a pique até ao cume pelado. No mapa (dados reais) a vila fica nos níveis 3-5 e a
+// serra nos 6-9, o que visto de cima parece quase plano. Só no DESENHO, os níveis acima de 4.5
+// sobem 2.2 vezes mais depressa (a simulação, o fogo e o declive dos preços usam os níveis reais).
+export const terrainUplift = { above: 4.5, factor: 2.2 };
+
+// A câmara começa a sul, um pouco a leste e mais baixa do que nos outros estilos, como na foto
+// da vila: a Malveira em primeiro plano, a serra por trás e o céu azul por cima da crista.
+// (elevation 14 graus: a crista da serra e o céu ficam no cimo do ecrã; targetUp levanta o
+// ponto para onde a câmara olha, para a vila não ficar escondida atrás do painel de construção.)
+export const startView = { azimuth: 12, elevation: 14, distance: 0.76, targetZ: -3, targetUp: 3 };
+
 export const backdrop = {
   metresPerLevel: 31, minMetres: 85,
-  lift: { above: 330, factor: 2.6 },   // a serra ao fundo, exagerada (é cenário: o morro "enche" o céu como nas fotos)
+  lift: { above: 330, factor: 2 },     // a serra ao fundo, exagerada (é cenário: o morro "enche" o céu como nas fotos;
+                                       // o mapa já sobe mais com o terrainUplift, por isso 2 e não 2.6)
   range: 200,  // o chão vai até longe: o nevoeiro azul apaga-o antes de se ver a ponta
   blend: 6,    // a serra começa logo a seguir à borda do mapa
   // o terreno "de fundo" em metros: continua o declive do mapa (alto a norte, baixo a sul)

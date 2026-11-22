@@ -1,0 +1,69 @@
+# Brace (working title) — GenHacks 2026
+
+A browser game about getting ready for a real wildfire. You get a limited budget to prepare a village
+(clear brush, cut firebreaks, swap eucalyptus for native trees), then a **real fire night** plays out,
+driven by the real hourly weather of that night.
+
+The main level is **Malveira da Serra, 6 October 2018**: the night a fire started near the Peninha
+sanctuary in the Serra de Sintra (Portugal) and a strong north wind pushed it downhill towards the
+villages. The map is built from real data (OpenStreetMap roads, houses and land cover; satellite
+elevation), and the wind is the real wind of that night.
+
+The game is educational, not a fire forecast: the fire rules are simplified.
+
+## How to run it
+
+No build tools are needed.
+
+```
+python dev/serve.py
+```
+
+(It works like `python -m http.server 8000`, but tells the browser not to cache, so it always runs
+the newest code.) Then open <http://localhost:8000/>. Other styles for development: `?style=canada`, and
+`gallery.html?style=sintra` shows every 3D piece of a style.
+
+Tests (game rules, map checks and a balance check that plays the level hundreds of times):
+
+```
+npm test
+```
+
+## How it is made
+
+- `src/sim/` — the rules (village, actions, fire, stars). Plain JavaScript, no graphics, tested with
+  Node's built-in `node:test`.
+- `src/render/` — the 3D view (Three.js). It only reads the simulation.
+- `data/levels/` — the levels (map, heights, budget, real wind, story and sources).
+- All graphics and sounds are **generated in code**: no downloaded models, images, textures or audio.
+
+## Credits and licences
+
+**Code library**
+- [Three.js](https://threejs.org/) 0.186.1 — MIT licence, loaded from the jsDelivr CDN.
+- Font: [Fredoka](https://fonts.google.com/specimen/Fredoka) from Google Fonts — SIL Open Font Licence.
+
+**Data**
+- **Weather:** [Open-Meteo](https://open-meteo.com/) historical weather API (ERA5 archive) — CC BY 4.0.
+  The hourly wind, gusts, temperature and humidity of 6–7 October 2018 at the Peninha ridge.
+- **Map:** Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright),
+  Open Database Licence (ODbL 1.0). Roads, buildings and land cover around Malveira da Serra,
+  retrieved through the Overpass API and turned into a 32 × 32 tile map (some tiles are game choices:
+  the fire station stand-in and the dry verges where the cigarette can fall).
+- **Elevation:** [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api) (CC BY 4.0),
+  based on the Copernicus DEM GLO-90 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH
+  2014-2018, provided under COPERNICUS by the European Union and ESA).
+- **The real story** (briefing and "what really happened"): news reports listed in the level's
+  `sources` (Observador, DN, CM Jornal, RTP, Euronews, Inquirer, Sábado). They are also linked on the
+  results screen in the game.
+
+The game shows the weather, map and elevation credits on the briefing and results screens.
+
+## Use of AI
+
+This project is made by a 16-year-old student who is learning to program from scratch. Most of the
+code was written by **Claude Code (Anthropic)**, an AI coding assistant, in small steps that the
+student directed, tested and explained back in his own words. The student made the design decisions
+(the game idea, the real fire, the look of the town, the difficulty goals). AI was also used to help
+gather the real data and the news sources listed above. No AI-generated images, models or sounds are
+used: everything you see and hear is drawn or synthesised by the game's own code.

@@ -55,7 +55,12 @@ export function createBackdrop(scene, village, terrain, spec) {
   const halfW = village.width / 2, halfH = village.height / 2;
   const R = spec.range ?? 130;    // até onde vai o cenário (depois disso, só nevoeiro)
   const BLEND = spec.blend ?? 9;  // em quantas unidades o cenário passa da borda do mapa para a serra
-  const toY = (metres) => terrain.baseY + ((metres - spec.minMetres) / spec.metresPerLevel) * terrain.levelHeight;
+  // metros -> nível do mapa -> altura no mundo (com o mesmo "uplift" do mapa, se houver:
+  // assim a serra do cenário continua a encosta do mapa sem degrau)
+  const toLevel = (metres) => (metres - spec.minMetres) / spec.metresPerLevel;
+  const toY = (metres) => (terrain.levelToY
+    ? terrain.levelToY(toLevel(metres))
+    : terrain.baseY + toLevel(metres) * terrain.levelHeight);
   const seaY = toY(0) + 0.05;
 
   // ---------- A forma do terreno ----------

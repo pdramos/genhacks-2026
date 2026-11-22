@@ -10,6 +10,9 @@
 //   const terrain = createTerrain(scene, village, palette, options)
 //                                     options.verticalScale = quanto sobe cada nível de altura
 //                                     (por omissão LEVEL_HEIGHT; o nível pode pedir mais relevo)
+//                                     options.uplift = { above, factor, top? } (opcional, só desenho):
+//                                     os níveis entre `above` e `top` (9) sobem `factor` vezes mais depressa
+//                                     (a serra fica mais íngreme por trás da vila; as regras não mudam)
 //                                     options.cliff = false -> sem ribanceira (quando há cenário à
 //                                     volta, o chão continua para lá do mapa e não há "ilha")
 //   terrain.groundHeight(x, y)     -> altura do chão (unidades 3D) no CENTRO do quadrado (x, y).
@@ -21,6 +24,7 @@
 //   terrain.pickTile(raycaster)    -> {x, y} do quadrado onde o "raio" bate, ou null
 //   terrain.update(t)              -> anima a água; chamar a cada desenho
 //   terrain.levelHeight, terrain.baseY -> a escala vertical usada (para o cenário à volta, backdrop.js)
+//   terrain.levelToY(level)        -> a altura no mundo de um nível (0-9, ou mais), já com o uplift
 //
 // Coordenadas: o quadrado (x, y) tem o centro no mundo em (x - halfX, ?, y - halfZ).
 // Dentro deste ficheiro também usamos "coordenadas de quadrado" (gx, gy): números com vírgula,
@@ -103,6 +107,7 @@ function makeSurfaceRecipes(P) {
 // =====================================================================================
 export function createTerrain(scene, village, palette, options = {}) {
   const levelHeight = options.verticalScale ?? LEVEL_HEIGHT;
+  const uplift = options.uplift;
   const hasCliff = options.cliff !== false;
   const W = village.width, H = village.height;
   const halfX = (W - 1) / 2, halfZ = (H - 1) / 2;
@@ -136,7 +141,21 @@ export function createTerrain(scene, village, palette, options = {}) {
 
   // Altura da "margem": o relevo do nível, sem o rio e sem pedrinhas.
   function bankHeight(gx, gy) {
-    return BASE_Y + sampleGrid(levels, gx, gy) * levelHeight;
+    return levelToY(sampleGrid(levels, gx, gy));
+  }
+
+  // Um nível (0-9) -> altura no mundo. Com options.uplift, a parte alta (a serra) sobe mais
+  // depressa: é só desenho, para o "morro" se ver como nas fotos (a simulação usa os níveis
+  // verdadeiros). A curva é suave (sem "joelho"): a vila em baixo quase não muda.
+  function levelToY(level) {
+    if (!uplift) return BASE_Y + level * levelHeight;
+    // "softplus": ~0 bem abaixo de 0, ~v bem acima, e uma curva suave no meio (sem "joelho")
+    const softplus = (v) => (v > 6 ? v : Math.log1p(Math.exp(v)));
+    // Só entre `above` e `top` (por omissão 9, o cimo do mapa) a subida é mais rápida; acima de
+    // `top` (a serra do cenário, backdrop.js) volta ao normal, senão os picos ficavam enormes.
+    const top = uplift.top ?? 9;
+    const extra = softplus(level - uplift.above) - softplus(level - top);
+    return BASE_Y + (level + extra * (uplift.factor - 1)) * levelHeight;
   }
 
   // Pequenas ondulações do chão, para não ser uma mesa de bilhar.
@@ -797,7 +816,7 @@ export function createTerrain(scene, village, palette, options = {}) {
     return colourAt(wx + halfX, wz + halfZ, out);
   }
 
-  return { groundHeight, heightAtWorld, colourAtWorld, setSurface, pickTile, update, levelHeight, baseY: BASE_Y };
+  return { groundHeight, heightAtWorld, colourAtWorld, setSurface, pickTile, update, levelHeight, baseY: BASE_Y, levelToY };
 }
 
 // Um tufo de erva: 4 folhas finas e compridas em leque (e não um cone, que parecia um espigão).
