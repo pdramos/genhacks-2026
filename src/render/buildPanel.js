@@ -2,18 +2,23 @@
 // o orçamento que sobra (na barra de cima) e mensagens curtas ("toasts").
 // As REGRAS (preços, onde se pode construir) vivem em src/sim/actions.js.
 // Este ficheiro só passa os cliques à simulação e mostra o resultado.
+// Também mostra as FAIXAS DE GESTÃO DE COMBUSTÍVEL: só se pode trabalhar perto das casas e
+// das estradas (com um tom suave e um contorno); o resto é Parque Natural (com um cadeado).
 // O desenho dos botões e mensagens está em src/render/ui/ (hud.js e hud.css).
 //
 // É carregado pelo index.html com a sua própria tag <script type="module">,
 // depois do main.js (assim o "game" já está pronto quando este código corre).
 import * as THREE from 'three';
 import { game, onTileClick, onPhaseChange, tileName } from './main.js';
-import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction } from '../sim/actions.js';
+// TODO(merger): trocar './simBridge.js' por '../sim/actions.js' (ver o cabeçalho de simBridge.js).
+import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable } from './simBridge.js';
+import { stripMap, stripEdges, slopeNote } from './fuelStrips.js';
 import { setLevelName, setBudget, showToast, createToolCard, formatEuros, showBriefingCard } from './ui/hud.js';
 import { rakeIcon, bulldozerIcon, saplingIcon, undoIcon } from './ui/icons.js';
 
 // O estado da construção usa a MESMA vila que o fogo vai ler.
 const buildState = createBuildState(game.village, game.level.budget);
+game.buildState = buildState; // o "Try again (same night)" (disasterPlayer.js) guarda este plano
 
 // A ferramenta escolhida: o nome de uma ação ('clearBrush', ...), 'undo', ou null (nenhuma).
 let selectedTool = null;
@@ -25,7 +30,10 @@ const BLOCKED_MESSAGES = {
   'already-changed': 'Already changed — undo it first',
   'outside': 'Outside the village',
   'nothing-to-undo': 'Nothing to undo here',
+  'protected-area': 'Protected natural park — you can only clear the legal fuel strips',
 };
+// O texto curto da caixa #info para um quadrado do parque (o toast acima é para o clique).
+const PARK_LABEL = '🔒 Natural park'; // 🔒 = cadeado
 
 // O ícone e a dica de cada ferramenta (o nome e o preço vêm da simulação).
 const TOOL_LOOKS = {
@@ -49,10 +57,22 @@ buttons.undo = makeCard('undo', 'Undo', null);
 document.getElementById('hud').append(panel);
 setLevelName(game.level.name);
 
+// "Try again (same night)": refazemos o plano do jogo anterior, quadrado a quadrado.
+// Como a página recarregou, a vila voltou ao original; estas ações voltam a pagar o mesmo.
+for (const { x, y, actionName } of game.retryPlan ?? []) {
+  const result = applyAction(buildState, x, y, actionName);
+  if (result.ok) game.view.setTileType(x, y, result.newType);
+}
+
 // Antes de construir: o cartão do briefing conta a história verdadeira deste incêndio.
 // Enquanto está aberto, a interface de construção fica escondida.
-document.body.classList.add('briefing');
-showBriefingCard(game.level, () => document.body.classList.remove('briefing'));
+// No "Try again" o jogador já leu a história: vamos direto à construção.
+if (game.retryPlan) {
+  showToast('Same night, same plan — change it and try again');
+} else {
+  document.body.classList.add('briefing');
+  showBriefingCard(game.level, () => document.body.classList.remove('briefing'));
+}
 
 // Cria uma carta; ao clicar, escolhe essa ferramenta (clicar outra vez tira a escolha).
 function makeCard(toolName, label, cost) {
@@ -79,6 +99,7 @@ function selectTool(toolName) {
     button.classList.toggle('selected', name === toolName);
   }
   if (toolName) showToast(TOOL_LOOKS[toolName].hint);
+  updateLocks(); // com uma ferramenta na mão, os cadeados ficam mais visíveis
   updateHover(); // a cor do destaque muda com a ferramenta
 }
 
@@ -92,7 +113,12 @@ addEventListener('keydown', (event) => {
 
 // ---------- Clicar num quadrado ----------
 onTileClick((tile) => {
-  if (game.phase !== 'build' || !selectedTool) return; // sem ferramenta, o clique só mostra o quadrado
+  if (game.phase !== 'build') return;
+  // Sem ferramenta, o clique só mostra o quadrado (main.js); no parque, explica o cadeado.
+  if (!selectedTool) {
+    if (tile && strips[tile.y][tile.x] === 'locked') showToast(BLOCKED_MESSAGES['protected-area'], 'locked');
+    return;
+  }
   if (!tile) return showToast(BLOCKED_MESSAGES.outside, 'error');
 
   if (selectedTool === 'undo') {
@@ -101,11 +127,16 @@ onTileClick((tile) => {
     game.view.setTileType(tile.x, tile.y, result.restoredType); // redesenha o quadrado
     showToast(`Undone: +${formatEuros(result.refund)}`, 'success');
   } else {
+    const budgetBefore = remainingBudget(buildState);
     const result = applyAction(buildState, tile.x, tile.y, selectedTool);
-    if (!result.ok) return showToast(BLOCKED_MESSAGES[result.reason], 'error');
+    if (!result.ok) {
+      if (result.reason === 'protected-area') return showToast(BLOCKED_MESSAGES[result.reason], 'locked');
+      return showToast(BLOCKED_MESSAGES[result.reason] || "Can't build there", 'error');
+    }
     game.view.setTileType(tile.x, tile.y, result.newType); // redesenha o quadrado
-    const action = ACTIONS[selectedTool];
-    showToast(`${action.label}: −${formatEuros(action.cost)}`, 'success');
+    // O que se pagou mesmo (numa encosta custa mais do que o preço da carta).
+    const paid = budgetBefore - remainingBudget(buildState);
+    showToast(`${ACTIONS[selectedTool].label}: −${formatEuros(paid)}`, 'success');
   }
   updateBudget();
   updateHover();
@@ -159,11 +190,20 @@ function updateHover() {
 }
 
 // O texto da caixa #info para o quadrado (x, y).
+// Com uma ferramenta, mostra o preço VERDADEIRO deste quadrado (check.cost, que a simulação
+// calcula com o declive) e, se for mais caro do que a carta, quanto a encosta encarece.
 function describe(x, y, check) {
   const name = tileName(game.village.tiles[y][x]);
-  if (!check) return name;
+  const locked = strips[y][x] === 'locked';
+  if (!check) return locked ? `${name} — ${PARK_LABEL}` : name;
   if (check.ok && selectedTool === 'undo') return `${name} — Undo: +${formatEuros(-check.cost)}`;
-  if (check.ok) return `${name} — ${ACTIONS[selectedTool].label} ${formatEuros(check.cost)}`;
+  if (check.ok) {
+    const action = ACTIONS[selectedTool];
+    const cost = check.cost ?? action.cost;
+    const steep = slopeNote(action.cost, cost);
+    return `${name} — ${action.label} ${formatEuros(cost)}${steep ? ` (${steep})` : ''}`;
+  }
+  if (check.reason === 'protected-area') return `${name} — ${PARK_LABEL}`;
   return `${name} — ${BLOCKED_MESSAGES[check.reason] || "Can't build there"}`;
 }
 
@@ -211,10 +251,149 @@ function updateChangedMarks() {
   }
 }
 
+// ---------- As faixas de gestão de combustível ----------
+// strips[y][x] = 'strip' (pode-se trabalhar), 'locked' (Parque Natural) ou null (casa, estrada, água).
+// As casas e as estradas não mudam durante a construção, por isso as faixas desenham-se uma vez.
+// Os cadeados são discretos; ficam mais fortes quando há uma ferramenta na mão.
+const LOCK_OPACITY = { idle: 0.45, tool: 0.85 };
+const strips = stripMap(game.village, isWorkable);
+const stripLayer = buildStripLayer();
+game.scene.add(stripLayer);
+
+// Três desenhos, cada um numa só "chamada de desenho" (para não pesar no mapa grande):
+//   1) um tom dourado muito suave nos quadrados das faixas;
+//   2) uma linha clara no limite entre a faixa e o parque;
+//   3) cadeados pequenos (pontos com um desenho de cadeado) nos quadrados do parque.
+function buildStripLayer() {
+  const layer = new THREE.Group();
+  const origin = game.view.worldPosition(0, 0); // o centro do quadrado (0, 0) no mundo
+  const ground = game.view.terrain.heightAtWorld;
+
+  // 1) O tom das faixas: um retângulo por quadrado, dobrado para seguir o relevo.
+  const tint = createDrapedShapes(origin, ground);
+  const locks = [];
+  for (let y = 0; y < strips.length; y++) {
+    for (let x = 0; x < strips[y].length; x++) {
+      if (strips[y][x] === 'strip') tint.rect(x - 0.5, y - 0.5, x + 0.5, y + 0.5, 3, 3, 0.04);
+      if (strips[y][x] === 'locked') locks.push({ x, y });
+    }
+  }
+  layer.add(tint.mesh(0xffe08a, 0.28));
+
+  // 2) O contorno: cada lado entre faixa e parque vira uma fita fina colada ao chão.
+  const outline = createDrapedShapes(origin, ground);
+  const half = 0.035; // metade da largura da fita
+  for (const { from, to } of stripEdges(strips)) {
+    const vertical = from.x === to.x;
+    outline.rect(from.x - half, from.y - half, to.x + half, to.y + half, vertical ? 1 : 4, vertical ? 4 : 1, 0.07);
+  }
+  layer.add(outline.mesh(0xfff4c8, 0.75));
+
+  // 3) Os cadeados: um ponto por quadrado do parque, um pouco acima do chão.
+  const positions = [];
+  for (const { x, y } of locks) {
+    const p = game.view.worldPosition(x, y);
+    positions.push(p.x, p.y + 0.35, p.z);
+  }
+  const lockGeometry = new THREE.BufferGeometry();
+  lockGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const lockPoints = new THREE.Points(lockGeometry, new THREE.PointsMaterial({
+    map: makePadlockTexture(), size: 0.8, sizeAttenuation: true,
+    transparent: true, opacity: LOCK_OPACITY.idle, alphaTest: 0.2, depthWrite: false,
+  }));
+  lockPoints.renderOrder = 6;
+  layer.add(lockPoints);
+  layer.userData.locks = lockPoints;
+  return layer;
+}
+
+function updateLocks() {
+  const material = stripLayer.userData.locks.material;
+  material.opacity = selectedTool && selectedTool !== 'undo' ? LOCK_OPACITY.tool : LOCK_OPACITY.idle;
+}
+
+// Junta muitos retângulos "colados ao chão" numa só malha 3D.
+// Cada retângulo vai de (x0, y0) a (x1, y1) em coordenadas da grelha e é partido em
+// segX x segY bocadinhos, cada ponto à altura do chão + lift (para seguir o relevo).
+// Devolve { rect, mesh }: chama-se rect(...) várias vezes e, no fim, mesh(cor, opacidade).
+function createDrapedShapes(origin, ground) {
+  const positions = []; // x, y, z de cada ponto, seguidos
+  const indices = [];   // 3 números por triângulo (que pontos o formam)
+
+  function rect(x0, y0, x1, y1, segX, segY, lift) {
+    const first = positions.length / 3; // o número do primeiro ponto deste retângulo
+    for (let j = 0; j <= segY; j++) {
+      for (let i = 0; i <= segX; i++) {
+        const wx = origin.x + x0 + ((x1 - x0) * i) / segX;
+        const wz = origin.z + y0 + ((y1 - y0) * j) / segY;
+        positions.push(wx, ground(wx, wz) + lift, wz);
+      }
+    }
+    // Dois triângulos por bocadinho.
+    for (let j = 0; j < segY; j++) {
+      for (let i = 0; i < segX; i++) {
+        const a = first + j * (segX + 1) + i, b = a + 1, c = a + segX + 1, d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+  }
+
+  function mesh(color, opacity) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    const result = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    }));
+    result.renderOrder = 4;
+    return result;
+  }
+
+  return { rect, mesh };
+}
+
+// O desenho do cadeado (64x64 píxeis), feito em código num canvas: arco + corpo + buraco.
+function makePadlockTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.lineCap = 'round';
+  // O arco de metal: um contorno escuro grosso e, por cima, um cinzento claro mais fino.
+  for (const [width, color] of [[13, '#2b2118'], [7, '#d9d4c8']]) {
+    ctx.beginPath();
+    ctx.moveTo(20, 34);
+    ctx.lineTo(20, 27);
+    ctx.arc(32, 27, 12, Math.PI, 0);
+    ctx.lineTo(44, 34);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+  // O corpo: dourado com contorno escuro.
+  ctx.beginPath();
+  ctx.roundRect(13, 31, 38, 28, 7);
+  ctx.fillStyle = '#ffc531';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#2b2118';
+  ctx.stroke();
+  // O buraco da chave.
+  ctx.fillStyle = '#2b2118';
+  ctx.beginPath();
+  ctx.arc(32, 42, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(30.5, 43, 3, 9);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 // ---------- Fases do jogo ----------
-// O painel só aparece na fase de construção.
+// O painel e as faixas só aparecem na fase de construção.
 function showForPhase(phase) {
   panel.hidden = phase !== 'build';
+  stripLayer.visible = phase === 'build';
   if (phase !== 'build') {
     hover.visible = false;
     for (const mark of changedMarks.values()) mark.visible = false;

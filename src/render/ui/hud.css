@@ -252,6 +252,9 @@ body[data-phase="result"] #info { background: rgba(59, 42, 30, .88); font-weight
 }
 .toast.success { background: #e3f6dc; color: #1f6b2a; }
 .toast.error { background: #ffe1da; color: #b3260f; animation: toast-in .35s cubic-bezier(.3, 1.6, .5, 1), shake .35s .1s; }
+/* Clique no Parque Natural: verde de floresta, com um cadeado à frente. */
+.toast.locked { background: #e2f0d6; color: #2f5d2a; animation: toast-in .35s cubic-bezier(.3, 1.6, .5, 1), shake .35s .1s; }
+.toast.locked::before { content: '\1F512'; margin-right: 6px; } /* \1F512 = o emoji do cadeado */
 .toast.again { animation: toast-bump .3s ease-out; }
 .toast.leaving { animation: toast-out .3s ease-in forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(16px) scale(.7); } to { opacity: 1; transform: none; } }
@@ -288,13 +291,15 @@ body[data-phase="disaster"] .toast-stack, body[data-phase="result"] .toast-stack
 .result-stat.lost { background: #ffe1da; }
 .result-stat.lost .result-number { color: var(--red); }
 .result-stat.lost .result-icon { filter: grayscale(.8) brightness(.6); }
-.result-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.result-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
 .result-button {
   padding: 10px 20px; cursor: pointer; border: 3px solid var(--ink); border-radius: 14px;
   background: var(--gold); color: var(--ink); font-size: 17px; font-weight: 700;
   box-shadow: 0 4px 0 var(--ink); transition: transform .1s, box-shadow .1s;
 }
 .result-button.secondary { background: #fff; }
+/* "Try again (same night)": verde, para se distinguir do "Play again" (jogo novo). */
+.result-button.retry { background: #9fd88a; }
 .result-button:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--ink); }
 .result-button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 
