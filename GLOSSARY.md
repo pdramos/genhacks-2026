@@ -20,3 +20,6 @@ Termos usados no código, nos testes e nas issues. Usa sempre estes nomes.
 | **Seed** (semente) | O número que fixa o acaso (`src/sim/random.js`). O mesmo plano com o mesmo vento e a mesma semente dá sempre o mesmo resultado. |
 | **Style** (estilo) | O aspeto 3D de uma região (`src/render/styles/*.js`). Não tem regras do jogo. |
 | **View** (vista) | A vila desenhada em 3D (`src/render/village3d.js`). Só mostra o que a simulação diz. |
+| **Expert plan** (plano do perito) | Uma lista de ações `{ x, y, action }` que salva todas as casas na maioria das noites, feita só com o que o jogo mostra (os "?" e o vento). Fica no nível, em `expertPlan` (`data/levels/sintra.json`). |
+| **Counterfactual / same-night comparison** ("e se...?", a comparação da mesma noite) | No fim do jogo, a mesma noite (o mesmo nível, semente e vento) é jogada outra vez sem fazer nada e com o plano do perito, para comparar com o jogador (`compareNight`, em `src/sim/counterfactual.js`). Daí saem 0 a 2 lições curtas (`nightLessons`). |
+| **Lucky night** (noite com sorte) | Uma noite em que, mesmo sem fazer nada, se salvavam todas as casas e a escola (3 estrelas). Nessa noite o plano do jogador não é julgado. |

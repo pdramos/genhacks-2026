@@ -11,7 +11,7 @@
 //   - "limpar tudo a começar no topo":   cerca de 1 estrela, <= 1,3, e não melhor do que não fazer nada
 //   - um bom plano (pensado a olhar para o mapa e o vento): >= 2 estrelas em mais de metade das sementes
 //   - 3 estrelas: menos de 35% das sementes para quem não joga como um perito
-//   - o plano de um PERITO (tests/fixtures/expert-plan-sintra.json): salvar TODAS as casas tem de
+//   - o plano de um PERITO ("expertPlan" no data/levels/sintra.json): salvar TODAS as casas tem de
 //     ser difícil mas possível: 3 estrelas em >= 50% das sementes e >= 2 estrelas em >= 85%
 // E três guardas da revisão de equilíbrio (os "truques" não podem valer mais do que pensar):
 //   - corta-fogo em cada sítio possível do cigarro: bem abaixo do bom plano;
@@ -32,7 +32,9 @@ import { createRandom } from '../src/sim/random.js';
 
 const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
 // O plano do perito: uma lista de ações { x, y, action }, feita antes de saber onde cai o cigarro.
-const EXPERT_PLAN = JSON.parse(readFileSync(new URL('./fixtures/expert-plan-sintra.json', import.meta.url), 'utf8'));
+// Vive no próprio nível (level.expertPlan), porque o jogo também o usa no fim de cada noite
+// (src/sim/counterfactual.js: "o que o perito teria feito nesta mesma noite").
+const EXPERT_ACTIONS = level.expertPlan.actions;
 // Quantas sementes jogar: 120 por omissão (1-120). Para uma conta mais longa, ou com sementes
 // que nunca foram usadas para afinar: BALANCE_SEEDS=1000 BALANCE_FIRST_SEED=4001 npm test
 const SEED_COUNT = Number(process.env.BALANCE_SEEDS) || 120;
@@ -157,7 +159,7 @@ function onlyFireStation(state) {
 //   - alguns quadrados soltos (orla norte da Malveira e a sul), onde caem brasas.
 // Cada ação passa pelo applyAction (as mesmas regras do jogo: faixas da lei, preços, orçamento).
 function expertPlan(state) {
-  for (const { x, y, action } of EXPERT_PLAN.actions) applyAction(state, x, y, action);
+  for (const { x, y, action } of EXPERT_ACTIONS) applyAction(state, x, y, action);
 }
 
 // O que os planos deste ficheiro (e o do perito) esperam encontrar no mapa.
@@ -276,16 +278,16 @@ test('3 stars stay rare (under 35% of the seeds) for every strategy except the e
 
 // ---------- O plano do perito: não perder nenhuma casa é difícil, mas possível ----------
 
-test('the expert plan is legal: applyAction accepts every action, its cost is right and fits the budget', () => {
+test('the expert plan is legal: applyAction accepts every action and its cost fits the budget', () => {
   const village = createVillage(level);
   const state = createBuildState(village, level.budget);
   let total = 0;
-  EXPERT_PLAN.actions.forEach(({ x, y, action }, index) => {
+  EXPERT_ACTIONS.forEach(({ x, y, action }, index) => {
     total += actionCost(village, x, y, action); // o preço ANTES de mudar o quadrado
     const result = applyAction(state, x, y, action);
     assert.ok(result.ok, `action ${index + 1} (${action} at ${x},${y}) was refused: ${result.reason}`);
   });
-  assert.equal(total, EXPERT_PLAN.cost, 'the "cost" written in the fixture is not the real cost');
+  assert.equal(total, level.budget - state.budget, 'the money spent is not the sum of the prices');
   assert.ok(total <= level.budget, `the expert plan costs ${total}, more than the budget ${level.budget}`);
 });
 
