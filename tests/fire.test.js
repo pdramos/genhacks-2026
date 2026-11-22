@@ -183,8 +183,9 @@ test('the fire stops after maxSteps even if something is still burning', () => {
 
 test('a firebreak built on the ignition tile never burns, so the fire never starts', () => {
   // O jogador constrói um corta-fogo mesmo no quadrado onde o fogo ia começar.
+  // A estrada no canto põe o centro dentro da faixa onde a lei deixa trabalhar.
   const village = villageFrom(
-    'GGG',
+    'RGG',
     'GEG',
     'GGG',
   );
