@@ -5,7 +5,10 @@
 //   3 estrelas = e todas as casas.
 
 // Que parte das casas é preciso salvar para a 2.ª estrela.
-export const TWO_STAR_SHARE = 0.8;
+// O número vive em balance.js (todas as constantes de equilíbrio num só sítio);
+// continua a ser exportado daqui para quem já o usava.
+import { TWO_STAR_SHARE } from './balance.js';
+export { TWO_STAR_SHARE };
 
 // outcome = { housesSaved, housesTotal, schoolSaved } (o resultado de runDisaster).
 export function countStars({ housesSaved, housesTotal, schoolSaved }) {
