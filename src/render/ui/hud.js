@@ -232,7 +232,7 @@ function starSvg(filled) {
 // level (opcional) = o nível: mostra "o que aconteceu de verdade" (level.aftermath) e as fontes.
 // lostText (opcional) = uma linha a dizer ONDE se perderam casas (ex.: "2 at the quinta in the forest"),
 //   para o jogador perceber o que mudar no plano. As casas perdidas também ficam marcadas no mapa.
-// comparison (opcional) = { player, nothing, expert, lucky, lessons } (de src/sim/counterfactual.js):
+// comparison (opcional) = { player, nothing, expert, showLuckyBanner, lessons } (de src/sim/counterfactual.js):
 //   a mesma noite jogada com outros planos. Mostra "Same night, three plans" (ver compareSection).
 export function showResultCard(outcome, schoolLabel = 'School', level = {}, lostText = '', comparison = null) {
   const allSaved = outcome.schoolSaved && outcome.housesSaved === outcome.housesTotal;
@@ -271,14 +271,14 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
   if (lostText) lost.textContent = lostText;
   else lost.remove();
   // A comparação dos planos, logo por baixo dos números (e da linha das casas perdidas, que fala
-  // do plano do jogador). Numa "noite de sorte" (não fazer nada também salvava tudo) aparece uma
-  // faixa lá em cima, para o jogador não pensar que foi só mérito. Só quando o jogador também
-  // salvou tudo: se o plano dele piorou o fogo, a faixa mentia (quem explica é a lição).
+  // do plano do jogador). Numa "noite com sorte" (não fazer nada também salvava tudo) aparece uma
+  // faixa lá em cima, para o jogador não pensar que foi só mérito. Quem decide é a simulação
+  // (showLuckyBanner, em src/sim/counterfactual.js): só quando o jogador também salvou tudo.
   if (comparison) {
     card.classList.add('has-compare');
     const above = card.querySelector('.result-lost') ?? card.querySelector('.result-stats');
     above.after(compareSection(comparison, schoolLabel));
-    if (comparison.lucky && comparison.player.stars === 3) {
+    if (comparison.showLuckyBanner) {
       const lucky = document.createElement('div');
       lucky.className = 'result-lucky';
       lucky.textContent = 'Lucky night: the fire died out on its own';

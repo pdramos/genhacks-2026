@@ -24,7 +24,8 @@
 //     gastar €190 000 (tudo o que a lei deixa), ardiam casas em ~20% das noites;
 //   - orçamento de Sintra 12000 -> 20000: com €12 000 o melhor plano encontrado dava 3 estrelas em
 //     ~50% das noites mas >= 2 estrelas em só ~70-80% (um fogo que escapa queima o quartel ou a vila).
-//   - o teste ganhou a estratégia "expert" (tests/fixtures/expert-plan-sintra.json, €19 930):
+//   - o teste ganhou a estratégia "expert" (tests/fixtures/expert-plan-sintra.json, €19 930;
+//     esse ficheiro já não existe: hoje o plano é "expertPlan" em data/levels/sintra.json):
 //     3 estrelas em 60% (sementes 1-30) e 70% (31-90); >= 2 estrelas em 87% e 95%.
 //   - o que se testou e NÃO chegou: só o orçamento (€20 000 com o mapa antigo: 3 estrelas em ~47%,
 //     >= 2 em ~80%; seriam precisos ~€45 000) e só o mapa (€12-16 000: >= 2 estrelas em ~80%).

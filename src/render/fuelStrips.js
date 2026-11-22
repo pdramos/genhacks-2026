@@ -1,6 +1,6 @@
 // As FAIXAS DE GESTÃO DE COMBUSTÍVEL, vistas na fase de construção.
-// A lei portuguesa (DL 82/2021) só deixa limpar o mato em faixas à volta das casas e das estradas;
-// o resto é Parque Natural protegido. A REGRA (que quadrados são trabalháveis) vive na simulação
+// A lei portuguesa (DL 82/2021) manda limpar o mato em faixas à volta das casas e das estradas;
+// o resto é Parque Natural e o jogo fecha-o (escolha do jogo, não da lei). A REGRA (que quadrados são trabalháveis) vive na simulação
 // (isWorkable em src/sim/actions.js). Aqui só fazemos as contas para o DESENHO:
 //   - que quadrados pintar com um tom suave (faixa) e quais levam cadeado (parque);
 //   - por onde passa o contorno entre os dois;

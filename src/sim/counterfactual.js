@@ -7,7 +7,7 @@
 import { createVillage } from './village.js';
 import { createBuildState, applyAction } from './actions.js';
 import { runDisaster } from './fire.js';
-import { resolveIgnition } from './ignition.js';
+import { resolveIgnition, pickIgnition } from './ignition.js';
 import { windForLevel } from './weather.js';
 import { countStars } from './stars.js';
 
@@ -29,12 +29,27 @@ export function playPlan(level, seed, actions) {
 
 // Compara a noite do jogador com "não fazer nada" e com o perito, na MESMA noite.
 // playerOutcome = o resultado do fogo do jogador ({ housesSaved, housesTotal, schoolSaved, ... }).
-// lucky = "noite com sorte": mesmo sem fazer nada, salvavam-se todas as casas e a escola.
-export function compareNight(level, seed, playerOutcome) {
+// playerStart (opcional) = o quadrado onde o fogo do jogador começou MESMO ({ x, y }, de resolveIgnition).
+// Devolve:
+//   lucky = "noite com sorte": mesmo sem fazer nada, salvavam-se todas as casas e a escola.
+//   showLuckyBanner = mostrar a faixa "Lucky night" no cartão do fim (ver luckyAndUntested).
+//   movedStart = o plano do jogador mudou o sítio onde o fogo começa (ele mexeu no "?" que a
+//     semente escolheu, e o cigarro rolou para o lado). Sem playerStart, fica false.
+export function compareNight(level, seed, playerOutcome, playerStart = null) {
   const player = { ...playerOutcome, stars: countStars(playerOutcome) };
   const nothing = playPlan(level, seed, []);
   const expert = level.expertPlan ? playPlan(level, seed, level.expertPlan.actions) : null;
-  return { player, nothing, expert, lucky: nothing.stars === 3 };
+  const lucky = nothing.stars === 3;
+  const picked = pickIgnition(level, seed);
+  const movedStart = Boolean(playerStart) && (playerStart.x !== picked.x || playerStart.y !== picked.y);
+  return { player, nothing, expert, lucky, showLuckyBanner: luckyAndUntested(lucky, player), movedStart };
+}
+
+// Noite com sorte E o jogador também com 3 estrelas: o plano dele não foi posto à prova.
+// É a regra da faixa "Lucky night" (hud.js) e da lição de sorte: vive só aqui, para as duas
+// nunca discordarem. (Se o jogador ficou abaixo das 3 estrelas, dizer "sorte" era mentira.)
+export function luckyAndUntested(lucky, player) {
+  return lucky && player.stars === 3;
 }
 
 // Que parte do orçamento pode sobrar sem ser lição (25%).
@@ -46,10 +61,11 @@ const MAX_LESSONS = 2;
 
 // As frases do fim da noite, da mais útil para a menos útil. Devolve 0 a 2 frases (inglês).
 // windFrom = de onde vem o vento, como na rosa dos ventos ('N', 'NE', 'SSW'...).
-export function nightLessons({ player, nothing, expert, lucky, spent, budget, windFrom, schoolName }) {
+// movedStart = o plano do jogador mudou o sítio onde o fogo começa (vem do compareNight).
+export function nightLessons({ player, nothing, expert, lucky, movedStart = false, spent, budget, windFrom, schoolName }) {
   // Noite com sorte E o jogador também com 3 estrelas: o plano não foi posto à prova,
   // por isso não o julgamos.
-  if (lucky && player.stars === 3) {
+  if (luckyAndUntested(lucky, player)) {
     return ['Lucky night: even doing nothing, the fire would have missed every house. Play again for a harder night.'];
   }
 
@@ -62,13 +78,18 @@ export function nightLessons({ player, nothing, expert, lucky, spent, budget, wi
     lessons.push(`You lost the ${name}: without it there are no stars. Protect the strips around it first.`);
   }
 
-  // b) Noite com sorte, mas o jogador ficou PIOR do que sem fazer nada. Acontece quando ele mexe
-  //    no "?" do cigarro: o fogo não se apaga, só começa no mato seco ao lado (ver ignition.js),
-  //    e esse sítio novo pode ser pior. Dizemos a verdade em vez de "noite com sorte".
+  // b) Noite com sorte, mas o jogador ficou PIOR do que sem fazer nada. Dizemos a verdade em vez
+  //    de "noite com sorte". Há duas maneiras de isto acontecer:
+  //    - ele mexeu no "?" do cigarro (movedStart): o fogo não se apaga, só começa no mato seco ao
+  //      lado (ver ignition.js), e esse sítio novo pode ser pior;
+  //    - o fogo começou no mesmo sítio, mas as mudanças dele levaram-no por outro caminho.
   //    (Esta frase substitui a próxima, que diria quase o mesmo.)
   const worseThanLucky = lucky && player.stars < 3;
   if (worseThanLucky) {
-    lessons.push('Doing nothing would have saved every house tonight: work on a ? spot only moves the start to the dry scrub beside it.');
+    const why = movedStart
+      ? 'work on a ? spot only moves the start to the dry scrub beside it.'
+      : 'your changes sent the fire a different way.';
+    lessons.push(`Doing nothing would have saved every house tonight: ${why}`);
   }
 
   // c) O trabalho não salvou mais casas do que ficar parado: falta pensar no vento.
@@ -91,7 +112,9 @@ export function nightLessons({ player, nothing, expert, lucky, spent, budget, wi
   const expertGap = expert ? expert.housesSaved - player.housesSaved : 0;
   if (expertGap >= EXPERT_GAP) {
     // Se a dica do vento já foi dada (frase c), não a repetimos.
-    const tip = gaveDownwindTip ? '' : ': firebreaks just downwind of each ? spot';
+    // A dica diz o que o plano do perito (level.expertPlan) faz MESMO: trabalha nos "?" e logo
+    // a favor do vento deles, e na ravina por cima do quartel.
+    const tip = gaveDownwindTip ? '' : ': firebreaks and cleared scrub on and just downwind of the ? spots, and in the ravine above the fire station';
     lessons.push(`On this same night the expert plan saved ${expertGap} more houses${tip}.`);
   }
 
@@ -101,8 +124,13 @@ export function nightLessons({ player, nothing, expert, lucky, spent, budget, wi
     lessons.push(`You left ${euros(unspent)} unspent: every euro in the right strip counts.`);
   }
 
-  // f) Igualou ou bateu o perito (com a escola salva, ou pelo menos tantas estrelas como ele).
-  if (expert && player.stars >= expert.stars && player.housesSaved >= expert.housesSaved) {
+  // f) Igualou ou bateu o perito: tantas estrelas e tantas casas como ele.
+  //    Só com a escola (o quartel) salva: sem ela não há elogio.
+  //    E só se o trabalho valeu alguma coisa: se a frase b) ou c) já disse que ficar parado era
+  //    igual ou melhor, "bateste o perito" contradizia-as (há noites em que o perito faz pior
+  //    do que não fazer nada).
+  if (expert && player.schoolSaved && !worseThanLucky && !noBetterThanNothing
+    && player.stars >= expert.stars && player.housesSaved >= expert.housesSaved) {
     const verb = player.housesSaved > expert.housesSaved || player.stars > expert.stars ? 'beat' : 'matched';
     lessons.push(`You ${verb} the expert plan on this night!`);
   }

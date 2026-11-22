@@ -7,10 +7,10 @@ import { readFileSync } from 'node:fs';
 import { createVillage } from '../src/sim/village.js';
 import { createBuildState, applyAction } from '../src/sim/actions.js';
 import { runDisaster } from '../src/sim/fire.js';
-import { resolveIgnition } from '../src/sim/ignition.js';
+import { resolveIgnition, pickIgnition } from '../src/sim/ignition.js';
 import { windForLevel } from '../src/sim/weather.js';
 import { countStars } from '../src/sim/stars.js';
-import { playPlan, compareNight, nightLessons } from '../src/sim/counterfactual.js';
+import { playPlan, compareNight, nightLessons, luckyAndUntested } from '../src/sim/counterfactual.js';
 
 const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
 const EXPERT_ACTIONS = level.expertPlan.actions;
@@ -146,10 +146,33 @@ test('nightLessons: a lucky night says so, and nothing about the plan', () => {
 // Visto no jogo (semente 20): sem fazer nada o fogo morria logo, mas o jogador pôs um corta-fogo
 // no "?", o fogo começou ao lado e queimou a vila. Aí não se diz "noite com sorte".
 test('nightLessons: a lucky night where the player did worse tells the truth, not "lucky"', () => {
-  const lessons = nightLessons({ ...baseNight, lucky: true, nothing: result(50), player: result(30, false), expert: result(50) });
+  const lessons = nightLessons({ ...baseNight, lucky: true, movedStart: true, nothing: result(50), player: result(30, false), expert: result(50) });
   assert.match(lessons[0], /^You lost the fire station/);
-  assert.match(lessons[1], /^Doing nothing would have saved every house tonight/);
+  assert.equal(lessons[1], 'Doing nothing would have saved every house tonight: work on a ? spot only moves the start to the dry scrub beside it.');
   assert.ok(!lessons.some((lesson) => /^Lucky night|no more houses than doing nothing/.test(lesson)));
+});
+
+// Visto pelo revisor (semente 34): o jogador não tocou em nenhum "?" (o fogo começou no mesmo
+// sítio), mas ficou abaixo das 3 estrelas. Aí não se pode culpar o trabalho no "?".
+test('nightLessons: a worse lucky night without moving the start does not blame the ? spot', () => {
+  const lessons = nightLessons({ ...baseNight, lucky: true, movedStart: false, nothing: result(50), player: result(45), expert: result(50) });
+  assert.equal(lessons[0], 'Doing nothing would have saved every house tonight: your changes sent the fire a different way.');
+});
+
+test('compareNight: movedStart says whether the player moved the start of the fire', () => {
+  const anyOutcome = { housesSaved: 0, housesTotal: 50, schoolSaved: false };
+  const picked = pickIgnition(level, 34);
+  assert.equal(compareNight(level, 34, anyOutcome, picked).movedStart, false);
+  assert.equal(compareNight(level, 34, anyOutcome, { x: picked.x + 1, y: picked.y }).movedStart, true);
+  assert.equal(compareNight(level, 34, anyOutcome).movedStart, false, 'no start given');
+});
+
+test('compareNight: the "Lucky night" banner only when the night was lucky AND the player got 3 stars', () => {
+  assert.equal(luckyAndUntested(true, result(50)), true);
+  assert.equal(luckyAndUntested(true, result(45)), false);
+  assert.equal(luckyAndUntested(false, result(50)), false);
+  const night = compareNight(level, 7, { housesSaved: 0, housesTotal: 50, schoolSaved: false });
+  assert.equal(night.showLuckyBanner, false);
 });
 
 test('nightLessons: losing the school comes first and names it in lower case', () => {
@@ -179,7 +202,7 @@ test('nightLessons: the downwind direction is the opposite of where the wind com
 
 test('nightLessons: the expert saving 10+ more houses on the same night is a lesson', () => {
   const lessons = nightLessons({ ...baseNight, player: result(30), expert: result(48) });
-  assert.deepEqual(lessons, ['On this same night the expert plan saved 18 more houses: firebreaks just downwind of each ? spot.']);
+  assert.deepEqual(lessons, ['On this same night the expert plan saved 18 more houses: firebreaks and cleared scrub on and just downwind of the ? spots, and in the ravine above the fire station.']);
   // 9 a mais não chega para ser lição.
   assert.deepEqual(nightLessons({ ...baseNight, player: result(39), expert: result(48) }), []);
 });
@@ -202,6 +225,26 @@ test('nightLessons: matching or beating the expert plan is praised', () => {
   // Sem o quartel não há elogio, mesmo com as casas todas.
   const noSchool = nightLessons({ ...baseNight, player: result(50, false) });
   assert.ok(!noSchool.some((lesson) => /expert plan on this night/.test(lesson)));
+});
+
+// Visto pelo revisor: o jogador e o perito perdem os dois o quartel (0 estrelas cada um).
+test('nightLessons: no praise when the player lost the school, even if the expert lost it too', () => {
+  const lessons = nightLessons({ ...baseNight, player: result(40, false), nothing: result(20, false), expert: result(30, false) });
+  assert.match(lessons[0], /^You lost the fire station/);
+  assert.ok(!lessons.some((lesson) => /expert plan on this night/.test(lesson)));
+});
+
+// Visto pelo revisor (semente 74): há noites em que o perito faz PIOR do que não fazer nada.
+// Um jogador igual a "não fazer nada" não pode ouvir "não fizeste melhor do que nada" e
+// "bateste o perito" ao mesmo tempo.
+test('nightLessons: "no better than doing nothing" and "beat the expert" never come together', () => {
+  const lessons = nightLessons({ ...baseNight, player: result(40), nothing: result(40), expert: result(30) });
+  assert.match(lessons[0], /^Your work saved no more houses than doing nothing/);
+  assert.ok(!lessons.some((lesson) => /expert plan on this night/.test(lesson)));
+  // O mesmo numa noite com sorte em que o jogador piorou e o perito ainda mais.
+  const worse = nightLessons({ ...baseNight, lucky: true, nothing: result(50), player: result(45), expert: result(40) });
+  assert.match(worse[0], /^Doing nothing would have saved every house tonight/);
+  assert.ok(!worse.some((lesson) => /expert plan on this night/.test(lesson)));
 });
 
 test('nightLessons: no expert plan in the level means no expert lessons', () => {

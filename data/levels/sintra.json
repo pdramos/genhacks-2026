@@ -5,7 +5,7 @@
   "schoolName": "Fire station",
   "budget": 20000,
   "expertPlan": {
-    "description": "Plano de um perito para Malveira da Serra (mapa real, orçamento 20000), feito só com o que o jogo mostra (os ? nos sítios verdadeiros do cigarro, as faixas onde a lei deixa trabalhar e o vento de norte): corta-fogo e mato limpo logo a SUL (a favor do vento) de cada ?, e um corta-fogo na ravina por cima do quartel (coluna x 19); alguns quadrados soltos a sul. Afinado por computador nas sementes 3001-3400 e 5001-5300 (não nas do teste). Usado em tests/balance.test.js.",
+    "description": "Plano de um perito para Malveira da Serra (mapa real, orçamento 20000), feito só com o que o jogo mostra (os ? nos sítios verdadeiros do cigarro, as faixas onde a lei deixa trabalhar e o vento de norte): corta-fogo e mato limpo em cima de alguns ? e logo a SUL (a favor do vento) deles, e um corta-fogo na ravina por cima do quartel (coluna x 19); alguns quadrados soltos a sul. Afinado por computador nas sementes 3001-3400 e 5001-5300 (não nas do teste). Usado no fim de cada noite (src/sim/counterfactual.js) e em tests/balance.test.js.",
     "actions": [
       { "x": 22, "y": 0, "action": "firebreak" },
       { "x": 21, "y": 1, "action": "firebreak" },
@@ -87,7 +87,7 @@
       { "time": "2018-10-07T10:00", "direction": 9, "speed": 19.7, "gust": 44.6, "temperature": 16, "humidity": 48 }
     ]
   },
-  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. A fire breaks out in the scrub near the Peninha sanctuary and races downhill towards Malveira da Serra. In real life it burned about 500 hectares, hundreds of people were evacuated, and no aircraft could fly until dawn. You have €20,000 to prepare the town, and the law only lets you work in the fuel strips around houses and roads.",
+  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. In real life, a fire broke out near the Peninha sanctuary and raced downhill towards Malveira da Serra: it burned about 500 hectares, hundreds of people were evacuated, and no aircraft could fly until dawn. You have €20,000 to prepare the village, and the law tells you to clear fuel strips around houses and roads, so that is where you work.",
   "aftermath": "In real life: about 500 hectares burned in one night. Hundreds of people, a campsite and 70 horses were evacuated, and 21 people were lightly hurt. Around 700 firefighters fought the fire, but no aircraft could fly until dawn; it was controlled at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
   "ignitionHint": "Tonight a cigarette thrown from a car will start a fire at one of the spots marked ? beside the serra roads. You will not know which one until it happens.",
   "law": {
@@ -100,7 +100,7 @@
     ],
     "source": "Decreto-Lei n.º 82/2021, article 49.º (in force since 2022).",
     "inGame": "One tile is 65 m, so the game rounds to whole tiles: you may work up to 2 tiles (about 130 m; regional programmes may make strips up to 50% wider) from houses and the fire station, and on the tiles next to a road. The rest is Sintra-Cascais Natural Park: locked.",
-    "canada": "In Canada, FireSmart (advice, not a law) looks after the 30 m around a home: Immediate 0–1.5 m, Intermediate 1.5–10 m, Extended 10–30 m.",
+    "canada": "In Canada, FireSmart (advice, not a law) splits the 30 m around a home into three zones: Immediate 0–1.5 m, Intermediate 1.5–10 m, Extended 10–30 m.",
     "links": [
       { "label": "Decreto-Lei n.º 82/2021 (in Portuguese)", "url": "https://diariodarepublica.pt/dr/detalhe/decreto-lei/82-2021-172745163" },
       { "label": "FireSmart Canada: the Home Ignition Zone", "url": "https://firesmartcanada.ca/about-firesmart-2/the-home-ignition-zone/" }

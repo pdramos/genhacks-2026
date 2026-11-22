@@ -200,7 +200,8 @@ function showResult(outcome, lastStep) {
 // só sem a comparação (é melhor do que o jogo ficar preso no fim).
 function compareThisNight(outcome, schoolName) {
   try {
-    const comparison = compareNight(game.level, game.seed, outcome);
+    // game.ignition = onde o fogo do jogador começou MESMO (para saber se o plano mudou o início).
+    const comparison = compareNight(game.level, game.seed, outcome, game.ignition);
     const lessons = nightLessons({
       ...comparison,
       spent: game.level.budget - remainingBudget(game.buildState),

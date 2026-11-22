@@ -30,11 +30,12 @@ const BLOCKED_MESSAGES = {
   'already-changed': 'Already changed — undo it first',
   'outside': 'Outside the village',
   'nothing-to-undo': 'Nothing to undo here',
-  // A lei portuguesa (DL 82/2021, art. 49.º) só manda limpar faixas à volta das casas e das estradas.
-  'protected-area': 'Sintra-Cascais Natural Park: by law (DL 82/2021) clear only near houses & roads',
+  // A lei portuguesa (DL 82/2021, art. 49.º) manda limpar faixas à volta das casas e das estradas.
+  // Ela NÃO proíbe trabalhar no resto: fechar o parque é uma escolha do jogo.
+  'protected-area': 'Sintra-Cascais Natural Park: locked. Work in the fuel strips near houses & roads',
 };
 // O texto curto da caixa #info para um quadrado do parque (o toast acima é para o clique).
-const PARK_LABEL = '🔒 Natural park (DL 82/2021)'; // 🔒 = cadeado
+const PARK_LABEL = '🔒 Natural park'; // 🔒 = cadeado
 
 // O ícone e a dica de cada ferramenta (o nome e o preço vêm da simulação).
 // Os quadrados onde a ferramenta dá BRILHAM (ver "Os quadrados que brilham", mais abaixo).

@@ -83,20 +83,27 @@ export function showLawCard(level, returnFocusTo = document.activeElement) {
     links.append(item);
   }
 
-  // Fechar: tira o cartão e o fundo, deixa de ouvir o teclado e devolve o foco.
+  // Enquanto o cartão está aberto, o resto da página fica "inert" (adormecido): o rato e a tecla
+  // Tab não chegam lá, por isso o foco não foge para os botões do cartão de baixo.
+  // Guardamos só os que adormecemos nós, para os acordar ao fechar (e não mexer nos outros).
+  const asleep = [...document.body.children].filter((element) => !element.inert);
+  for (const element of asleep) element.inert = true;
+
+  // Fechar: tira o cartão e o fundo, acorda a página, deixa de ouvir o teclado e devolve o foco.
   function close() {
     card.remove();
     backdrop.remove();
+    for (const element of asleep) element.inert = false;
     removeEventListener('keydown', onKey, true);
     openCard = null;
     returnFocusTo?.focus?.();
   }
-  // "true" = ouvimos a tecla ANTES dos outros módulos (ex.: o Esc das ferramentas),
-  // e stopPropagation() faz com que o Esc só feche este cartão.
+  // "true" = ouvimos a tecla ANTES dos outros módulos (as teclas 1-4 das ferramentas, as setas
+  // da câmara, o Esc...). stopPropagation() faz com que NENHUMA tecla chegue lá enquanto o cartão
+  // está aberto. O que a tecla faz sozinha no navegador continua: Tab muda de botão, Enter carrega.
   function onKey(event) {
-    if (event.key !== 'Escape') return;
     event.stopPropagation();
-    close();
+    if (event.key === 'Escape') close();
   }
   addEventListener('keydown', onKey, true);
   backdrop.addEventListener('click', close);
