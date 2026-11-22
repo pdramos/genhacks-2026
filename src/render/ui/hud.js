@@ -5,6 +5,7 @@
 // O aspeto (cores, tamanhos, animações) está em hud.css.
 import { coinIcon, flameIcon, windArrowIcon, houseIcon, schoolIcon } from './icons.js';
 import { countStars, TWO_STAR_SHARE } from '../../sim/stars.js';
+import { lawButton } from './lawCard.js';
 
 // ---------- Barra de cima ----------
 // Os elementos da barra de cima já existem no index.html (ids: level-name, budget, wind...).
@@ -207,6 +208,9 @@ export function showBriefingCard(level, onStart) {
   const hint = card.querySelector('.goal-hint');
   if (level.ignitionHint) hint.textContent = level.ignitionHint;
   else hint.remove();
+  // O botão "The law" (à esquerda): explica porque só se pode trabalhar perto das casas e estradas.
+  const law = lawButton(level);
+  if (law) card.querySelector('.result-buttons').prepend(law);
   card.querySelector('[data-do="start"]').addEventListener('click', () => {
     card.remove();
     onStart?.();
