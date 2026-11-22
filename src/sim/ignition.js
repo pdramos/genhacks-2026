@@ -3,6 +3,7 @@
 // do jogo escolhe um deles. A mesma semente escolhe sempre o mesmo, por isso o
 // "Try again (same night)" repete exatamente o mesmo fogo.
 import { createRandom } from './random.js';
+import { FLAMMABILITY } from './fire.js';
 
 // Um número fixo que se junta à semente antes de sortear.
 // Porquê? O fogo também usa createRandom(seed). Sem esta "pitada de sal", o primeiro número
@@ -23,4 +24,38 @@ export function pickIgnition(level, seed) {
   const index = Math.floor(rand() * candidates.length);
   const chosen = candidates[index];
   return { x: chosen.x, y: chosen.y }; // uma cópia, para ninguém estragar o nível sem querer
+}
+
+// Até quantos quadrados de distância procuramos algo que arda, à volta do candidato.
+// (Distância como o rei no xadrez: 1 = os 8 vizinhos; 2 = o anel seguinte, 16 quadrados.)
+export const IGNITION_SEARCH_RADIUS = 2;
+
+// "Este quadrado pode pegar fogo?" (inflamabilidade maior do que 0: não é corta-fogo,
+// estrada nem água). É a mesma regra que o runDisaster usa para começar o fogo.
+export function canIgnite(village, x, y) {
+  if (x < 0 || y < 0 || x >= village.width || y >= village.height) return false;
+  return (FLAMMABILITY[village.tiles[y][x]] ?? 0) > 0;
+}
+
+// Onde começa MESMO o fogo, já com o plano do jogador feito.
+// O cigarro cai no candidato que a semente escolheu (pickIgnition). Se o jogador lá pôs um
+// corta-fogo, o cigarro não se apaga por magia: rola para o lado e o fogo começa no primeiro
+// quadrado que arde à volta, primeiro nos 8 vizinhos e depois no anel seguinte.
+// A ordem é fixa (linha a linha, de cima para baixo e da esquerda para a direita), por isso
+// a mesma vila e a mesma semente dão sempre o mesmo quadrado.
+// Porquê? Sem isto, um corta-fogo em cada candidato (€3.390) dava 3 estrelas em todas as noites.
+// Se não houver nada que arda por perto, devolve o candidato (e o fogo não começa).
+export function resolveIgnition(village, level, seed) {
+  const picked = pickIgnition(level, seed);
+  if (canIgnite(village, picked.x, picked.y)) return picked;
+  for (let radius = 1; radius <= IGNITION_SEARCH_RADIUS; radius++) {
+    for (let y = picked.y - radius; y <= picked.y + radius; y++) {
+      for (let x = picked.x - radius; x <= picked.x + radius; x++) {
+        // Só o "anel" desta distância (os de dentro já foram vistos na volta anterior).
+        const ring = Math.max(Math.abs(x - picked.x), Math.abs(y - picked.y));
+        if (ring === radius && canIgnite(village, x, y)) return { x, y };
+      }
+    }
+  }
+  return picked;
 }
