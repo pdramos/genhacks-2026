@@ -12,9 +12,20 @@
 //   view.propTop(x, y)             -> altura (y no mundo) do topo das árvores/casas do quadrado, ou null
 //   view.update(t)                 -> animações (árvores ao vento, bandeiras, água); chamar a cada desenho
 //   view.terrain                   -> o terreno (ver terrain.js), para quem precisar da altura exata
+//
+// Desempenho: os objetos de cada quadrado NÃO vão diretamente para a cena. São "cozidos"
+// (ver mergeProps.js) e colados por blocos de 8x8 quadrados, uma peça por material.
+// Assim o mapa 32x32 passa de milhares de pedidos de desenho para umas centenas.
+// Os grupos originais de cada quadrado continuam guardados: servem para o clique (raio),
+// para medir a altura (propTop) e para o charring.js os carbonizar.
 import * as THREE from 'three';
 import { tileAt } from '../sim/village.js';
 import { createTerrain } from './terrain.js';
+import { bakeTile, buildMeshes, swayTime } from './mergeProps.js';
+
+// Tamanho de um bloco (em quadrados). Maior = menos pedidos de desenho, mas mais trabalho
+// para refazer o bloco quando um quadrado muda (por exemplo, quando arde).
+const CHUNK = 8;
 
 // O aspeto de "queimado" dos objetos vem de charring.js (feito por outra pessoa).
 // Enquanto esse ficheiro não existir, usamos uma versão simples (pinta tudo de carvão).
@@ -27,16 +38,31 @@ export function createVillageView(scene, village, style, rand) {
   const terrain = createTerrain(scene, village, style.palette);
   let shadowListener = null; // quem quer saber que as sombras mudaram (ver onShadowsChanged)
 
-  // tiles[y][x] = { type, prop, swaying: [...], animated: [...] }
+  // tiles[y][x] = { type, prop, swaying: [...], animated: [...], baked, merged }
+  //   baked  = os pontos do quadrado já "cozidos" (ver mergeProps.js), prontos a colar no bloco
+  //   merged = true se o quadrado vai colado no bloco; false se o grupo está sozinho na cena
+  //            (só os quadrados com coisas animadas, como a bandeira do quartel)
   const tiles = [];
   const props = []; // grupos de objetos, para o clique
   for (let y = 0; y < village.height; y++) {
     tiles.push([]);
-    for (let x = 0; x < village.width; x++) tiles[y].push({ type: null, prop: null, swaying: [], animated: [], top: undefined });
+    for (let x = 0; x < village.width; x++) {
+      tiles[y].push({ type: null, prop: null, swaying: [], animated: [], top: undefined, baked: null, merged: false });
+    }
   }
+
+  // Os blocos: chunks.get("bx,by") = { meshes: [...], dirty }. Um bloco "sujo" tem de ser refeito.
+  const chunks = new Map();
+  function markDirty(x, y) {
+    const key = `${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`;
+    if (!chunks.has(key)) chunks.set(key, { bx: Math.floor(x / CHUNK), by: Math.floor(y / CHUNK), meshes: [], dirty: true });
+    chunks.get(key).dirty = true;
+  }
+
   for (let y = 0; y < village.height; y++) {
     for (let x = 0; x < village.width; x++) setTileType(x, y, tileAt(village, x, y));
   }
+  rebuildDirtyChunks();
 
   // Centro do quadrado no mundo 3D; y é a altura do chão nesse ponto.
   function worldPosition(x, y) {
@@ -53,7 +79,7 @@ export function createVillageView(scene, village, style, rand) {
     const { x: wx, y: wy, z: wz } = worldPosition(x, y);
     const prop = new THREE.Group();
     prop.position.set(wx, wy, wz);
-    prop.userData = { x, y };
+    prop.userData = { x, y, isTile: true };
     if (type === 'eucalyptus') addTrees(t, prop, 'conifer', 3);
     if (type === 'broadleaf') addTrees(t, prop, 'broadleaf', 1);
     if (type === 'brush') addBushes(prop);
@@ -62,15 +88,46 @@ export function createVillageView(scene, village, style, rand) {
     trimShadows(prop); // desempenho: as peças pequenas não fazem sombra
     shadowsChanged();
     prop.traverse((o) => { if (o.userData.animate) t.animated.push(o); });
-    if (prop.children.length) { scene.add(prop); t.prop = prop; props.push(prop); }
+    if (prop.children.length) {
+      t.prop = prop;
+      props.push(prop);
+      if (t.animated.length) {
+        scene.add(prop); // tem partes que mexem (bandeira, luzes): fica sozinho, como antes
+      } else {
+        t.merged = true; // vai colado no bloco
+        t.baked = bakeTile(prop, t.swaying);
+        markDirty(x, y);
+      }
+    }
   }
 
   function removeProp(t) {
     if (t.prop) {
-      scene.remove(t.prop);
+      if (t.merged) markDirty(t.prop.userData.x, t.prop.userData.y);
+      else scene.remove(t.prop);
       props.splice(props.indexOf(t.prop), 1);
     }
-    t.prop = null; t.swaying = []; t.animated = []; t.top = undefined;
+    t.prop = null; t.swaying = []; t.animated = []; t.top = undefined; t.baked = null; t.merged = false;
+  }
+
+  // Refaz os blocos sujos: junta os quadrados cozidos do bloco numa peça por material.
+  function rebuildDirtyChunks() {
+    let changed = false;
+    for (const chunk of chunks.values()) {
+      if (!chunk.dirty) continue;
+      for (const mesh of chunk.meshes) { scene.remove(mesh); mesh.geometry.dispose(); }
+      const baked = [];
+      for (let y = chunk.by * CHUNK; y < Math.min((chunk.by + 1) * CHUNK, village.height); y++) {
+        for (let x = chunk.bx * CHUNK; x < Math.min((chunk.bx + 1) * CHUNK, village.width); x++) {
+          if (tiles[y][x].baked) baked.push(tiles[y][x].baked);
+        }
+      }
+      chunk.meshes = buildMeshes(baked);
+      for (const mesh of chunk.meshes) scene.add(mesh);
+      chunk.dirty = false;
+      changed = true;
+    }
+    if (changed) shadowsChanged(); // as sombras têm de ser redesenhadas
   }
 
   // O topo das coisas do quadrado (medido uma vez e guardado). null = quadrado sem objetos.
@@ -86,7 +143,8 @@ export function createVillageView(scene, village, style, rand) {
 
   // ---------- Desempenho ----------
   // Cada peça (Mesh) é um "pedido" à placa gráfica, e cada peça que faz sombra é desenhada
-  // DUAS vezes (uma para a sombra). Com ~2000 peças, um portátil fraco fica lento.
+  // DUAS vezes (uma para a sombra). Com milhares de peças, um portátil fraco fica lento.
+  // Por isso colamos os quadrados em blocos (ver rebuildDirtyChunks e mergeProps.js).
   // Por isso o mapa das sombras só é redesenhado quando alguma coisa muda (ver main.js):
   // a vista avisa com onShadowsChanged.
   function onShadowsChanged(fn) { shadowListener = fn; }
@@ -190,6 +248,11 @@ export function createVillageView(scene, village, style, rand) {
     if (t.prop) charProp(t.prop, t.type, terrain.heightAtWorld);
     shadowsChanged();
     t.swaying = []; // árvores queimadas não balançam
+    // Coze outra vez o quadrado (agora queimado) e marca o bloco para ser refeito no próximo frame.
+    if (t.merged) {
+      t.baked = bakeTile(t.prop, []);
+      markDirty(x, y);
+    }
   }
 
   // Descobre que quadrado está debaixo do rato (um "raio" sai da câmara pelo ponto clicado).
@@ -203,19 +266,21 @@ export function createVillageView(scene, village, style, rand) {
     const propHit = raycaster.intersectObjects(props, true)[0];
     if (propHit) {
       let o = propHit.object;
-      while (o && !(o.parent && o.parent.isScene)) o = o.parent; // sobe até ao grupo do quadrado
-      if (o && o.userData.x !== undefined) return { x: o.userData.x, y: o.userData.y };
+      while (o && !o.userData.isTile) o = o.parent; // sobe até ao grupo do quadrado
+      if (o) return { x: o.userData.x, y: o.userData.y };
     }
     return terrain.pickTile(raycaster);
   }
 
   function update(t) {
+    swayTime.value = t; // as árvores coladas nos blocos balançam na placa gráfica (mergeProps.js)
     for (const row of tiles) {
       for (const tile of row) {
-        for (const s of tile.swaying) s.obj.rotation.z = Math.sin(t * 1.6 + s.phase) * 0.04;
+        if (!tile.merged) for (const s of tile.swaying) s.obj.rotation.z = Math.sin(t * 1.6 + s.phase) * 0.04;
         for (const o of tile.animated) o.userData.animate(t);
       }
     }
+    rebuildDirtyChunks(); // os quadrados que mudaram (construir, arder) aparecem já neste frame
     terrain.update(t);
   }
 
