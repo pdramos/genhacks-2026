@@ -28,6 +28,19 @@
 //     3 estrelas em 60% (sementes 1-30) e 70% (31-90); >= 2 estrelas em 87% e 95%.
 //   - o que se testou e NÃO chegou: só o orçamento (€20 000 com o mapa antigo: 3 estrelas em ~47%,
 //     >= 2 em ~80%; seriam precisos ~€45 000) e só o mapa (€12-16 000: >= 2 estrelas em ~80%).
+// Ronda "o fogo nasce sempre" (a verificação da ronda anterior), o que mudou e porquê:
+//   - com 30 sementes os números enganavam: noutras sementes o ingénuo dava ~1,7 (não 1,17) e o
+//     perito >= 2 estrelas em só 88% (à justa). O teste passou a jogar 120 sementes;
+//   - o perito ganhava ~13 pontos de 3 estrelas a limpar à volta dos sítios ESCONDIDOS do cigarro
+//     (os "?" estavam no meio das estradas, não lá). Agora os "?" estão nos sítios verdadeiros
+//     (mapHints.js) e limpar lá já não chega: CIGARETTE_MIN_FLAMMABILITY (o cigarro não acende
+//     terra limpa, rola para o mato seco). O ingénuo, que limpava os "?" sem saber, desce para
+//     ~1,5, o mesmo que não fazer nada;
+//   - mapa: a linha 11, x 20-25 (a berma norte da EN247 em frente ao quartel), passa de eucalipto
+//     a mato ("B"). Era daí que as brasas saltavam para as casas do leste e para o quartel, e
+//     abater eucaliptos ali custava ~€7 500. Limpar o mato custa €1 500: o perito chega a >= 2
+//     estrelas em ~94% das noites (era 88%) e 3 estrelas em ~60%;
+//   - nenhuma outra constante mudou (preços, declive, fogo, estrelas, orçamento).
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.
@@ -57,6 +70,14 @@ export const SLOPE_COST_PER_LEVEL = 0.25;
 
 // Os preços com declive são arredondados a múltiplos deste valor (fica mais fácil de ler: €250, não €247).
 export const COST_ROUNDING = 10;
+
+// ---------- Onde começa o fogo ----------
+// Uma ponta de cigarro só acende combustível seco: inflamabilidade de pelo menos isto
+// (erva 0.5, mato 0.8, folhosa 0.3, eucalipto 0.9; ver FLAMMABILITY em fire.js).
+// Terra limpa (0.15) e corta-fogo (0) não pegam: o cigarro rola para o lado (resolveIgnition,
+// em ignition.js). Porquê: limpar o mato em volta de cada "?" fazia o fogo morrer ao nascer e
+// valia mais do que defender a vila (ver a ronda "o fogo nasce sempre" no topo deste ficheiro).
+export const CIGARETTE_MIN_FLAMMABILITY = 0.3;
 
 // ---------- Orçamento ----------
 // Orçamento usado quando o nível não traz "budget" no JSON.

@@ -137,9 +137,9 @@ Medido antes desta ronda (20 fogos por estratégia): nada → 1,0 estrelas; limp
 - O dono é responsável por `buildPanel.js`, `disasterPlayer.js`, `ignitionCinematic.js`, `main.js` (câmara) e `hud.css`.
 
 ## Equilíbrio (dono: agente BALANCE, depois da junção)
-`tests/balance.test.js` simula sementes 1–30 por estratégia e garante:
-- **nada:** média < 0,5★;
-- **"limpar tudo o que é permitido, a começar no topo":** cerca de 1★ (≤ 1,3);
+`tests/balance.test.js` simula sementes 1–120 por estratégia (era 1–30 até à ronda "o fogo nasce sempre", mais abaixo; `BALANCE_SEEDS=1000 BALANCE_FIRST_SEED=4001 npm test` corre outras sementes) e garante:
+- **nada:** média < 0,5★ (`todo`, ver abaixo);
+- **"limpar tudo o que é permitido, a começar no topo":** cerca de 1★ (≤ 1,3) (`todo`; o que se garante é que não é melhor do que não fazer nada);
 - **um bom plano escrito no teste:** ≥ 2★ na maioria das sementes;
 - **3★:** < 35% mesmo para o bom plano.
 
@@ -178,3 +178,37 @@ Antes (orçamento 12 000, mapa antigo): nada 1,07 / 1,08 · ingénuo 1,10 / 1,43
 Em 2000 sementes (4001–6000): nada 1,45 · ingénuo 1,68 · perito 2,46 (3★ 64%, ≥ 2★ 88%).
 
 Avisos: a pastagem também ajuda quem não faz nada (1,07 → 1,27 nas sementes 1–30), por isso a guarda "nada ≤ 1,2" passou a **≤ 1,3** e a meta "nada < 0,5★" continua `todo`. O ingénuo só fica ≤ 1,3 nas sementes 1–30; em muitas sementes dá ~1,6–1,7, quase o mesmo que não fazer nada (~1,45).
+
+### Ronda "o fogo nasce sempre" (22/11/2026, depois da verificação)
+A verificação da ronda anterior (com scripts próprios, em mais sementes) encontrou três problemas:
+- **30 sementes enganavam.** O ingénuo dava 1,17★ nas sementes 1–30, mas ~1,7★ nas outras (3★ em ~30%); não fazer nada dava ~1,4★. O perito tinha ≥ 2★ em 26 de 30 sementes (à justa) e em 88% a longo prazo.
+- **Informação escondida.** ~€5 000 do plano do perito estavam colados aos `ignitionCandidates`, que o jogador não via: os "?" estavam no meio de cada estrada da serra. Esses remendos valiam ~13 pontos de 3★. O mesmo esforço à volta dos "?" do mapa não dava nada.
+- **(21, 2) e (25, 6):** as brasas da berma de eucaliptos em frente ao quartel (linha 11, x 20–25) saltavam a EN247 para as casas do leste e o quartel; abater esses eucaliptos custava ~€7 500.
+
+Mudanças:
+- **Os "?" mostram os sítios verdadeiros do cigarro** (`ignitionSpots` em `src/render/mapHints.js`, um "?" por candidato) e o `ignitionHint` de Sintra diz isso.
+- **O cigarro só acende combustível seco** (`CIGARETTE_MIN_FLAMMABILITY` = 0,3 em `balance.js`; `catchesCigarette` e `resolveIgnition` em `src/sim/ignition.js`). Terra limpa (0,15) ainda arde quando o fogo lá chega, mas o cigarro rola para a erva, o mato ou as árvores mais perto, como já fazia com um corta-fogo. Antes, limpar o mato no "?" fazia o fogo nascer em terra limpa e morrer logo: isso valia mais do que defender a vila, e era isso que fazia o ingénuo (que limpa as bermas da serra de cima para baixo) ganhar a quem não faz nada.
+- **Mapa:** em `sintra.json`, a linha 11, x 20–25 (a berma norte da EN247 em frente ao quartel e às casas do leste), passa de eucalipto a mato (`B`), e a `story` di-lo. Limpar a berma custa €1 500.
+- **Plano do perito novo** (`tests/fixtures/expert-plan-sintra.json`, €19 910), feito só com o que se vê no mapa: a ravina do quartel (linha 13, x 19–22), **toda** a berma norte da EN247 (linha 11, x 6–28, e (6, 10)), as orlas da vila ((8–9, 13) e (25, 13)) e alguns quadrados à volta dos "?" e da quinta. Só a ravina, a berma e as orlas (€15 000) já dão 3★ em ~49% e ≥ 2★ em ~90%.
+- **Teste:** 120 sementes; nova estratégia **"markers"** (limpar o mato à volta de cada "?") com a sua guarda; o custo escrito no ficheiro do perito tem de ser o custo verdadeiro; o bom plano troca os eucaliptos em frente à vila oeste por folhosas; a guarda do quartel compara com o bom plano e com o perito (a ravina sozinha dá ~1,8★: é a melhor compra, mas não chega); a guarda "nada" passou a ≤ 1,65 (é ~1,5 em qualquer conjunto grande de sementes).
+- Preços, declive, fogo, estrelas e orçamento (€20 000) ficaram iguais.
+
+**Resultado (média de estrelas; para o bom plano e o perito também ≥ 2★ e 3★):**
+
+| estratégia | sementes 1–120 (o teste) | 121–1120 | 4001–6000 |
+|---|---|---|---|
+| nada | 1,49★ | 1,50★ | 1,52★ |
+| ingénuo | 1,38★ | 1,47★ | 1,49★ |
+| ao calhas | 1,57★ | 1,68★ | 1,72★ |
+| corta-fogo nos candidatos | 1,57★ | 1,63★ | 1,63★ |
+| limpar à volta dos "?" | 1,54★ (3★ 25%) | 1,51★ (3★ 18%) | 1,49★ (3★ 20%) |
+| só o quartel | 1,88★ | 1,82★ | 1,84★ |
+| bom plano | 2,11★, ≥ 2★ 86%, 3★ 28% | 2,11★, 86%, 28% | 2,12★, 85%, 29% |
+| **perito (€19 910)** | **2,49★, ≥ 2★ 93%, 3★ 60%** | **2,52★, 94%, 60%** | **2,51★, 94%, 60%** |
+
+Antes desta ronda (mesmas sementes 121–1120): nada 1,43 · ingénuo 1,67 (3★ 30%) · perito 2,43 (≥ 2★ 88%, 3★ 63%).
+Perito em 6000 sementes: 2,53★, ≥ 2★ 94%, 3★ 61%; em blocos de 120 sementes seguidas, o pior bloco tem 3★ 53% e ≥ 2★ 88% (nenhum falha as metas). Por sítio do cigarro (3★ / ≥ 2★): (7, 7) 85% / 98% · (8, 2) 83% / 97% · (18, 8) 89% / 98% · (25, 6) 50% / 90% · (21, 2) 31% / 89% · (27, 9) 26% / 93%. Nas noites de (21, 2) e (27, 9) salvar todas as casas é raro (a quinta na floresta, e a floresta do leste encostada às casas): fica como variedade de noite para noite.
+
+O que se testou e não chegou: só a berma de mato (sem a regra do cigarro): perito ≥ 2★ ~94%, mas o ingénuo subia para ~1,75 e, com os "?" nos sítios verdadeiros, limpar à volta deles dava 3★ em 35–48%; um jardim à volta da quinta: não fazer nada subia para ~1,6; mais mato ou mais casas na vila oeste: não fazer nada quase não mudava; trocar candidatos de sítio: ganhos pequenos, por isso ficaram os mesmos 6.
+
+**Metas que continuam por cumprir (`todo` no teste):** não fazer nada < 0,5★ (é ~1,5★) e o ingénuo ≤ 1,3★ (é ~1,5★, o mesmo que não fazer nada). Os fogos das estradas da serra a oeste quase nunca chegam ao quartel, por isso não fazer nada dá 1–2★ em cerca de metade das noites. Para descer seria preciso mudar o sítio do quartel ou das estradas da serra.

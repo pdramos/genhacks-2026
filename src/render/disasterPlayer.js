@@ -63,8 +63,8 @@ async function startDisaster() {
 
   // 0) Onde cai o cigarro? O nível tem vários sítios possíveis (ignitionCandidates) e a
   //    semente deste jogo escolhe um. O jogador só o descobre agora, na cena.
-  //    resolveIgnition já conta com o plano: se lá houver um corta-fogo, o fogo começa no
-  //    quadrado que arde mais perto (o mesmo que a simulação vai usar).
+  //    resolveIgnition já conta com o plano: se lá houver um corta-fogo ou terra limpa, o fogo
+  //    começa no combustível seco mais perto (o mesmo que a simulação vai usar).
   const ignition = resolveIgnition(game.village, game.level, game.seed);
   game.ignition = ignition;
   const willBurn = canIgnite(game.village, ignition.x, ignition.y);

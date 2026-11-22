@@ -4,6 +4,7 @@
 // "Try again (same night)" repete exatamente o mesmo fogo.
 import { createRandom } from './random.js';
 import { FLAMMABILITY } from './fire.js';
+import { CIGARETTE_MIN_FLAMMABILITY } from './balance.js';
 
 // Um número fixo que se junta à semente antes de sortear.
 // Porquê? O fogo também usa createRandom(seed). Sem esta "pitada de sal", o primeiro número
@@ -37,25 +38,46 @@ export function canIgnite(village, x, y) {
   return (FLAMMABILITY[village.tiles[y][x]] ?? 0) > 0;
 }
 
+// "Uma ponta de cigarro acende este quadrado?" Precisa de combustível seco a sério: erva,
+// mato, árvores (inflamabilidade de pelo menos CIGARETTE_MIN_FLAMMABILITY, em balance.js).
+// Terra limpa ("cleared", 0.15) ainda pode arder quando o fogo chega, mas um cigarro não a acende.
+export function catchesCigarette(village, x, y) {
+  if (x < 0 || y < 0 || x >= village.width || y >= village.height) return false;
+  return (FLAMMABILITY[village.tiles[y][x]] ?? 0) >= CIGARETTE_MIN_FLAMMABILITY;
+}
+
 // Onde começa MESMO o fogo, já com o plano do jogador feito.
 // O cigarro cai no candidato que a semente escolheu (pickIgnition). Se o jogador lá pôs um
-// corta-fogo, o cigarro não se apaga por magia: rola para o lado e o fogo começa no primeiro
-// quadrado que arde à volta, primeiro nos 8 vizinhos e depois no anel seguinte.
+// corta-fogo, ou limpou o mato, o cigarro não se apaga por magia: o vento rola-o para o lado
+// e o fogo começa no primeiro quadrado com combustível seco à volta, primeiro nos 8 vizinhos
+// e depois no anel seguinte.
 // A ordem é fixa (linha a linha, de cima para baixo e da esquerda para a direita), por isso
 // a mesma vila e a mesma semente dão sempre o mesmo quadrado.
 // Porquê? Sem isto, um corta-fogo em cada candidato (€3.390) dava 3 estrelas em todas as noites.
-// Se não houver nada que arda por perto, devolve o candidato (e o fogo não começa).
+// E na ronda "salvar todas as casas": limpar o mato em volta de cada "?" fazia o fogo morrer
+// logo ao nascer (terra limpa arde mal), por isso valia mais do que defender a vila. Agora
+// limpar o "?" só muda o sítio onde o fogo começa: o que salva as casas é a defesa da vila.
+// Se não houver combustível seco por perto, aceita o primeiro quadrado que arda (ex.: terra
+// limpa); se nada arder, devolve o candidato (e o fogo não começa).
 export function resolveIgnition(village, level, seed) {
   const picked = pickIgnition(level, seed);
-  if (canIgnite(village, picked.x, picked.y)) return picked;
+  return nearest(picked, (x, y) => catchesCigarette(village, x, y))
+    ?? nearest(picked, (x, y) => canIgnite(village, x, y))
+    ?? picked;
+}
+
+// O primeiro quadrado (o próprio, depois o anel 1, depois o anel 2) onde fits(x, y) é verdade,
+// ou null se não houver nenhum.
+function nearest(picked, fits) {
+  if (fits(picked.x, picked.y)) return picked;
   for (let radius = 1; radius <= IGNITION_SEARCH_RADIUS; radius++) {
     for (let y = picked.y - radius; y <= picked.y + radius; y++) {
       for (let x = picked.x - radius; x <= picked.x + radius; x++) {
         // Só o "anel" desta distância (os de dentro já foram vistos na volta anterior).
         const ring = Math.max(Math.abs(x - picked.x), Math.abs(y - picked.y));
-        if (ring === radius && canIgnite(village, x, y)) return { x, y };
+        if (ring === radius && fits(x, y)) return { x, y };
       }
     }
   }
-  return picked;
+  return null;
 }

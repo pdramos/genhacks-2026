@@ -1,13 +1,13 @@
 // MARCADORES POR CIMA DO MAPA (etiquetas HTML que seguem a câmara):
 //   - o quartel dos bombeiros (o edifício "escola" do nível) tem sempre um ícone por cima,
 //     para o jogador saber logo o que TEM de salvar;
-//   - na construção, um "?" no meio de cada estrada da serra: o cigarro vai cair perto de uma
-//     delas, mas não se sabe qual (só aparece se o nível tiver vários sítios possíveis);
+//   - na construção, um "?" em cada sítio onde o cigarro pode cair: o fogo começa num deles,
+//     mas não se sabe qual (só aparece se o nível tiver vários sítios possíveis);
 //   - no fim, um círculo vermelho em cada casa que ardeu (markLostHouses), para o "Look around".
 // As contas (que quadrados marcar) estão em mapHints.js; aqui só se desenha.
 import * as THREE from 'three';
 import { game, onFrame, onPhaseChange } from './main.js';
-import { serraRoadSpots } from './mapHints.js';
+import { ignitionSpots } from './mapHints.js';
 import { schoolIcon } from './ui/icons.js';
 
 const layer = document.createElement('div');
@@ -42,10 +42,8 @@ if (schoolTiles.length > 0) {
   marker.element.querySelector('.marker-icon').setAttribute('aria-label', marker.element.title);
 }
 
-// Os "?" das estradas da serra (só com a ignição escondida: vários candidatos).
-if ((game.level.ignitionCandidates?.length ?? 0) > 1) {
-  for (const { x, y } of serraRoadSpots(game.village)) addMarker(x, y, 'mystery', '?', ['build']);
-}
+// Os "?" nos sítios onde o cigarro pode cair (só com a ignição escondida: vários candidatos).
+for (const { x, y } of ignitionSpots(game.level)) addMarker(x, y, 'mystery', '?', ['build']);
 
 // Marca as casas que arderam (lista de [x, y]) com um círculo vermelho.
 export function markLostHouses(tiles) {

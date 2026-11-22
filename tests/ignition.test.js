@@ -48,7 +48,7 @@ test('changing the picked ignition does not change the level', () => {
 // (3 estrelas por €3.390). Agora, se o candidato não arde, o fogo começa no primeiro vizinho
 // que arde, numa ordem fixa (a mesma semente continua a dar sempre o mesmo fogo).
 import { createVillage } from '../src/sim/village.js';
-import { resolveIgnition, canIgnite } from '../src/sim/ignition.js';
+import { resolveIgnition, canIgnite, catchesCigarette } from '../src/sim/ignition.js';
 
 // Uma serra pequena 5x5 com uma estrada no meio (x=2) e mato dos dois lados.
 const SERRA = { name: 'Serra', map: ['BBRBB', 'BBRBB', 'BBRBB', 'BBRBB', 'BBRBB'] };
@@ -86,4 +86,30 @@ test('with nothing burnable nearby, the candidate is kept (the fire simply does 
   const village = createVillage({ name: 'Wet', map: ['WWWWW', 'WWWWW', 'WWRWW', 'WWWWW', 'WWWWW'] });
   const level = { name: 'Wet', ignition: { x: 2, y: 2 } };
   assert.deepEqual(resolveIgnition(village, level, 1), { x: 2, y: 2 });
+});
+
+// Ronda "salvar todas as casas": limpar o mato no sítio do cigarro fazia o fogo nascer em terra
+// limpa (arde mal) e quase sempre morrer logo. Agora o cigarro só acende combustível seco.
+test('a cigarette does not light cleared ground: it rolls to the nearest dry fuel', () => {
+  const village = createVillage(SERRA);
+  village.tiles[2][1] = 'cleared';
+  assert.equal(catchesCigarette(village, 1, 2), false);
+  assert.equal(canIgnite(village, 1, 2), true, 'cleared ground still burns when a fire reaches it');
+  const spot = resolveIgnition(village, serraLevel, 4);
+  assert.ok(catchesCigarette(village, spot.x, spot.y), `${spot.x},${spot.y} must be dry fuel`);
+  assert.ok(Math.abs(spot.x - 1) <= 1 && Math.abs(spot.y - 2) <= 1, 'one of the 8 neighbours');
+});
+
+test('grass, brush and trees catch a cigarette; cleared ground, firebreaks and roads do not', () => {
+  const village = createVillage({ name: 'Mix', map: ['GBEOCFR'] });
+  const catches = [0, 1, 2, 3, 4, 5, 6].map((x) => catchesCigarette(village, x, 0));
+  assert.deepEqual(catches, [true, true, true, true, false, false, false]);
+});
+
+test('with only cleared ground nearby, the fire still starts there (it never just disappears)', () => {
+  const village = createVillage({ name: 'Bare', map: ['WWWWW', 'WCCCW', 'WCRCW', 'WCCCW', 'WWWWW'] });
+  const level = { name: 'Bare', ignition: { x: 1, y: 2 } };
+  const spot = resolveIgnition(village, level, 1);
+  assert.deepEqual(spot, { x: 1, y: 2 });
+  assert.ok(canIgnite(village, spot.x, spot.y));
 });

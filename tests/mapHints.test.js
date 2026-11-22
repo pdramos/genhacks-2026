@@ -1,10 +1,10 @@
 // Testes das ajudas do mapa (src/render/mapHints.js): onde se perderam casas (cartão do fim)
-// e onde pôr os "?" das estradas da serra (fase de construção).
+// e onde pôr os "?" dos sítios onde o cigarro pode cair (fase de construção).
 // São só contas com quadrados (sem Three.js), por isso testam-se no Node.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage } from '../src/sim/village.js';
-import { lostHouses, describeLostHouses, serraRoadSpots } from '../src/render/mapHints.js';
+import { lostHouses, describeLostHouses, ignitionSpots } from '../src/render/mapHints.js';
 
 // Uma vila 5x3: uma quinta isolada em cima (1,0) e duas casas em baixo (3,2) e (4,2).
 function smallVillage() {
@@ -37,13 +37,15 @@ test('a house outside every named place still counts', () => {
   assert.equal(describeLostHouses([[1, 0], [9, 9]], PLACES), 'Houses lost: 1 at the quinta in the forest · 1 elsewhere');
 });
 
-test('serraRoadSpots puts one marker in the middle of each road north of the main road', () => {
-  // Duas estradas da serra (x=1 e x=4) que descem até à estrada principal (a linha 3, toda estrada).
-  const village = createVillage({ name: 'Serra', map: ['BRBBR', 'BRBBR', 'BRBBR', 'RRRRR', 'GGGGG'] });
-  assert.deepEqual(serraRoadSpots(village), [{ x: 1, y: 1 }, { x: 4, y: 1 }]);
+test('ignitionSpots puts a "?" on every spot where the cigarette can fall (the real ones)', () => {
+  const level = { ignitionCandidates: [{ x: 1, y: 1 }, { x: 4, y: 0 }] };
+  assert.deepEqual(ignitionSpots(level), [{ x: 1, y: 1 }, { x: 4, y: 0 }]);
+  // São cópias: mexer no resultado não estraga o nível.
+  ignitionSpots(level)[0].x = 9;
+  assert.equal(level.ignitionCandidates[0].x, 1);
 });
 
-test('without a full-width main road there are no serra markers', () => {
-  const village = createVillage({ name: 'Flat', map: ['BRB', 'BRB', 'BRB'] });
-  assert.deepEqual(serraRoadSpots(village), []);
+test('with one spot or none there is no mystery, so no "?"', () => {
+  assert.deepEqual(ignitionSpots({ ignitionCandidates: [{ x: 1, y: 1 }] }), []);
+  assert.deepEqual(ignitionSpots({ ignition: { x: 1, y: 1 } }), []);
 });

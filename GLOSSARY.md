@@ -14,7 +14,7 @@ Termos usados no código, nos testes e nas issues. Usa sempre estes nomes.
 | **Build phase** (fase de construção) | Antes do desastre, quando o jogador gasta o orçamento em ações. Pode **desfazer** (undo) cada ação, com reembolso total. |
 | **Disaster** (desastre) | O incêndio. É simulado por passos de 10 minutos simulados. |
 | **Wind direction** (direção do vento) | De onde o vento **vem**, em graus, como nos boletins meteorológicos: 0 = norte, 90 = leste, 180 = sul, 270 = oeste. O fogo é empurrado para o lado contrário (**downwind**). Vetor downwind na grelha: `dx = -sin(d)`, `dy = cos(d)`. |
-| **Ignition** (ignição) | O quadrado onde o fogo começa. A semente escolhe um dos `ignitionCandidates` (`pickIgnition`); se o jogador lá pôs um corta-fogo, o fogo começa no quadrado que arde mais perto, numa ordem fixa (`resolveIgnition`). |
+| **Ignition** (ignição) | O quadrado onde o fogo começa. A semente escolhe um dos `ignitionCandidates` (`pickIgnition`); se o jogador lá pôs um corta-fogo ou limpou o mato, o cigarro rola e o fogo começa no combustível seco (erva, mato, árvores: `CIGARETTE_MIN_FLAMMABILITY`) mais perto, numa ordem fixa (`resolveIgnition`). No mapa, cada sítio possível tem um "?" na fase de construção. |
 | **Burning / burned** | O quadrado está a arder ou já ardeu. |
 | **Snapshot** | O estado do fogo num passo (que quadrados ardem e quais já arderam). A interface "reproduz" a lista de snapshots. |
 | **Seed** (semente) | O número que fixa o acaso (`src/sim/random.js`). O mesmo plano com o mesmo vento e a mesma semente dá sempre o mesmo resultado. |

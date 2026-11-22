@@ -356,7 +356,7 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   background: var(--cream); box-shadow: 0 3px 0 var(--ink); color: var(--ink);
 }
 .map-marker.station .marker-icon svg { width: 100%; height: 100%; display: block; }
-/* "?" nas estradas da serra: o cigarro vai cair perto de uma delas */
+/* "?" nos sítios onde o cigarro pode cair: o fogo começa num deles */
 .map-marker.mystery {
   width: 26px; height: 26px; line-height: 22px; text-align: center; box-sizing: border-box;
   border: 3px solid var(--ink); border-radius: 50%; background: var(--gold);
