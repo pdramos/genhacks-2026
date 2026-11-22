@@ -1,11 +1,13 @@
 // EQUILÍBRIO (ticket #14): o jogo é fácil ou difícil demais?
-// Joga o nível de Sintra 30 vezes (sementes 1-30) com 6 estratégias "escritas à mão" e conta as
+// Joga o nível de Sintra 30 vezes (sementes 1-30) com 7 estratégias "escritas à mão" e conta as
 // estrelas. Cada semente escolhe onde cai o cigarro (resolveIgnition) e o vento é o vento real, hora a hora.
 // As metas vêm do docs/integration-contract.md (secção "Equilíbrio"):
 //   - não fazer nada:                    média < 0,5 estrelas
 //   - "limpar tudo a começar no topo":   cerca de 1 estrela (<= 1,3)
 //   - um bom plano (pensado a olhar para o mapa e o vento): >= 2 estrelas em mais de metade das sementes
-//   - 3 estrelas: menos de 35% das sementes, mesmo com o bom plano
+//   - 3 estrelas: menos de 35% das sementes para quem não joga como um perito
+//   - o plano de um PERITO (tests/fixtures/expert-plan-sintra.json): salvar TODAS as casas tem de
+//     ser difícil mas possível: 3 estrelas em >= 50% das sementes e >= 2 estrelas em >= 85%
 // E duas guardas da revisão de equilíbrio (os "truques" não podem valer mais do que pensar):
 //   - corta-fogo em cada sítio possível do cigarro: bem abaixo do bom plano;
 //   - só proteger o quartel: bem abaixo do bom plano (o resto do orçamento tem de contar).
@@ -23,6 +25,8 @@ import { countStars } from '../src/sim/stars.js';
 import { createRandom } from '../src/sim/random.js';
 
 const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
+// O plano do perito: uma lista de ações { x, y, action }, feita antes de saber onde cai o cigarro.
+const EXPERT_PLAN = JSON.parse(readFileSync(new URL('./fixtures/expert-plan-sintra.json', import.meta.url), 'utf8'));
 const SEEDS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 // ---------- As estratégias ----------
@@ -111,6 +115,19 @@ function onlyFireStation(state) {
   applyRectangle(state, GOOD_PLAN[0]);
 }
 
+// (g) O plano de um PERITO: a resposta à pergunta "é possível não perder nenhuma casa?".
+// Foi encontrado por computador (milhares de fogos de treino, nas sementes 1001-1800, não nestas)
+// e depois lido por pessoas: é uma estratégia que um jogador pode descobrir sozinho (€19 930):
+//   - a ravina entre a EN247 e o quartel (linha 13): sem quartel, 0 estrelas;
+//   - uma faixa a norte da EN247 em frente à vila oeste (linha 11, x 6-18): limpar o mato,
+//     corta-fogo nos eucaliptos;
+//   - em cada "?" da serra, limpar ou cortar os quadrados logo acima e abaixo (o vento é de norte);
+//   - alguns remendos: (8-9, 13) a oeste da vila, (25, 13) e (25, 20) na orla leste.
+// Cada ação passa pelo applyAction (as mesmas regras do jogo: faixas da lei, preços, orçamento).
+function expertPlan(state) {
+  for (const { x, y, action } of EXPERT_PLAN.actions) applyAction(state, x, y, action);
+}
+
 const EN247_ROW = 12;
 
 const STRATEGIES = {
@@ -120,6 +137,7 @@ const STRATEGIES = {
   candidates: firebreakEveryCandidate,
   station: onlyFireStation,
   good: goodPlan,
+  expert: expertPlan,
 };
 
 // ---------- Jogar ----------
@@ -188,7 +206,9 @@ test('doing nothing averages less than 0.5 stars', {
 });
 
 test('doing nothing is much worse than the good plan (guard: before this tuning it was 1.67 stars)', () => {
-  assert.ok(results.nothing.average <= 1.2, `nothing: ${results.nothing.average.toFixed(2)}`);
+  // Era <= 1,2. A faixa de pastagem da ronda "salvar todas as casas" (linha 10) também trava um
+  // pouco o fogo de quem não faz nada: 1,07 -> 1,27 nas sementes 1-30 (ver o contrato, "Equilíbrio").
+  assert.ok(results.nothing.average <= 1.3, `nothing: ${results.nothing.average.toFixed(2)}`);
   assert.ok(results.good.average - results.nothing.average >= 0.5, 'the good plan must clearly pay off');
 });
 
@@ -201,9 +221,37 @@ test('the good plan gets 2 or more stars in more than half of the seeds', () => 
   assert.ok(results.good.twoOrMoreShare > 0.5, `good plan: ${percent(results.good.twoOrMoreShare)} with 2+ stars`);
 });
 
-test('3 stars stay rare: under 35% of the seeds, even for the good plan', () => {
+test('3 stars stay rare (under 35% of the seeds) for every strategy except the expert plan', () => {
   for (const [name, r] of Object.entries(results)) {
+    if (name === 'expert') continue; // o perito é a prova de que é possível (teste mais abaixo)
     assert.ok(r.threeShare < 0.35, `${name}: ${percent(r.threeShare)} with 3 stars`);
+  }
+});
+
+// ---------- O plano do perito: não perder nenhuma casa é difícil, mas possível ----------
+
+test('the expert plan is legal: applyAction accepts every action and it fits the budget', () => {
+  const state = createBuildState(createVillage(level), level.budget);
+  EXPERT_PLAN.actions.forEach(({ x, y, action }, index) => {
+    const result = applyAction(state, x, y, action);
+    assert.ok(result.ok, `action ${index + 1} (${action} at ${x},${y}) was refused: ${result.reason}`);
+  });
+  // (o applyAction recusa o que não cabe no dinheiro, por isso "tudo aceite" já quer dizer "cabe")
+  assert.ok(state.budget >= 0, `the expert plan spent more than the budget (${state.budget} left)`);
+});
+
+test('saving every house is possible: the expert plan gets 3 stars in at least 50% of the seeds', () => {
+  assert.ok(results.expert.threeShare >= 0.5, `expert: ${percent(results.expert.threeShare)} with 3 stars`);
+});
+
+test('the expert plan gets 2 or more stars in at least 85% of the seeds', () => {
+  assert.ok(results.expert.twoOrMoreShare >= 0.85, `expert: ${percent(results.expert.twoOrMoreShare)} with 2+ stars`);
+});
+
+test('the expert plan is clearly the best strategy (thinking pays off)', () => {
+  for (const [name, r] of Object.entries(results)) {
+    if (name === 'expert') continue;
+    assert.ok(results.expert.average > r.average, `expert ${results.expert.average.toFixed(2)} vs ${name} ${r.average.toFixed(2)}`);
   }
 });
 

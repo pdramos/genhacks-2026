@@ -16,6 +16,18 @@
 //   - corta-fogo em árvores passa a custar FIREBREAK_ON_TREES_COST (trocar árvores passa a compensar);
 //   - no mapa de Sintra, o quartel tem casas a leste (proteger só o quartel já não chega) e o
 //     candidato da costa passou para o lado da estrada da Peninha que desce para a vila.
+// Ronda "salvar todas as casas" (pedido do estudante: difícil, mas não impossível), o que mudou e porquê:
+//   - NENHUMA constante deste ficheiro mudou (preços, declive, faixas e estrelas iguais), nem o fogo;
+//   - mapa de Sintra (data/levels/sintra.json): a linha 10, x 8-17, passou de floresta a pastagem
+//     ("G"). Era Parque Natural (não se pode trabalhar) a 3 quadrados das casas da linha 13: as brasas
+//     saltavam a linha 11 e a EN247 e caíam nas casas, e nenhum plano as conseguia travar. Mesmo a
+//     gastar €190 000 (tudo o que a lei deixa), ardiam casas em ~20% das noites;
+//   - orçamento de Sintra 12000 -> 20000: com €12 000 o melhor plano encontrado dava 3 estrelas em
+//     ~50% das noites mas >= 2 estrelas em só ~70-80% (um fogo que escapa queima o quartel ou a vila).
+//   - o teste ganhou a estratégia "expert" (tests/fixtures/expert-plan-sintra.json, €19 930):
+//     3 estrelas em 60% (sementes 1-30) e 70% (31-90); >= 2 estrelas em 87% e 95%.
+//   - o que se testou e NÃO chegou: só o orçamento (€20 000 com o mapa antigo: 3 estrelas em ~47%,
+//     >= 2 em ~80%; seriam precisos ~€45 000) e só o mapa (€12-16 000: >= 2 estrelas em ~80%).
 
 // ---------- Faixas de gestão de combustível (lei portuguesa DL 82/2021) ----------
 // Só se pode trabalhar perto das coisas a proteger. O resto é Parque Natural.

@@ -150,3 +150,31 @@ Duas guardas da revisão de equilíbrio: **corta-fogo em cada candidato** e **s�
 **Resultado (sementes 1–30, orçamento 12 000), depois da revisão:** nada 1,07★ · ingénuo 1,10★ · ao calhas 1,07★ · corta-fogo nos candidatos 1,20★ (era 3,00) · só o quartel 1,27★ (era 1,80) · bom plano 1,70★, ≥ 2★ em 60% e 3★ em 13%.
 O bom plano: corta-fogo na ravina por cima do quartel (€3 000), corta-fogo nos eucaliptos a norte da EN247 em frente ao quartel e ao leste (€7 500) e limpar o mato a norte da EN247 em frente à vila oeste (€1 300). O que mudou: corta-fogo em árvores custa €1 000 (trocar árvores, €800, passa a compensar); o quartel tem casas a leste (a ravina é só a faixa colada à EN247); o candidato da costa (5, 6) passou para (7, 7), do outro lado da estrada da Peninha, de onde o fogo desce para a vila.
 A meta "nada < 0,5★" **não foi cumprida** e está como `todo` no teste: os fogos a oeste da estrada x=19 muitas vezes ficam na vila oeste e nunca chegam ao quartel, por isso não fazer nada ainda dá 1–2★ em cerca de metade das sementes. As afinações do fogo que desciam abaixo de 0,5 partiam os testes da forma do fogo (elipse). Para lá chegar é preciso mexer no mapa (por exemplo, nos `ignitionCandidates` ou no sítio do quartel).
+
+### Ronda "salvar todas as casas" (22/11/2026)
+Pedido do estudante: com o mapa maior e menos dinheiro, não perder nenhuma casa tem de ser **difícil, mas possível**. Testado primeiro com as regras de então (€12 000): o melhor plano encontrado (3 procuras por computador + um plano à mão) dava 3★ em ~50% das noites, mas ≥ 2★ só em 67–83%. Mesmo a trabalhar TODOS os quadrados permitidos (~€190 000) ardiam casas em ~20% das noites: as brasas da floresta da linha 10 (Parque Natural, não se pode trabalhar) saltavam a linha 11 e a EN247 e caíam nas casas da linha 13.
+
+Nova meta e nova estratégia no teste: o **plano do perito** (`tests/fixtures/expert-plan-sintra.json`, aplicado ação a ação pelo `applyAction`, tem de caber no orçamento) dá **3★ em ≥ 50%** e **≥ 2★ em ≥ 85%** das sementes 1–30. A meta "3★ < 35%" passa a valer para todas as estratégias menos o perito.
+
+Mudanças (as mais pequenas que chegaram; nenhuma constante de `balance.js` nem do fogo mudou):
+- **Mapa:** em `sintra.json`, a linha 10, x 8–17, passa de floresta a pastagem (`G`), entre a serra e a EN247, por cima da vila oeste.
+- **Orçamento de Sintra:** 12 000 → **20 000** (e o `briefing` diz "20,000 euros").
+
+O que se testou e não chegou: só o orçamento (€20 000 com o mapa antigo: 3★ ~47%, ≥ 2★ ~80%; seriam precisos ~€45 000); só o mapa (€12–16 000: ≥ 2★ ~80%); `HOUSE_STRIP` = 3 (o plano custava > €40 000).
+
+**Resultado (orçamento 20 000):**
+
+| estratégia | sementes 1–30 | sementes 31–90 |
+|---|---|---|
+| nada | 1,27★ (3★ 7%) | 1,27★ (3★ 18%) |
+| ingénuo | 1,17★ | 1,63★ |
+| ao calhas | 1,27★ | 1,53★ |
+| corta-fogo nos candidatos | 1,33★ | 1,40★ |
+| só o quartel | 1,30★ | 1,65★ |
+| bom plano | 1,80★, ≥ 2★ 67%, 3★ 17% | 2,07★, ≥ 2★ 87%, 3★ 23% |
+| **perito (€19 930)** | **2,43★, ≥ 2★ 87%, 3★ 60%** | **2,63★, ≥ 2★ 95%, 3★ 70%** |
+
+Antes (orçamento 12 000, mapa antigo): nada 1,07 / 1,08 · ingénuo 1,10 / 1,43 · bom plano 1,70 / 2,00 · melhor plano encontrado 2,30★ (3★ 50%, ≥ 2★ 83%) / 2,07★ (3★ 48%, ≥ 2★ 67%).
+Em 2000 sementes (4001–6000): nada 1,45 · ingénuo 1,68 · perito 2,46 (3★ 64%, ≥ 2★ 88%).
+
+Avisos: a pastagem também ajuda quem não faz nada (1,07 → 1,27 nas sementes 1–30), por isso a guarda "nada ≤ 1,2" passou a **≤ 1,3** e a meta "nada < 0,5★" continua `todo`. O ingénuo só fica ≤ 1,3 nas sementes 1–30; em muitas sementes dá ~1,6–1,7, quase o mesmo que não fazer nada (~1,45).

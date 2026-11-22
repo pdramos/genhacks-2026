@@ -2,7 +2,7 @@
   "name": "Malveira da Serra, 6 October 2018",
   "style": "sintra",
   "schoolName": "Fire station",
-  "budget": 12000,
+  "budget": 20000,
   "date": "2018-10-06T22:50",
   "place": "Serra de Sintra and Malveira da Serra (Sintra-Cascais Natural Park, near Lisbon, Portugal)",
   "ignition": { "x": 8, "y": 2 },
@@ -36,7 +36,7 @@
       { "time": "2018-10-07T10:00", "direction": 9, "speed": 19.7, "gust": 44.6, "temperature": 16.0, "humidity": 48 }
     ]
   },
-  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. After a dry summer, a strong north wind (33 km/h, gusts near 70 km/h) is blowing down the mountain towards Malveira da Serra and the small villages near Guincho beach. That night a real fire started in the scrub near the Peninha sanctuary. It crossed the EN247 road and ran downhill. Hundreds of people, a campsite and 70 horses were evacuated, 21 people were lightly hurt, and about 500 hectares burned before it was controlled at 10:45 the next morning. No aircraft could fly until dawn. The cause was never confirmed (the police investigated arson). You have 12,000 euros to prepare the town before the fire arrives.",
+  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. After a dry summer, a strong north wind (33 km/h, gusts near 70 km/h) is blowing down the mountain towards Malveira da Serra and the small villages near Guincho beach. That night a real fire started in the scrub near the Peninha sanctuary. It crossed the EN247 road and ran downhill. Hundreds of people, a campsite and 70 horses were evacuated, 21 people were lightly hurt, and about 500 hectares burned before it was controlled at 10:45 the next morning. No aircraft could fly until dawn. The cause was never confirmed (the police investigated arson). You have 20,000 euros to prepare the town before the fire arrives.",
   "aftermath": "In real life: about 500 hectares burned in one night. Hundreds of people, a campsite and 70 horses were evacuated, and 21 people were lightly hurt. Around 700 firefighters fought the fire, but no aircraft could fly until dawn; it was controlled at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
   "ignitionHint": "Tonight a cigarette will start a fire beside one of the three serra roads (marked ? on the map). You will not know which one until it happens.",
   "places": [
@@ -45,7 +45,7 @@
     { "name": "in Biscaia and Figueira do Guincho", "x0": 0, "y0": 21, "x1": 31, "y1": 31 }
   ],
   "legend": "G grass, B brush, E eucalyptus/pine, O broadleaf, H house, S school (here: the fire station), R road, W water, C cleared, F firebreak",
-  "story": "North (top) is the Serra de Sintra crest: the Peninha summit on the west and a ridge towards Cruz Alta on the east. Three roads come down the serra: the Peninha road (west, from the sanctuary) and two forest roads further east; a small quinta stands in the forest by the middle one. A car drives down one of them and the fire starts in the dry scrub beside it (each night it can be a different spot). The EN247 runs straight along the forest edge, the only road that crosses the whole map. Just below it is Malveira da Serra: a main street going south, two cross streets, packed houses, and the square with the fire station at the top of the town: houses on its east side and a strip of wooded ravine between it and the EN247. To the east, the forest touches the houses with no cleared belt. To the south-west, Biscaia and Figueira do Guincho sit on a side road by the Atlantic; the land falls from the serra (9) to the sea (0).",
+  "story": "North (top) is the Serra de Sintra crest: the Peninha summit on the west and a ridge towards Cruz Alta on the east. Three roads come down the serra: the Peninha road (west, from the sanctuary) and two forest roads further east; a small quinta stands in the forest by the middle one. A car drives down one of them and the fire starts in the dry scrub beside it (each night it can be a different spot). The EN247 runs straight along the forest edge, the only road that crosses the whole map. Above the west of the town, a strip of pasture separates the serra forest from the road. Just below it is Malveira da Serra: a main street going south, two cross streets, packed houses, and the square with the fire station at the top of the town: houses on its east side and a strip of wooded ravine between it and the EN247. To the east, the forest touches the houses with no cleared belt. To the south-west, Biscaia and Figueira do Guincho sit on a side road by the Atlantic; the land falls from the serra (9) to the sea (0).",
   "map": [
     "GGBBBBBRBGGBBBBBBBBBRGBBBBBRBBGG",
     "GBBBBBBRBBGBBBBBBBBBRGBBBBBRBBBG",
@@ -57,7 +57,7 @@
     "BEEEEERBBEEEEOOEEEBREEEOOOREEEEB",
     "BEEEERRBEEEEEEEEEEBREEEEOOREEEEE",
     "BBEEERBBEEEEEEEEEBBRHHEEEERBEEEE",
-    "GBBEERBBEEOOEEEEEBBREEEEEEREBEEE",
+    "GBBEERBBGGGGGGGGGGBREEEEEEREBEEE",
     "GGBBERBBBBEEEEEEBBBREEEEEERBBEEE",
     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
     "WGGBBGGGGGHHHHHHRHHBEEBHHBEEEEEE",
