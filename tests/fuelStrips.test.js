@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createVillage } from '../src/sim/village.js';
-import { stripMap, stripEdges, slopeNote } from '../src/render/fuelStrips.js';
+import { stripMap, stripEdges, slopeNote, usableTiles } from '../src/render/fuelStrips.js';
 
 function village(rows) {
   return createVillage({ name: 'Test', map: rows });
@@ -59,4 +59,16 @@ test('slopeNote says nothing on flat ground', () => {
 test('slopeNote shows how much more a slope costs, in percent', () => {
   assert.equal(slopeNote(200, 260), 'steep +30%');
   assert.equal(slopeNote(500, 501), 'steep +1%'); // arredonda para cima: nunca diz "+0%"
+});
+
+// Os quadrados que brilham: onde a verificação diz "ok". Os que só falham por falta de dinheiro
+// são contados à parte (para o toast dizer "Not enough money" em vez de "não há quadrados").
+test('usableTiles lists the tiles where the check is ok and counts the ones without money', () => {
+  const check = (x, y) => {
+    if (y === 0) return { ok: true };
+    if (x === 0) return { ok: false, reason: 'not-enough-money' };
+    return { ok: false, reason: 'protected-area' };
+  };
+  assert.deepEqual(usableTiles(3, 2, check), { tiles: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }], noMoney: 1 });
+  assert.deepEqual(usableTiles(2, 2, () => ({ ok: false, reason: 'invalid-target' })), { tiles: [], noMoney: 0 });
 });

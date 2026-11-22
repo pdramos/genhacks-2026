@@ -143,6 +143,15 @@ test('nightLessons: a lucky night says so, and nothing about the plan', () => {
   assert.match(lessons[0], /Play again/);
 });
 
+// Visto no jogo (semente 20): sem fazer nada o fogo morria logo, mas o jogador pôs um corta-fogo
+// no "?", o fogo começou ao lado e queimou a vila. Aí não se diz "noite com sorte".
+test('nightLessons: a lucky night where the player did worse tells the truth, not "lucky"', () => {
+  const lessons = nightLessons({ ...baseNight, lucky: true, nothing: result(50), player: result(30, false), expert: result(50) });
+  assert.match(lessons[0], /^You lost the fire station/);
+  assert.match(lessons[1], /^Doing nothing would have saved every house tonight/);
+  assert.ok(!lessons.some((lesson) => /^Lucky night|no more houses than doing nothing/.test(lesson)));
+});
+
 test('nightLessons: losing the school comes first and names it in lower case', () => {
   const lessons = nightLessons({ ...baseNight, player: result(45, false) });
   assert.match(lessons[0], /^You lost the fire station: without it there are no stars\./);

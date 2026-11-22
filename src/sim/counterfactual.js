@@ -47,8 +47,9 @@ const MAX_LESSONS = 2;
 // As frases do fim da noite, da mais útil para a menos útil. Devolve 0 a 2 frases (inglês).
 // windFrom = de onde vem o vento, como na rosa dos ventos ('N', 'NE', 'SSW'...).
 export function nightLessons({ player, nothing, expert, lucky, spent, budget, windFrom, schoolName }) {
-  // Noite com sorte: o plano do jogador não foi posto à prova, por isso não o julgamos.
-  if (lucky) {
+  // Noite com sorte E o jogador também com 3 estrelas: o plano não foi posto à prova,
+  // por isso não o julgamos.
+  if (lucky && player.stars === 3) {
     return ['Lucky night: even doing nothing, the fire would have missed every house. Play again for a harder night.'];
   }
 
@@ -61,9 +62,18 @@ export function nightLessons({ player, nothing, expert, lucky, spent, budget, wi
     lessons.push(`You lost the ${name}: without it there are no stars. Protect the strips around it first.`);
   }
 
-  // b) O trabalho não salvou mais casas do que ficar parado: falta pensar no vento.
+  // b) Noite com sorte, mas o jogador ficou PIOR do que sem fazer nada. Acontece quando ele mexe
+  //    no "?" do cigarro: o fogo não se apaga, só começa no mato seco ao lado (ver ignition.js),
+  //    e esse sítio novo pode ser pior. Dizemos a verdade em vez de "noite com sorte".
+  //    (Esta frase substitui a próxima, que diria quase o mesmo.)
+  const worseThanLucky = lucky && player.stars < 3;
+  if (worseThanLucky) {
+    lessons.push('Doing nothing would have saved every house tonight: work on a ? spot only moves the start to the dry scrub beside it.');
+  }
+
+  // c) O trabalho não salvou mais casas do que ficar parado: falta pensar no vento.
   //    (Se o jogador salvou a escola e "não fazer nada" não, o trabalho valeu: não há lição.)
-  const noBetterThanNothing = nothing
+  const noBetterThanNothing = !worseThanLucky && nothing
     && player.housesSaved <= nothing.housesSaved
     && player.stars <= nothing.stars
     && player.housesSaved < player.housesTotal;
@@ -77,21 +87,21 @@ export function nightLessons({ player, nothing, expert, lucky, spent, budget, wi
     gaveDownwindTip = true;
   }
 
-  // c) O perito, nesta mesma noite, salvou muitas mais casas.
+  // d) O perito, nesta mesma noite, salvou muitas mais casas.
   const expertGap = expert ? expert.housesSaved - player.housesSaved : 0;
   if (expertGap >= EXPERT_GAP) {
-    // Se a dica do vento já foi dada (frase b), não a repetimos.
+    // Se a dica do vento já foi dada (frase c), não a repetimos.
     const tip = gaveDownwindTip ? '' : ': firebreaks just downwind of each ? spot';
     lessons.push(`On this same night the expert plan saved ${expertGap} more houses${tip}.`);
   }
 
-  // d) Sobrou muito dinheiro (e a noite não foi perfeita).
+  // e) Sobrou muito dinheiro (e a noite não foi perfeita).
   const unspent = budget - spent;
   if (player.stars < 3 && unspent > budget * UNSPENT_SHARE) {
     lessons.push(`You left ${euros(unspent)} unspent: every euro in the right strip counts.`);
   }
 
-  // e) Igualou ou bateu o perito (com a escola salva, ou pelo menos tantas estrelas como ele).
+  // f) Igualou ou bateu o perito (com a escola salva, ou pelo menos tantas estrelas como ele).
   if (expert && player.stars >= expert.stars && player.housesSaved >= expert.housesSaved) {
     const verb = player.housesSaved > expert.housesSaved || player.stars > expert.stars ? 'beat' : 'matched';
     lessons.push(`You ${verb} the expert plan on this night!`);

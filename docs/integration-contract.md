@@ -251,7 +251,7 @@ A revisão da ronda anterior: não fazer nada ainda dava **1,45★** (sementes 1
 
 **Mudanças** (nenhuma constante de `balance.js`, nem o fogo, nem as estrelas, nem o orçamento):
 - **Os "?"** (`ignitionCandidates`): (5, 9) na curva da EN247 do lado da Peninha (onde o fogo verdadeiro atravessou a estrada; é a nova ignição fixa), (17, 3), (20, 5), (20, 7) e (20, 10) na serra e na Estrada da Serra por cima da Malveira, e (22, 1) na estrada dos Capuchos. Cada um tem a estrada a norte, oeste ou leste e mato a sul (o fogo não morre logo contra a estrada). As bermas novas (20, 5), (20, 10) e (22, 1) passam a mato seco (`B`, escolha de jogo, como antes); as antigas da floresta, (24, 7) e (28, 9), voltam a eucalipto (`E`, como no OpenStreetMap).
-- **Plano do perito novo** (`tests/fixtures/expert-plan-sintra.json`, €20 000, 45 ações; guloso + subida de encosta nas sementes 3001–3400 e 5001–5300): corta-fogo e mato limpo a sul de cada "?", e um corta-fogo na ravina por cima do quartel (x 19, linhas 3–11), por onde descem os fogos da Estrada da Serra.
+- **Plano do perito novo** (`tests/fixtures/expert-plan-sintra.json`, hoje `expertPlan` em `data/levels/sintra.json`; €20 000, 45 ações; guloso + subida de encosta nas sementes 3001–3400 e 5001–5300): corta-fogo e mato limpo a sul de cada "?", e um corta-fogo na ravina por cima do quartel (x 19, linhas 3–11), por onde descem os fogos da Estrada da Serra.
 - **Teste:** os dois `todo` passam a testes a sério. "Não fazer nada" tem agora a meta **< 0,75★ e 3★ em menos de 15% das sementes** (a meta antiga, < 0,5★, continua por cumprir: ver abaixo); "o ingénuo ≤ 1,3★" já se cumpre e deixou de ser `todo`.
 
 **Resultado:**
