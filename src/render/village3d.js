@@ -10,6 +10,8 @@
 //   view.setTileType(x, y, type)   -> redesenha um quadrado com outro tipo (ex.: depois de construir)
 //   view.setBurned(x, y)           -> mostra o quadrado queimado (chão de carvão e objetos carbonizados)
 //   view.tileFromPointer(event, camera, canvas) -> {x, y} do quadrado clicado, ou null
+//   view.tilesFromPointer(event, camera, canvas) -> lista de quadrados debaixo do rato, do mais
+//                                    perto para o mais longe (objetos à frente, depois o chão)
 //   view.worldPosition(x, y)       -> {x, y, z} no mundo 3D: centro do quadrado, y = altura do chão
 //   view.propTop(x, y)             -> altura (y no mundo) do topo das árvores/casas do quadrado, ou null
 //   view.update(t)                 -> animações (árvores ao vento, bandeiras, água); chamar a cada desenho
@@ -357,21 +359,51 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     }
   }
 
-  // Descobre que quadrado está debaixo do rato (um "raio" sai da câmara pelo ponto clicado).
-  // Se o raio bater primeiro numa casa ou árvore, conta o quadrado desse objeto.
+  // Descobre que quadrados estão debaixo do rato. Um "raio" sai da câmara pelo ponto do rato
+  // e atravessa a cena: pode passar por uma árvore ou casa de um quadrado VIZINHO antes de
+  // chegar ao chão. Por isso devolvemos uma LISTA de "candidatos", do mais perto para o mais longe:
+  //   1) os quadrados dos objetos (casas, árvores, mato) que o raio atravessa, À FRENTE do chão;
+  //   2) por fim, o quadrado do chão onde o raio bate.
+  // Quem usa a lista escolhe (ver setTileChooser em main.js): sem ferramenta, fica o primeiro;
+  // com uma ferramenta, o primeiro onde ela pode ser usada.
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  function tileFromPointer(event, camera, canvas) {
+  function tilesFromPointer(event, camera, canvas) {
     const r = canvas.getBoundingClientRect();
     pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
-    const propHit = raycaster.intersectObjects(props, true)[0];
-    if (propHit) {
-      let o = propHit.object;
+    const candidates = [];
+    const seen = new Set(); // cada quadrado só entra uma vez (uma árvore tem várias peças)
+    for (const hit of raycaster.intersectObjects(props, true)) {
+      let o = hit.object;
       while (o && !o.userData.isTile) o = o.parent; // sobe até ao grupo do quadrado
-      if (o) return { x: o.userData.x, y: o.userData.y };
+      if (!o) continue;
+      const key = `${o.userData.x},${o.userData.y}`;
+      if (seen.has(key) || hiddenByGround(raycaster.ray.origin, hit.point)) continue;
+      seen.add(key);
+      candidates.push({ x: o.userData.x, y: o.userData.y });
     }
-    return terrain.pickTile(raycaster);
+    const ground = terrain.pickTile(raycaster);
+    if (ground && !seen.has(`${ground.x},${ground.y}`)) candidates.push(ground);
+    return candidates;
+  }
+
+  // O quadrado "do costume": o primeiro candidato (o objeto mais perto, senão o chão), ou null.
+  function tileFromPointer(event, camera, canvas) {
+    return tilesFromPointer(event, camera, canvas)[0] ?? null;
+  }
+
+  // Um objeto atrás de um monte também é "atravessado" pelo raio, mas não se vê.
+  // Para saber, andamos pela linha da câmara até ao objeto, aos bocadinhos: se algum
+  // bocadinho fica por baixo do chão, o monte está à frente e o objeto está escondido.
+  const SAMPLES = 24;
+  function hiddenByGround(from, to) {
+    for (let i = 1; i < SAMPLES; i++) {
+      const f = i / SAMPLES;
+      const x = from.x + (to.x - from.x) * f, y = from.y + (to.y - from.y) * f, z = from.z + (to.z - from.z) * f;
+      if (y < terrain.heightAtWorld(x, z) - 0.05) return true;
+    }
+    return false;
   }
 
   function update(t) {
@@ -386,5 +418,5 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     terrain.update(t);
   }
 
-  return { setTileType, setBurned, tileFromPointer, worldPosition, propTop, update, terrain, onShadowsChanged };
+  return { setTileType, setBurned, tileFromPointer, tilesFromPointer, worldPosition, propTop, update, terrain, onShadowsChanged };
 }

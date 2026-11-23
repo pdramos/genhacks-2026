@@ -146,6 +146,17 @@ export function setPhase(phase) {
   for (const fn of phaseListeners) fn(phase);
 }
 
+// ---------- Que quadrado está debaixo do rato? ----------
+// view.tilesFromPointer dá os "candidatos" (o objeto da frente, ..., o chão). Quem escolhe
+// entre eles é o "escolhedor": por omissão, o primeiro. O painel de construção troca-o
+// (setTileChooser) para preferir um quadrado onde a ferramenta escolhida dá.
+// O clique E o destaque do rato usam esta MESMA função: o que brilha é o que o clique muda.
+let tileChooser = (candidates) => candidates[0] ?? null;
+export function setTileChooser(fn) { tileChooser = fn; }
+export function tileUnderPointer(event) {
+  return tileChooser(view.tilesFromPointer(event, camera, renderer.domElement));
+}
+
 // ---------- Clique num quadrado ----------
 // Distingue "clicar" de "arrastar a câmara": só conta se o rato quase não se mexeu.
 const clickListeners = [];
@@ -154,7 +165,7 @@ let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return;
-  const tile = view.tileFromPointer(e, camera, renderer.domElement);
+  const tile = tileUnderPointer(e);
   for (const fn of clickListeners) fn(tile);
 });
 // Na fase de construção: mostra o nome do quadrado clicado (ex.: "Dry scrub").
