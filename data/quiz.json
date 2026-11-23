@@ -1,0 +1,63 @@
+{
+  "about": "Before/after quiz for playtests (only with ?playtest=1). 'answer' is the index of the right option (0 = the first). Facts: wind and slope speed up a fire; eucalyptus and pine burn more readily than native broadleaf trees; less fuel near houses means weaker flames; Portugal's Decreto-Lei 82/2021, art. 49.º (the same numbers as 'The law' card in data/levels/sintra.json).",
+  "questions": [
+    {
+      "id": "firebreak-wind",
+      "question": "The wind blows from the north. A fire could start in the scrub north of the village. Where does a firebreak protect the houses best?",
+      "options": [
+        "South of the village, behind the houses",
+        "Between the scrub and the houses, on the north side",
+        "Far to the east, away from everything",
+        "Anywhere: the wind does not matter"
+      ],
+      "answer": 1,
+      "explanation": "The wind pushes a fire downwind. A break between where it can start and the houses meets the fire before it gets there."
+    },
+    {
+      "id": "trees",
+      "question": "Which trees catch fire and spread it more easily?",
+      "options": [
+        "Eucalyptus and pine",
+        "Cork oaks and other native broadleaf trees",
+        "All trees burn the same way"
+      ],
+      "answer": 0,
+      "explanation": "Eucalyptus (oily leaves) and pine (resin) burn readily. Native broadleaf trees, like the cork oak, burn less easily."
+    },
+    {
+      "id": "scrub",
+      "question": "Why clear the dry scrub around a house?",
+      "options": [
+        "It slows the wind down",
+        "Fire trucks need room to park",
+        "Less fuel: flames stay smaller and embers find less to set alight",
+        "It makes rain more likely"
+      ],
+      "answer": 2,
+      "explanation": "Dry scrub is fuel. With less of it near the walls, the flames that arrive are weaker and flying embers have less to light."
+    },
+    {
+      "id": "wind-slope",
+      "question": "When does a fire spread fastest?",
+      "options": [
+        "On flat ground, with no wind",
+        "Going downhill, against the wind",
+        "Going uphill, with the wind behind it"
+      ],
+      "answer": 2,
+      "explanation": "Flames lean towards the slope above them and heat it before it burns. The wind leans them forward in the same way."
+    },
+    {
+      "id": "law-houses",
+      "question": "In Portugal, how wide is the strip the law says must be cleared around a house on forest land?",
+      "options": [
+        "10 m",
+        "50 m",
+        "100 m",
+        "500 m"
+      ],
+      "answer": 1,
+      "explanation": "Decreto-Lei 82/2021, art. 49.º: 50 m around houses on forest land, 100 m around villages next to forest, 10 m on each side of roads."
+    }
+  ]
+}
