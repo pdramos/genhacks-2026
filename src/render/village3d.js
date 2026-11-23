@@ -14,7 +14,9 @@
 //                                    perto para o mais longe (objetos à frente, depois o chão)
 //   view.worldPosition(x, y)       -> {x, y, z} no mundo 3D: centro do quadrado, y = altura do chão
 //   view.propTop(x, y)             -> altura (y no mundo) do topo das árvores/casas do quadrado, ou null
-//   view.update(t)                 -> animações (árvores ao vento, bandeiras, água); chamar a cada desenho
+//   view.propBounds(x, y)          -> a caixa (THREE.Box3, no mundo) à volta das coisas do quadrado, ou null
+//   view.update(t)                 -> animações (árvores inclinadas pelo vento, bandeiras, água); chamar a
+//                                    cada desenho. O vento das árvores vem de treeWind (mergeProps.js).
 //   view.terrain                   -> o terreno (ver terrain.js), para quem precisar da altura exata
 //
 // Desempenho: os objetos de cada quadrado NÃO vão diretamente para a cena. São "cozidos"
@@ -25,7 +27,7 @@
 import * as THREE from 'three';
 import { tileAt } from '../sim/village.js';
 import { createTerrain } from './terrain.js';
-import { bakeTile, buildMeshes, swayTime } from './mergeProps.js';
+import { bakeTile, buildMeshes, swayTime, treeWind, GUST_WAVE_SCALE } from './mergeProps.js';
 import { createBackdrop } from './backdrop.js';
 
 // Tamanho de um bloco (em quadrados). Maior = menos pedidos de desenho, mas mais trabalho
@@ -171,6 +173,15 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     return t.top;
   }
 
+  // A "caixa" (no mundo) à volta das coisas do quadrado: serve para pôr algo AO LADO de um
+  // edifício sem lhe entrar dentro (ex.: a manga de vento do quartel, em windFx.js). null = vazio.
+  function propBounds(x, y) {
+    const t = tiles[y]?.[x];
+    if (!t?.prop) return null;
+    const box = new THREE.Box3().setFromObject(t.prop);
+    return box.isEmpty() ? null : box;
+  }
+
   // ---------- Desempenho ----------
   // Cada peça (Mesh) é um "pedido" à placa gráfica, e cada peça que faz sombra é desenhada
   // DUAS vezes (uma para a sombra). Com milhares de peças, um portátil fraco fica lento.
@@ -207,8 +218,13 @@ export function createVillageView(scene, village, style, rand, options = {}) {
       const tree = style.buildTree(kind, rand, ctx);
       placeOnGround(group, tree, (rand() - 0.5) * 0.45, (rand() - 0.5) * 0.45);
       tree.rotation.y = rand() * Math.PI * 2;
+      // Ordem 'YXZ': as inclinações (x e z) são feitas no "jeito" da própria árvore, antes de a
+      // rodar para o seu lado (y). Assim, em update, sabemos para onde cada inclinação a leva.
+      // (Com x = 0, como é ao construir, a árvore fica igualzinha.)
+      tree.rotation.order = 'YXZ';
       group.add(tree);
-      t.swaying.push({ obj: tree, phase: rand() * 10 });
+      // baseX/baseZ = a inclinação que o estilo deu à árvore (o vento soma-se a ela)
+      t.swaying.push({ obj: tree, phase: rand() * 10, baseX: tree.rotation.x, baseZ: tree.rotation.z });
     }
   }
 
@@ -401,7 +417,7 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     swayTime.value = t; // as árvores coladas nos blocos balançam na placa gráfica (mergeProps.js)
     for (const row of tiles) {
       for (const tile of row) {
-        if (!tile.merged) for (const s of tile.swaying) s.obj.rotation.z = Math.sin(t * 1.6 + s.phase) * 0.04;
+        if (!tile.merged) for (const s of tile.swaying) leanTree(s, t);
         for (const o of tile.animated) o.userData.animate(t);
       }
     }
@@ -409,5 +425,23 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     terrain.update(t);
   }
 
-  return { setTileType, setBurned, tileFromPointer, tilesFromPointer, worldPosition, propTop, update, terrain, onShadowsChanged };
+  // Inclina UMA árvore solta (que não foi colada num bloco) com o vento: a mesma conta que a placa
+  // gráfica faz às árvores coladas (ver swayMaterial em mergeProps.js), mas rodando a árvore.
+  // A direção do vento é do MUNDO; a árvore está rodada (rotation.y), por isso primeiro passamos
+  // essa direção para o "jeito" da árvore: lx = para o seu lado x, lz = para o seu lado z.
+  function leanTree(s, t) {
+    const tree = s.obj, wind = treeWind;
+    const dx = wind.dir.value.x, dz = wind.dir.value.y; // downwind no mundo (x = leste, z = sul)
+    const cos = Math.cos(tree.rotation.y), sin = Math.sin(tree.rotation.y);
+    const lx = dx * cos - dz * sin, lz = dx * sin + dz * cos;
+    // A onda das rajadas passa pelo pé da árvore (a posição do grupo do quadrado + a da árvore).
+    const footX = tree.parent.position.x + tree.position.x, footZ = tree.parent.position.z + tree.position.z;
+    const wave = 0.5 + 0.5 * Math.sin((footX * dx + footZ * dz) * GUST_WAVE_SCALE - wind.wave.value + s.phase * 0.15);
+    const lean = wind.lean.value + wind.gust.value * wave * wave;
+    // rotation.z > 0 leva o topo para -x; rotation.x > 0 leva o topo para +z (ordem 'YXZ').
+    tree.rotation.z = s.baseZ + Math.sin(t * 1.6 + s.phase) * wind.sway.value - lean * lx;
+    tree.rotation.x = s.baseX + lean * lz;
+  }
+
+  return { setTileType, setBurned, tileFromPointer, tilesFromPointer, worldPosition, propTop, propBounds, update, terrain, onShadowsChanged };
 }

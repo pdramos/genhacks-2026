@@ -6,6 +6,8 @@ import { createVillage } from '../sim/village.js';
 import { setupRenderer, addLights } from './lighting.js';
 import { createVillageView } from './village3d.js';
 import { createFireFx } from './fireFx.js';
+import { createWindFx } from './windFx.js';
+import { windForLevel } from '../sim/weather.js';
 import { newSeed, saveRetry, loadRetry } from './runState.js';
 
 const params = new URLSearchParams(location.search);
@@ -118,13 +120,23 @@ renderer.shadowMap.autoUpdate = false;
 renderer.shadowMap.needsUpdate = true;
 view.onShadowsChanged(() => { renderer.shadowMap.needsUpdate = true; });
 const fireFx = createFireFx(scene, view, { wind: level.wind, tileType: (x, y) => village.tiles[y]?.[x] });
+// O vento À VISTA no mapa (riscos brancos a favor do vento, a manga de vento do quartel e as
+// árvores inclinadas). Começa com a previsão (o vento do passo 0); durante o fogo, o
+// disasterPlayer muda-o de hora a hora com game.windFx.setWind(direction, speed, gust).
+const windFx = createWindFx(scene, { view, village, wind: windForLevel(level)(0) });
+// De noite os riscos ficam mais discretos e a manga acende-se: juntamos isso à hora do dia.
+const setTimeOfDayAndFog = lights.setTimeOfDay;
+lights.setTimeOfDay = (t) => {
+  setTimeOfDayAndFog(t);
+  windFx.setNight(t);
+};
 
 // Exposto para os outros módulos do jogo (fase de construção, desastre) se ligarem.
 // game.village é a MESMA vila que a fase de construção altera e que o fogo lê.
 // scene e controls servem à cena do cigarro (ignitionCinematic.js), que move a câmara.
 // seed = a semente deste jogo; retryPlan = o plano a repetir no "Try again" (ou null num jogo novo).
 export const game = {
-  level, levelName, village, view, fireFx, scene, camera, controls, renderer, lights, phase: 'build',
+  level, levelName, village, view, fireFx, windFx, scene, camera, controls, renderer, lights, phase: 'build',
   seed, retryPlan: retry?.plan ?? null,
 };
 
@@ -201,6 +213,10 @@ renderer.setAnimationLoop((ms) => {
   controls.update();
   view.update(t);
   fireFx.update(dt, t);
+  // Durante a cena do cigarro (o corpo da página tem a classe 'cinematic') os riscos de vento
+  // escondem-se: vistos da câmara baixa pareciam pássaros no céu.
+  windFx.setVisible(!document.body.classList.contains('cinematic'));
+  windFx.update(dt, t);
   for (const fn of frameListeners) fn(dt, t);
   renderer.render(scene, camera);
 });
