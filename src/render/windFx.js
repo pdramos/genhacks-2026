@@ -317,9 +317,17 @@ export function createWindFx(scene, { view, village, wind = { direction: 0, spee
   function setNight(k) {
     const n = Math.min(1, Math.max(0, k));
     streakMaterial.uniforms.uColor.value.copy(dayColor).lerp(nightColor, n);
-    streakMaterial.uniforms.uOpacity.value = 0.9 - 0.5 * n; // de noite, mais discretos
+    nightOpacity = 0.9 - 0.5 * n; // de noite, mais discretos
+    streakMaterial.uniforms.uOpacity.value = nightOpacity * shown;
     sock?.setNight(n);
   }
+
+  // ---------- Mostrar e esconder os riscos ----------
+  // Na cena do cigarro a câmara fica rente ao chão: dali os riscos ficavam a flutuar no céu
+  // escuro, como gaivotas. Por isso escondem-se logo (de uma vez) e, quando a cena acaba,
+  // voltam a aparecer devagarinho (cerca de meio segundo). A manga e as árvores ficam sempre.
+  let nightOpacity = 0.9, shown = 1, wantShown = true;
+  function setVisible(on) { wantShown = !!on; }
 
   // ---------- A cada desenho ----------
   function update(dt, t) {
@@ -335,7 +343,10 @@ export function createWindFx(scene, { view, village, wind = { direction: 0, spee
     // A fase da onda anda 6 radianos por segundo e volta a 0 em cada volta (2 pi): é sempre um
     // número pequeno, para as contas da placa gráfica continuarem certas com o jogo aberto muito tempo.
     streakMaterial.uniforms.uWavePhase.value = (t * 6) % (Math.PI * 2);
-    updateStreaks(dt);
+    shown = wantShown ? Math.min(1, shown + dt * 2) : 0;
+    streakMaterial.uniforms.uOpacity.value = nightOpacity * shown;
+    streaks.visible = shown > 0;
+    if (streaks.visible) updateStreaks(dt); // escondidos: nem os mexemos (poupa trabalho)
     if (sock) {
       // A força que a manga sente agora: o vento médio + a rajada, quando a onda passa por ela.
       const felt = speed + (gust - speed) * gustWaveAt(sock.x, sock.z);
@@ -346,7 +357,7 @@ export function createWindFx(scene, { view, village, wind = { direction: 0, spee
   setWind(wind.direction ?? 0, wind.speed ?? 15, wind.gust);
   for (let i = 0; i < N; i++) respawn(i, true); // já começam espalhados pelo mapa, com idades diferentes
   setNight(0);
-  return { setWind, setNight, update };
+  return { setWind, setNight, setVisible, update };
 }
 
 // ---------- A manga de vento (feita só com peças simples do three.js) ----------

@@ -213,6 +213,9 @@ renderer.setAnimationLoop((ms) => {
   controls.update();
   view.update(t);
   fireFx.update(dt, t);
+  // Durante a cena do cigarro (o corpo da página tem a classe 'cinematic') os riscos de vento
+  // escondem-se: vistos da câmara baixa pareciam pássaros no céu.
+  windFx.setVisible(!document.body.classList.contains('cinematic'));
   windFx.update(dt, t);
   for (const fn of frameListeners) fn(dt, t);
   renderer.render(scene, camera);
