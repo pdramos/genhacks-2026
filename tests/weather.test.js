@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { windForLevel, STEP_MINUTES } from '../src/sim/weather.js';
+import { windForLevel, STEP_MINUTES, compassWord } from '../src/sim/weather.js';
 
 // Um nível com vento por hora (como o sintra.json, dados do Open-Meteo).
 const hourlyLevel = {
@@ -49,4 +49,53 @@ test('without a date, the hourly wind starts at the first hour', () => {
   const wind = windForLevel(noDate);
   assert.equal(wind(0).time, '2018-10-06T22:00');
   assert.equal(wind(6).time, '2018-10-06T23:00');
+});
+
+// ---------- compassWord: graus -> palavra da bússola ----------
+
+test('compassWord gives the 8 points of the compass in plain words', () => {
+  assert.equal(compassWord(0), 'north');
+  assert.equal(compassWord(45), 'north-east');
+  assert.equal(compassWord(90), 'east');
+  assert.equal(compassWord(135), 'south-east');
+  assert.equal(compassWord(180), 'south');
+  assert.equal(compassWord(225), 'south-west');
+  assert.equal(compassWord(270), 'west');
+  assert.equal(compassWord(315), 'north-west');
+});
+
+test('compassWord rounds to the nearest point (the real night: 4 to 11 degrees is north)', () => {
+  assert.equal(compassWord(8), 'north');
+  assert.equal(compassWord(11), 'north');
+  assert.equal(compassWord(350), 'north');
+  assert.equal(compassWord(22.4), 'north');
+  assert.equal(compassWord(200), 'south');
+});
+
+test('compassWord: a boundary always goes to the next point clockwise', () => {
+  assert.equal(compassWord(22.5), 'north-east');
+  assert.equal(compassWord(67.5), 'east');
+  assert.equal(compassWord(337.4), 'north-west');
+  assert.equal(compassWord(337.5), 'north');
+  // o mesmo ângulo escrito de outra maneira dá a mesma palavra
+  assert.equal(compassWord(-22.5), compassWord(337.5));
+  assert.equal(compassWord(382.5), compassWord(22.5));
+});
+
+test('compassWord wraps negative angles and angles of 360 or more', () => {
+  assert.equal(compassWord(360), 'north');
+  assert.equal(compassWord(-90), 'west');
+  assert.equal(compassWord(-45), 'north-west');
+  assert.equal(compassWord(450), 'east');
+  assert.equal(compassWord(720 + 180), 'south');
+});
+
+test('compassWord: where the fire goes is the opposite word (direction + 180)', () => {
+  assert.equal(compassWord(8 + 180), 'south');
+  assert.equal(compassWord(315 + 180), 'south-east');
+});
+
+test('compassWord gives null for a number that does not exist', () => {
+  assert.equal(compassWord(NaN), null);
+  assert.equal(compassWord(undefined), null);
 });

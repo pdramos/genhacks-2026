@@ -103,41 +103,91 @@ button { font-family: inherit; }
 .round-button[aria-pressed="true"] .sound-on { display: none; }
 .round-button[aria-pressed="true"] .sound-off { display: block; }
 
-/* Bússola do vento (só no desastre) */
+/* Bússola do vento (na construção mostra a previsão; no desastre, o vento de cada hora).
+   Fica no meio da barra de cima, ENTRE o nome do nível e as moedas (é uma peça da fila,
+   não fica "por cima"): assim nunca os tapa. Se faltar espaço, o nome do nível encolhe (…)
+   e, numa janela muito estreita, o texto da bússola passa para duas linhas
+   (max-width = a largura toda menos o lugar das moedas, do som e de um bocadinho do nome). */
 .wind-chip {
-  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  position: relative; flex: none; max-width: calc(100% - 365px); box-sizing: border-box; margin: 0 auto;
   display: flex; align-items: center; gap: 10px;
   padding: 5px 16px 5px 5px; border: 3px solid var(--ink); border-radius: 999px;
   background: var(--cream); box-shadow: var(--hard-shadow), var(--soft-shadow);
   animation: drop-in .45s cubic-bezier(.3, 1.6, .5, 1);
 }
-.compass { position: relative; width: 56px; height: 56px; flex: none; }
+/* As moedas e o som nunca encolhem: quem encolhe é o nome do nível (até um mínimo). */
+.topbar .level-badge { min-width: 92px; }
+.topbar-right { flex: none; }
+
+/* O mostrador redondo. --compass-size = o tamanho; --dial-turn = quanto roda (hud.js muda-o) */
+.compass { --compass-size: 56px; position: relative; width: var(--compass-size); height: var(--compass-size); flex: none; }
+.compass-dial, .compass-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  transform: rotate(var(--dial-turn, 0rad));
+}
 .compass-dial {
-  position: absolute; inset: 0; border-radius: 50%; box-sizing: border-box;
-  border: 3px solid var(--ink);
+  box-sizing: border-box; border: 3px solid var(--ink);
   background:
     radial-gradient(circle, #fff 0 38%, transparent 39%),
     repeating-conic-gradient(from -4deg, var(--ink-soft) 0 8deg, transparent 8deg 45deg),
     #dff0fb;
 }
+/* As letras ficam por cima do contorno do mostrador. Cada uma vai para o seu ângulo (--at),
+   anda até à borda e depois roda ao contrário (o seu ângulo e o do mostrador): fica direita. */
+.compass-ring { pointer-events: none; }
+.compass-letter {
+  position: absolute; left: 50%; top: 50%;
+  width: 13px; height: 13px; box-sizing: border-box; border-radius: 50%;
+  background: var(--cream); box-shadow: 0 0 0 1.5px var(--ink);
+  color: var(--ink); font-size: 9.5px; font-weight: 700; line-height: 13px; text-align: center;
+  transform: translate(-50%, -50%) rotate(var(--at))
+             translateY(calc(var(--compass-size) / -2 + 1.5px))
+             rotate(calc(-1 * var(--at) - var(--dial-turn, 0rad)));
+}
 .compass-north {
-  position: absolute; left: 50%; top: -3px; transform: translateX(-50%);
-  padding: 0 4px; border-radius: 6px; background: var(--red); color: #fff;
-  font-size: 11px; font-weight: 700; line-height: 15px;
+  width: auto; height: 15px; padding: 0 4px; border-radius: 6px; box-shadow: none;
+  background: var(--red); color: #fff; font-size: 11px; line-height: 15px;
+  --at: 0deg;
 }
-.compass-arrow { position: absolute; inset: 7px; }
+.compass-east { --at: 90deg; }
+.compass-south { --at: 180deg; }
+.compass-west { --at: 270deg; }
+/* A seta atravessa o mostrador de um lado ao outro */
+.compass-arrow { position: absolute; inset: 5px; }
 .compass-arrow svg { width: 100%; height: 100%; display: block; }
-.wind-words { display: flex; flex-direction: column; line-height: 1.1; }
-.wind-label { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--blue); }
-.wind-text { font-size: 17px; font-weight: 600; white-space: nowrap; }
+
+/* As palavras: a etiqueta pequena, a linha grande (de onde vem → para onde vai o fogo) e os números */
+.wind-words { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.wind-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--blue); }
+.wind-main { font-size: 17px; line-height: 1.1; transform-origin: left center; }
+/* Cada metade nunca se parte ao meio; se faltar espaço, "→ fire goes south" desce de linha */
+.wind-from, .wind-to { display: inline-block; white-space: nowrap; }
+.wind-from { font-weight: 700; }
+.wind-to { font-weight: 600; color: #c23a1c; } /* cor de fogo, um pouco escura para se ler no creme */
+.wind-details { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 @keyframes drop-in {
-  from { opacity: 0; transform: translate(-50%, -30px) scale(.8); }
-  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  from { opacity: 0; transform: translateY(-30px) scale(.8); }
+  to { opacity: 1; transform: none; }
 }
+
+/* A direção do vento mudou: um anel dourado sai da bússola, ela dá um pulo e o texto pisca */
+.wind-chip::after {
+  content: ''; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; opacity: 0;
+}
+.wind-chip.wind-changed::after { animation: wind-ring .6s ease-out; }
+.wind-chip.wind-changed .compass { animation: wind-pop .6s ease-out; }
+.wind-chip.wind-changed .wind-main { animation: wind-pop-text .6s ease-out; }
+@keyframes wind-ring {
+  0% { opacity: 1; box-shadow: 0 0 0 0 var(--gold); }
+  100% { opacity: 0; box-shadow: 0 0 0 14px var(--gold); }
+}
+@keyframes wind-pop { 35% { transform: scale(1.18) rotate(-8deg); } }
+@keyframes wind-pop-text { 35% { transform: scale(1.04); color: var(--orange); } }
+@keyframes wind-flash-text { 35% { color: var(--orange); } }
 
 /* ============ Caixa de informação (#info): uma "pastilha" debaixo da barra de cima ============ */
 #info {
-  position: fixed; left: 50%; top: 86px; transform: translateX(-50%); z-index: 5;
+  position: fixed; left: 50%; top: 94px; transform: translateX(-50%); z-index: 5; /* por baixo da bússola */
   max-width: calc(100% - 32px); box-sizing: border-box;
   padding: 6px 14px; border-radius: 999px;
   background: rgba(59, 42, 30, .78); color: #fff6e5;
@@ -482,13 +532,20 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   .coin { width: 30px; height: 30px; }
   .budget-value { font-size: 18px; }
   .round-button { width: 40px; height: 40px; padding: 6px; }
-  /* A bússola desce para uma segunda linha, para não tapar o resto */
-  .wind-chip { top: 52px; padding: 3px 12px 3px 3px; gap: 6px; }
-  .compass { width: 42px; height: 42px; }
-  .compass-arrow { inset: 5px; }
-  .wind-text { font-size: 14px; }
-  #info { top: 58px; font-size: 12px; padding: 4px 10px; }
-  body[data-phase="disaster"] #info, body[data-phase="result"] #info { top: 112px; }
+  /* A bússola desce para uma segunda linha, ao centro, para não tapar o resto.
+     (translate centra-a sem estragar a animação de entrada, que usa transform.) */
+  .wind-chip {
+    position: absolute; left: 50%; top: 52px; margin: 0; translate: -50% 0;
+    width: max-content; max-width: 100%; box-sizing: border-box; padding: 3px 12px 3px 3px; gap: 7px;
+  }
+  .compass { --compass-size: 46px; }
+  .compass-arrow { inset: 4px; }
+  .wind-label { font-size: 9px; }
+  .wind-main { font-size: 14px; }
+  .wind-details { font-size: 11px; }
+  /* A caixa #info fica por baixo da bússola (a bússola só se esconde na cena do cigarro,
+     e aí a #info também se esconde) */
+  #info { top: 130px; font-size: 12px; padding: 4px 10px; }
 
   #hud { left: 8px; right: 8px; bottom: 8px; flex-direction: column; align-items: center; gap: 8px; }
   .start-button { order: 0; align-self: flex-end; width: 84px; height: 84px; }
@@ -548,7 +605,30 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   #info { font-size: 12px; padding: 3px 10px; }
 }
 
+/* Telemóvel deitado (baixo mas largo): a barra de cima fica mais pequena, para a bússola
+   caber numa só fila entre o nome do nível e as moedas, sem tapar a caixa #info por baixo. */
+@media (max-height: 520px) and (min-width: 641px) {
+  .topbar { top: 8px; left: 8px; right: 8px; gap: 8px; }
+  .level-badge { padding: 4px 12px 5px; border-radius: 13px; }
+  .level-kicker { font-size: 9.5px; }
+  .level-name { font-size: 16px; }
+  .coin-counter { height: 40px; padding: 0 12px 0 4px; gap: 4px; }
+  .coin { width: 30px; height: 30px; }
+  .budget-value { font-size: 18px; }
+  .round-button { width: 40px; height: 40px; padding: 6px; }
+  .wind-chip { max-width: calc(100% - 310px); padding: 3px 12px 3px 3px; gap: 7px; }
+  .compass { --compass-size: 46px; }
+  .compass-arrow { inset: 4px; }
+  .wind-label { font-size: 9px; }
+  .wind-main { font-size: 14.5px; }
+  .wind-details { font-size: 11px; }
+  #info { top: 82px; }
+}
+
 /* Quem pede menos movimento no sistema não vê as animações a repetir */
 @media (prefers-reduced-motion: reduce) {
   .start-button, .start-button:hover .start-flame { animation: none; }
+  /* A bússola não pula nem lança o anel quando o vento muda: só o texto muda de cor */
+  .wind-chip.wind-changed::after, .wind-chip.wind-changed .compass { animation: none; }
+  .wind-chip.wind-changed .wind-main { animation: wind-flash-text .6s ease-out; }
 }

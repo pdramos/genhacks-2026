@@ -32,14 +32,24 @@
       <span class="level-kicker">Level</span>
       <span id="level-name" class="level-name"></span>
     </div>
-    <div id="wind" class="wind-chip" hidden>
+    <!-- A bússola do vento. Camadas, de baixo para cima: o mostrador (roda com a câmara),
+         a seta do vento (das linhas de rajada, de onde o vento vem, até à ponta, para onde vai)
+         e o anel com as letras N, E, S, W (roda com o mostrador, mas as letras ficam direitas). -->
+    <div id="wind" class="wind-chip" role="group" hidden>
       <div class="compass">
-        <div id="wind-dial" class="compass-dial"><span class="compass-north">N</span></div>
+        <div id="wind-dial" class="compass-dial"></div>
         <div id="wind-arrow" class="compass-arrow"></div>
+        <div class="compass-ring" aria-hidden="true">
+          <span class="compass-letter compass-north">N</span>
+          <span class="compass-letter compass-east">E</span>
+          <span class="compass-letter compass-south">S</span>
+          <span class="compass-letter compass-west">W</span>
+        </div>
       </div>
       <div class="wind-words">
         <span class="wind-label">Wind</span>
-        <span id="wind-text" class="wind-text"></span>
+        <span class="wind-main"><b id="wind-from" class="wind-from"></b> <span id="wind-to" class="wind-to"></span></span>
+        <span id="wind-details" class="wind-details"></span>
       </div>
     </div>
     <div class="topbar-right">

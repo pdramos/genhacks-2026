@@ -8,11 +8,11 @@ import { game, onFrame, onPhaseChange, setPhase, retrySameNight } from './main.j
 import { runDisaster } from '../sim/fire.js';
 import { resolveIgnition, canIgnite } from '../sim/ignition.js';
 import { planFromChanges } from './runState.js';
-import { windForLevel, STEP_MINUTES } from '../sim/weather.js';
+import { windForLevel, STEP_MINUTES, compassWord } from '../sim/weather.js';
 import { remainingBudget } from '../sim/actions.js';
 import { compareNight, nightLessons } from '../sim/counterfactual.js';
 import { playIgnition } from './ignitionCinematic.js';
-import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, showResultCard } from './ui/hud.js';
+import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, pulseWind, showResultCard } from './ui/hud.js';
 import { lostHouses, describeLostHouses } from './mapHints.js';
 import { markLostHouses } from './mapMarkers.js';
 
@@ -26,8 +26,10 @@ const EMBER_FLIGHT_MS = 1300;
 const DUSK_SECONDS = 2.5;
 
 const info = document.getElementById('info');
-// O último vento mostrado na bússola (a bússola roda com ele, ver o fim do ficheiro).
+// O último vento mostrado na bússola (a bússola roda com ele, ver o fim do ficheiro)
+// e a palavra da sua direção (ex.: 'north'), para saber quando a direção muda.
 let lastWind = null;
+let lastWindWord = null;
 
 // ---------- Botão "Start disaster" ----------
 // O aspeto (botão redondo com uma chama) está em src/render/ui/.
@@ -117,15 +119,28 @@ async function startDisaster() {
 }
 
 // Mostra o vento de agora na bússola e inclina o fumo para o lado certo.
-// Com dados por hora, também diz a hora (ex.: "23:00").
+// A linha grande diz, por extenso, de onde vem o vento e para onde vai o fogo
+// (ex.: "From the north → fire goes south"); a pequena diz a força e, com dados por hora,
+// a hora (ex.: "33 km/h · gusts 67 · 23:00").
 // label = a palavra pequena por cima: "Wind" durante o fogo, "Forecast" na construção.
-// (lastWind = o último vento mostrado; está declarado lá em cima, antes do primeiro updateUi.)
+// (lastWind e lastWindWord estão declarados lá em cima, antes do primeiro updateUi.)
 function showWindAt(wind, label = 'Wind') {
+  const fromWord = compassWord(wind.direction);
+  // Durante o fogo, se a direção (a palavra) mudou desde a última hora, a bússola pisca.
+  const turned = label === 'Wind' && lastWindWord !== null && fromWord !== lastWindWord;
   lastWind = wind;
-  const hour = wind.time ? ` · ${wind.time.slice(11, 16)}` : '';
-  const gust = wind.gust ? `, gusts ${Math.round(wind.gust)}` : '';
-  showWind(`From ${compassName(wind.direction)} · ${Math.round(wind.speed)} km/h${gust}${hour}`, label);
+  lastWindWord = fromWord;
+  // Para onde vai o fogo: o lado contrário (mais 180 graus).
+  const toWord = compassWord(wind.direction + 180);
+  const goes = label === 'Forecast' ? 'fire will go' : 'fire goes';
+  const details = [`${Math.round(wind.speed)} km/h`];
+  if (wind.gust) details.push(`gusts ${Math.round(wind.gust)}`);
+  if (wind.time) details.push(wind.time.slice(11, 16));
+  showWind({ from: `From the ${fromWord}`, to: `→ ${goes} ${toWord}`, details: details.join(' · ') }, label);
+  if (turned) pulseWind();
   game.fireFx.setWind?.(wind.direction, wind.speed);
+  // O vento no mundo 3D (folhas, fumo...) segue o mesmo vento. Ainda pode não existir: o "?." protege.
+  game.windFx?.setWind?.(wind.direction, wind.speed, wind.gust);
 }
 
 // Um atraso fixo (de 0 a 90% de um passo) para cada quadrado, sempre igual para o mesmo
@@ -231,7 +246,8 @@ function addRetryButton(card) {
   buttons.querySelector('[data-do="again"]')?.before(retry);
 }
 
-// Nome da direção na bússola: 0 -> N, 45 -> NE, 90 -> E, ...
+// Nome curto (letras) da direção: 0 -> N, 45 -> NE, 90 -> E, ...
+// (As lições do fim, nightLessons, querem letras; a bússola usa palavras: compassWord.)
 function compassName(degrees) {
   const names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return names[Math.round(degrees / 45) % 8];
@@ -239,7 +255,7 @@ function compassName(degrees) {
 
 // ---------- A bússola roda com a câmara ----------
 // A seta aponta para onde o vento EMPURRA o fogo (downwind), tal como se vê no ecrã,
-// e o "N" do mostrador aponta para o norte do mapa.
+// e o "N" do mostrador aponta para o norte do mapa (o E, o S e o W vêm atrás).
 // Projetamos pontos do mapa (o centro e um ponto noutra direção) para o ecrã
 // e medimos o ângulo entre eles.
 const center = new THREE.Vector3();
