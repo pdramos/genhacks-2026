@@ -10,7 +10,7 @@
 // É carregado pelo index.html com a sua própria tag <script type="module">,
 // depois do main.js (assim o "game" já está pronto quando este código corre).
 import * as THREE from 'three';
-import { game, onTileClick, onPhaseChange, onFrame, tileName } from './main.js';
+import { game, onTileClick, onPhaseChange, onFrame, tileName, setTileChooser, tileUnderPointer } from './main.js';
 import { ACTIONS, createBuildState, applyAction, undoAction, remainingBudget, checkAction, isWorkable, baseCost } from '../sim/actions.js';
 import { stripMap, stripEdges, slopeNote, usableTiles } from './fuelStrips.js';
 import { setLevelName, setBudget, showToast, createToolCard, formatEuros, showBriefingCard } from './ui/hud.js';
@@ -124,6 +124,19 @@ addEventListener('keydown', (event) => {
   if (toolName) clickTool(toolName);
 });
 
+// ---------- Escolher o quadrado debaixo do rato ----------
+// O raio do rato pode atravessar várias coisas: uma árvore do quadrado vizinho e, atrás dela,
+// o chão do quadrado que brilha (ver tilesFromPointer em village3d.js). Com uma ferramenta na
+// mão, escolhemos o PRIMEIRO candidato onde ela pode ser usada (a mesma verificação que faz
+// brilhar os quadrados). Se nenhum der, ou sem ferramenta, fica o primeiro (o mais perto).
+setTileChooser((candidates) => {
+  if (game.phase === 'build' && selectedTool) {
+    const usable = candidates.find(({ x, y }) => checkAction(buildState, x, y, selectedTool).ok);
+    if (usable) return usable;
+  }
+  return candidates[0] ?? null;
+});
+
 // ---------- Clicar num quadrado ----------
 onTileClick((tile) => {
   if (game.phase !== 'build') return;
@@ -189,10 +202,9 @@ function updateHover() {
     hover.visible = false;
     return;
   }
-  // O MESMO "apanhar o quadrado" que o clique usa (main.js): primeiro as casas e as árvores,
-  // depois o chão. Antes o destaque só via o chão e, com árvores altas à frente, o quadrado
-  // destacado não era o que o clique mudava.
-  hoverTile = game.view.tileFromPointer(pointerEvent, game.camera, game.renderer.domElement);
+  // O MESMO "apanhar o quadrado" que o clique usa (tileUnderPointer, em main.js, com o
+  // escolhedor lá de cima): assim o quadrado destacado é sempre o que o clique muda.
+  hoverTile = tileUnderPointer(pointerEvent);
   if (!hoverTile) { hover.visible = false; return; }
   const { x, y } = hoverTile;
   const check = selectedTool ? checkAction(buildState, x, y, selectedTool) : null;
