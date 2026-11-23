@@ -255,18 +255,24 @@ function compassName(degrees) {
 
 // ---------- A bússola roda com a câmara ----------
 // A seta aponta para onde o vento EMPURRA o fogo (downwind), tal como se vê no ecrã,
-// e o "N" do mostrador aponta para o norte do mapa (o E, o S e o W vêm atrás).
+// e cada letra (N, E, S, W) aponta para essa direção do mapa, também como se vê no ecrã.
 // Projetamos pontos do mapa (o centro e um ponto noutra direção) para o ecrã
 // e medimos o ângulo entre eles.
+// Atenção: a câmara olha o chão de lado e de cima, por isso no ecrã o leste NÃO fica
+// sempre a 90° do norte. Por isso medimos cada letra à parte, da mesma forma que a seta.
 const center = new THREE.Vector3();
 const ahead = new THREE.Vector3();
+const letterAngles = { north: 0, east: 0, south: 0, west: 0 };
 onFrame(() => {
   if (!isWindVisible()) return;
   const radians = ((lastWind ?? game.level.wind).direction * Math.PI) / 180;
   // No mundo 3D: x = leste e z = sul (como o y da grelha), por isso o norte é z negativo.
   const arrowAngle = screenAngle(-Math.sin(radians) * 3, Math.cos(radians) * 3);
-  const northAngle = screenAngle(0, -3);
-  setWindAngles(arrowAngle, northAngle);
+  letterAngles.north = screenAngle(0, -3);
+  letterAngles.east = screenAngle(3, 0);
+  letterAngles.south = screenAngle(0, 3);
+  letterAngles.west = screenAngle(-3, 0);
+  setWindAngles(arrowAngle, letterAngles);
 });
 
 // Ângulo no ecrã (radianos, 0 = para a direita) do centro do mapa até ao ponto (x, z).

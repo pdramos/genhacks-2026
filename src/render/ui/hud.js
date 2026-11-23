@@ -183,20 +183,67 @@ export function isWindVisible() {
   return !windChip.hidden;
 }
 
-// Roda a seta (para onde o vento empurra o fogo) e o mostrador com as letras N, E, S, W,
+// Roda a seta (para onde o vento empurra o fogo) e põe cada letra N, E, S, W no seu sítio,
 // para baterem certo com o que se vê no ecrã. Ângulos em radianos, 0 = para a direita.
+// letters = { north, east, south, west }: o ângulo no ecrã de cada direção do mapa.
 // É chamada a cada desenho: se a câmara não mexeu, não mudamos nada (poupa trabalho ao telemóvel).
+const LETTER_ORDER = ['north', 'east', 'south', 'west']; // a ordem à volta do mostrador
+const windLetters = {};
+for (const name of LETTER_ORDER) windLetters[name] = windChip.querySelector(`.compass-${name}`);
 let shownAngles = '';
-export function setWindAngles(arrowRadians, northRadians) {
-  // O "N" está desenhado em cima do mostrador (-90°), por isso somamos 90° (π/2).
-  const dialTurn = northRadians + Math.PI / 2;
-  const key = `${arrowRadians.toFixed(3)} ${dialTurn.toFixed(3)}`;
+export function setWindAngles(arrowRadians, letters) {
+  const key = [arrowRadians, letters.north, letters.east, letters.south, letters.west]
+    .map((angle) => angle.toFixed(3)).join(' ');
   if (key === shownAngles) return;
   shownAngles = key;
-  windArrow.style.transform = `rotate(${arrowRadians}rad)`;
-  // O mostrador e o anel das letras leem esta "variável" do CSS (--dial-turn) para rodar.
-  // As letras rodam ao contrário a mesma quantidade, para ficarem sempre direitas (ver hud.css).
-  windCompass.style.setProperty('--dial-turn', `${dialTurn}rad`);
+  const real = LETTER_ORDER.map((name) => letters[name]);
+  const spread = spreadLetters(real);
+  // A seta fica no mesmo sítio entre as suas duas letras vizinhas, mesmo que elas se tenham afastado.
+  windArrow.style.transform = `rotate(${moveBetweenLetters(arrowRadians, real, spread)}rad)`;
+  // Cada letra lê a sua "variável" do CSS (--at) para ir para a borda certa (ver hud.css).
+  // No CSS, 0 = para cima; aqui 0 = para a direita. Por isso somamos 90° (π/2).
+  LETTER_ORDER.forEach((name, i) => {
+    windLetters[name].style.setProperty('--at', `${spread[i] + Math.PI / 2}rad`);
+  });
+}
+
+// Quanto falta andar (no sentido dos ponteiros do relógio) do ângulo "from" até ao "to": de 0 a 2π.
+function turnBetween(from, to) {
+  const full = Math.PI * 2;
+  return (((to - from) % full) + full) % full;
+}
+
+// Com a câmara muito baixa, duas letras podem ficar quase uma em cima da outra.
+// Aqui afastamo-las um pouco (no mínimo 45°), sem trocar a ordem N, E, S, W.
+// Com a câmara normal as letras já estão longe e nada muda.
+const MIN_LETTER_GAP = Math.PI / 4;
+function spreadLetters(angles) {
+  const spread = [...angles];
+  for (let round = 0; round < 6; round++) {
+    for (let i = 0; i < spread.length; i++) {
+      const next = (i + 1) % spread.length;
+      const gap = turnBetween(spread[i], spread[next]);
+      if (gap >= MIN_LETTER_GAP) continue;
+      const push = (MIN_LETTER_GAP - gap) / 2;
+      spread[i] -= push; // esta letra recua um bocadinho
+      spread[next] += push; // e a seguinte avança
+    }
+  }
+  return spread;
+}
+
+// Se as letras se afastaram, a seta acompanha: descobrimos entre que duas letras ela está
+// (e a que fração do caminho) e pomo-la à mesma fração entre as letras afastadas.
+function moveBetweenLetters(angle, real, spread) {
+  for (let i = 0; i < real.length; i++) {
+    const next = (i + 1) % real.length;
+    const gap = turnBetween(real[i], real[next]);
+    const along = turnBetween(real[i], angle);
+    if (along <= gap && gap > 0) {
+      return spread[i] + (along / gap) * turnBetween(spread[i], spread[next]);
+    }
+  }
+  return angle;
 }
 
 // ---------- Cartão do briefing (antes da construção) ----------
