@@ -372,38 +372,29 @@ export function createVillageView(scene, village, style, rand, options = {}) {
     const r = canvas.getBoundingClientRect();
     pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
+    // Primeiro o chão: a que distância da câmara o raio bate nele?
+    const ground = terrain.pickTile(raycaster);
     const candidates = [];
     const seen = new Set(); // cada quadrado só entra uma vez (uma árvore tem várias peças)
     for (const hit of raycaster.intersectObjects(props, true)) {
+      // Um objeto MAIS LONGE do que o chão está escondido (atrás de um monte, ou o tronco de
+      // uma árvore enterrado na encosta): o rato não está em cima dele, por isso não conta.
+      if (ground && hit.distance > ground.distance) break; // os acertos vêm do mais perto para o mais longe
       let o = hit.object;
       while (o && !o.userData.isTile) o = o.parent; // sobe até ao grupo do quadrado
       if (!o) continue;
       const key = `${o.userData.x},${o.userData.y}`;
-      if (seen.has(key) || hiddenByGround(raycaster.ray.origin, hit.point)) continue;
+      if (seen.has(key)) continue;
       seen.add(key);
       candidates.push({ x: o.userData.x, y: o.userData.y });
     }
-    const ground = terrain.pickTile(raycaster);
-    if (ground && !seen.has(`${ground.x},${ground.y}`)) candidates.push(ground);
+    if (ground && !seen.has(`${ground.x},${ground.y}`)) candidates.push({ x: ground.x, y: ground.y });
     return candidates;
   }
 
   // O quadrado "do costume": o primeiro candidato (o objeto mais perto, senão o chão), ou null.
   function tileFromPointer(event, camera, canvas) {
     return tilesFromPointer(event, camera, canvas)[0] ?? null;
-  }
-
-  // Um objeto atrás de um monte também é "atravessado" pelo raio, mas não se vê.
-  // Para saber, andamos pela linha da câmara até ao objeto, aos bocadinhos: se algum
-  // bocadinho fica por baixo do chão, o monte está à frente e o objeto está escondido.
-  const SAMPLES = 24;
-  function hiddenByGround(from, to) {
-    for (let i = 1; i < SAMPLES; i++) {
-      const f = i / SAMPLES;
-      const x = from.x + (to.x - from.x) * f, y = from.y + (to.y - from.y) * f, z = from.z + (to.z - from.z) * f;
-      if (y < terrain.heightAtWorld(x, z) - 0.05) return true;
-    }
-    return false;
   }
 
   function update(t) {

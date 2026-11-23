@@ -26,6 +26,8 @@ const OUTCOME_LABELS = {
   kept: 'Knew it',
   missed: 'Still to learn',
   worse: 'Changed to wrong',
+  right: 'Right', // só quando não há respostas do "antes"
+  wrong: 'Wrong',
 };
 
 if (PLAYTEST) startPlaytest();
@@ -195,15 +197,17 @@ function runQuiz(questions, stage) {
       const text = document.createElement('div');
       text.className = 'quiz-question';
       text.id = `quiz-question-${index}`;
+      text.tabIndex = -1; // pode receber o foco (pelo código), mas não é uma paragem do Tab
       text.textContent = question.question;
       const list = document.createElement('div');
       list.className = 'quiz-options';
-      list.setAttribute('role', 'radiogroup');
+      list.setAttribute('role', 'group');
       list.setAttribute('aria-labelledby', text.id);
+      // Cada opção é um botão normal: Tab passa por elas, Enter ou Espaço escolhe.
+      // aria-pressed="true" diz a quem usa um leitor de ecrã qual está escolhida.
       orders[index].forEach((optionIndex, place) => {
         const option = makeButton('', 'quiz-option');
-        option.setAttribute('role', 'radio');
-        option.setAttribute('aria-checked', 'false');
+        option.setAttribute('aria-pressed', 'false');
         const number = document.createElement('span');
         number.className = 'quiz-option-number';
         number.textContent = String(place + 1);
@@ -212,7 +216,7 @@ function runQuiz(questions, stage) {
         option.append(number, label);
         option.addEventListener('click', () => {
           answers[index] = optionIndex; // guardamos o número ORIGINAL da opção
-          for (const other of list.children) other.setAttribute('aria-checked', String(other === option));
+          for (const other of list.children) other.setAttribute('aria-pressed', String(other === option));
           next.disabled = false;
           next.focus();
         });
@@ -225,7 +229,8 @@ function runQuiz(questions, stage) {
       next.textContent = index < questions.length - 1 ? 'Next' : (isBefore ? 'Start the game' : 'See my results');
       body.scrollTop = 0;
       card.scrollTop = 0;
-      list.firstElementChild.focus();
+      // O foco vai para a PERGUNTA, não para a opção 1: assim um Enter sem querer não responde.
+      text.focus();
     }
     show();
   });
@@ -239,14 +244,14 @@ function addFinishButton(questions) {
   const finish = makeButton('Finish playtest', 'result-button playtest-finish');
   finish.title = 'Answer the quiz again and see what changed';
   finish.addEventListener('click', async () => {
-    const current = readCurrent();
-    // Sem as respostas do "antes" (sessionStorage bloqueado e página recarregada): não há comparação.
-    const before = current?.before ?? questions.map(() => null);
+    // Sem as respostas do "antes" (sessionStorage bloqueado e página recarregada) não há
+    // comparação: before fica null e a sessão NÃO é guardada (senão contava como 0/5 antes
+    // e fazia parecer que o jogador aprendeu tudo).
+    const before = readCurrent()?.before ?? null;
     resultCard.hidden = true;
     document.querySelector('.back-to-results')?.setAttribute('hidden', '');
     const after = await runQuiz(questions, 'after');
-    const session = makeSession(questions, before, after, Date.now());
-    const saved = writeSessions([...readSessions(), session]);
+    const saved = before ? writeSessions([...readSessions(), makeSession(questions, before, after, Date.now())]) : false;
     writeCurrent(null); // este jogador acabou
     showFinalScreen(questions, before, after, saved);
   });
@@ -256,31 +261,42 @@ function addFinishButton(questions) {
 // ---------- O ecrã final ----------
 // As duas notas (antes -> depois), cada pergunta com o que mudou, a resposta certa e a explicação.
 // Os botões: limpar tudo, exportar o CSV e o próximo jogador.
+// before = null quando as respostas do "antes" se perderam: aí só mostramos a nota do "depois".
 function showFinalScreen(questions, before, after, saved) {
-  const beforeScore = scoreQuiz(questions, before);
   const afterScore = scoreQuiz(questions, after);
-  const outcomes = questionOutcomes(beforeScore, afterScore);
+  const beforeScore = before ? scoreQuiz(questions, before) : null;
+  const outcomes = beforeScore ? questionOutcomes(beforeScore, afterScore) : null;
   const { card, body, buttons } = openCard('Playtest results');
   card.classList.add('quiz-final');
 
   const scores = document.createElement('div');
   scores.className = 'quiz-scores';
-  scores.append(
-    scoreBox('Before', beforeScore),
-    Object.assign(document.createElement('span'), { className: 'quiz-arrow', textContent: '→' }),
-    scoreBox('After', afterScore),
-  );
-  scores.querySelector('.quiz-arrow').setAttribute('aria-hidden', 'true');
+  if (beforeScore) {
+    const arrow = Object.assign(document.createElement('span'), { className: 'quiz-arrow', textContent: '→' });
+    arrow.setAttribute('aria-hidden', 'true');
+    scores.append(scoreBox('Before', beforeScore), arrow, scoreBox('After', afterScore));
+  } else {
+    scores.append(scoreBox('After', afterScore));
+  }
   body.append(scores);
+  if (!beforeScore) {
+    const missing = document.createElement('p');
+    missing.className = 'quiz-intro';
+    missing.textContent = 'The answers from before the game were lost (the page was reloaded), '
+      + 'so there is no before/after comparison and this session was not saved.';
+    body.append(missing);
+  }
 
   const list = document.createElement('ol');
   list.className = 'quiz-review';
   questions.forEach((question, i) => {
     const item = document.createElement('li');
-    item.className = `quiz-review-item ${outcomes[i]}`;
+    // Sem o "antes", a etiqueta diz só se ficou certa ou errada agora.
+    const outcome = outcomes ? outcomes[i] : (afterScore.perQuestion[i] ? 'right' : 'wrong');
+    item.className = `quiz-review-item ${outcome}`;
     const tag = document.createElement('span');
     tag.className = 'quiz-tag';
-    tag.textContent = OUTCOME_LABELS[outcomes[i]];
+    tag.textContent = OUTCOME_LABELS[outcome];
     const text = document.createElement('div');
     text.className = 'quiz-review-question';
     text.textContent = question.question;
@@ -300,7 +316,7 @@ function showFinalScreen(questions, before, after, saved) {
   body.append(note);
   const updateNote = () => {
     const count = readSessions().length;
-    note.textContent = (saved ? '' : 'Could not save this session on this device. ')
+    note.textContent = (saved || !before ? '' : 'Could not save this session on this device. ')
       + `${count} playtest${count === 1 ? '' : 's'} saved on this device (anonymous: answers, scores and time only).`;
   };
   updateNote();

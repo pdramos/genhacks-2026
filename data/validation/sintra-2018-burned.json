@@ -137,7 +137,7 @@
   "source": "EFFIS (European Forest Fire Information System, Copernicus) MODIS burnt areas 2018, layer modis.ba.poly.2018, id 15381",
   "url": "https://maps.effis.emergency.copernicus.eu/effis?service=WFS&request=GetCapabilities&version=1.1.0",
   "licence": "CC BY 4.0 (EFFIS data licence: https://forest-fire.emergency.copernicus.eu/about-effis/data-license). Changed: cut into the 32x32 game grid.",
-  "attribution": "(c) European Union, 1995-2026, EFFIS (European Forest Fire Information System), Copernicus Emergency Management Service / JRC",
+  "attribution": "(c) European Union, 1995-2025, EFFIS (European Forest Fire Information System), Copernicus Emergency Management Service / JRC",
   "areaHa": 605.4,
   "officialAreaHa": 606,
   "burnedHaInMap": 160,

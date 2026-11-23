@@ -28,9 +28,11 @@ export const MODEL_THRESHOLD = 0.5;
 export const REAL_THRESHOLD = 0.5;
 
 // Onde o fogo começou mesmo: "PNSC Serra de Sintra (Fonte da Peninha)" no registo do ICNF.
+// O ICNF só dá o NOME do sítio, sem coordenadas: usamos a posição da fonte no OpenStreetMap
+// (fica ~90 m fora da área ardida oficial, por isso é só uma aproximação do início verdadeiro).
 // A Fonte da Peninha (OpenStreetMap) fica ~360 m a norte do mapa. Por isso o fogo do modelo
 // começa no quadrado do mapa que arde mais perto dela, na linha de cima (ver findStartTile).
-export const REAL_IGNITION = { name: 'Fonte da Peninha (ICNF SGIF start point, OSM position)', lat: 38.7667249, lon: -9.4606301 };
+export const REAL_IGNITION = { name: 'Fonte da Peninha (ICNF place name; position from OSM)', lat: 38.7667249, lon: -9.4606301 };
 
 // ---------- 1) Do perímetro (polígono) para a grelha do jogo ----------
 
@@ -402,7 +404,7 @@ function rasterizeCommand(icnfPath, effisPath) {
       source: 'EFFIS (European Forest Fire Information System, Copernicus) MODIS burnt areas 2018, layer modis.ba.poly.2018, id ' + feature.properties.id,
       url: 'https://maps.effis.emergency.copernicus.eu/effis?service=WFS&request=GetCapabilities&version=1.1.0',
       licence: 'CC BY 4.0 (EFFIS data licence: https://forest-fire.emergency.copernicus.eu/about-effis/data-license). Changed: cut into the 32x32 game grid.',
-      attribution: '(c) European Union, 1995-2026, EFFIS (European Forest Fire Information System), Copernicus Emergency Management Service / JRC',
+      attribution: '(c) European Union, 1995-2025, EFFIS (European Forest Fire Information System), Copernicus Emergency Management Service / JRC',
       areaHa: round(polygonAreaHa(ep), 1),
       officialAreaHa: Number(feature.properties.AREA_HA),
       burnedHaInMap: round(ef.flat().reduce((a, b) => a + b, 0) * tileHa, 1),

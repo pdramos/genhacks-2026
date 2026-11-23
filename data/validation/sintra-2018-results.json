@@ -4,7 +4,7 @@
  "seeds": "1-1000",
  "modelThreshold": 0.5,
  "realIgnition": {
-  "name": "Fonte da Peninha (ICNF SGIF start point, OSM position)",
+  "name": "Fonte da Peninha (ICNF place name; position from OSM)",
   "lat": 38.7667249,
   "lon": -9.4606301,
   "tile": {

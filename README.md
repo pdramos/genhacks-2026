@@ -40,9 +40,9 @@ npm test
 
 We checked the fire model against the official map of what really burned in 2018: see
 [docs/validation.md](docs/validation.md). In short: with the real wind, the model finds 82% of the
-real burned tiles inside the map, but it also burns too much to the east (there are no firefighters
-in the model, and about 700 fought that fire). A simple circle with the right area scores almost as
-well, and we say so. To run the check yourself: `npm run validate`.
+real burned tiles inside the map, but it also burns too much to the east and the south-centre of the
+map (there are no firefighters in the model, and about 700 fought that fire). A simple circle with the
+right area scores slightly better on the official map (0.68 vs 0.65), and we say so. To run the check yourself: `npm run validate`.
 
 ## How it is made
 
@@ -72,8 +72,8 @@ well, and we say so. To run the check yourself: `npm run validate`.
   `sources` (Observador, DN, CM Jornal, RTP, Euronews, Inquirer, Sábado). They are also linked on the
   results screen in the game.
 - **Real burned area (only for the model check, not shown in the game):** ICNF, Cartografia nacional
-  de áreas ardidas 2018, https://si.icnf.pt/wfs/areas_ardidas. Cross-check: © European Union,
-  1995-2026, EFFIS, Copernicus Emergency Management Service, CC BY 4.0 (changed: cut into the game
+  de áreas ardidas 2018, https://si.icnf.pt/wfs/areas_ardidas. Cross-check: Copyright (C) European
+  Union, 1995-2025, EFFIS, Copernicus Emergency Management Service, CC BY 4.0 (changed: cut into the game
   grid). Only the derived 32 × 32 grids are in `data/validation/`. Details in
   [docs/validation.md](docs/validation.md).
 

@@ -21,7 +21,8 @@
 //   terrain.colourAtWorld(wx, wz, out) -> a cor do chão nesse ponto (o cenário usa-a junto à borda)
 //   terrain.setSurface(x, y, type) -> muda o aspeto do chão num quadrado
 //                                     (um tipo de quadrado, ou 'burned' = carvão preto e cinza)
-//   terrain.pickTile(raycaster)    -> {x, y} do quadrado onde o "raio" bate, ou null
+//   terrain.pickTile(raycaster)    -> {x, y, distance} do quadrado onde o "raio" bate, ou null
+//                                     (distance = a que distância da câmara o raio bate no chão)
 //   terrain.update(t)              -> anima a água; chamar a cada desenho
 //   terrain.levelHeight, terrain.baseY -> a escala vertical usada (para o cenário à volta, backdrop.js)
 //   terrain.levelToY(level)        -> a altura no mundo de um nível (0-9, ou mais), já com o uplift
@@ -797,7 +798,8 @@ export function createTerrain(scene, village, palette, options = {}) {
     const targets = [top.mesh, ...roads.children, cliff];
     if (water) targets.push(water.mesh);
     const hit = raycaster.intersectObjects(targets, false)[0];
-    return hit ? tileAtWorld(hit.point.x, hit.point.z) : null;
+    const tile = hit ? tileAtWorld(hit.point.x, hit.point.z) : null;
+    return tile ? { ...tile, distance: hit.distance } : null;
   }
 
   // O quadrado de um ponto do mundo. A borda irregular sai um pouco do mapa: conta como a beira.
