@@ -28,3 +28,22 @@ function minutesBetween(from, to) {
   const ms = Date.parse(to) - Date.parse(from);
   return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 60000)) : 0;
 }
+
+// ---------- Palavras da bússola ----------
+// As 8 direções da rosa dos ventos, por extenso, a rodar no sentido dos ponteiros do relógio
+// a partir do norte (de 45 em 45 graus).
+const COMPASS_WORDS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+
+// Graus -> a palavra da direção mais perto: 0 -> 'north', 45 -> 'north-east', 180 -> 'south'.
+// Cada palavra "apanha" 45 graus: 'north' vai de 337.5 até antes de 22.5.
+// Os limites (22.5, 67.5, ...) vão sempre para a direção seguinte no sentido dos ponteiros
+// (22.5 -> 'north-east', 337.5 -> 'north').
+// Ângulos negativos ou maiores do que 360 dão a volta (-90 -> 'west', 450 -> 'east').
+// Um número que não existe (NaN) dá null.
+// Dica: a direção do vento diz de onde ele VEM; para onde vai o fogo é compassWord(graus + 180).
+export function compassWord(degrees) {
+  if (!Number.isFinite(degrees)) return null;
+  // Primeiro pomos o ângulo entre 0 e 360 (ex.: -22.5 -> 337.5), para os limites ficarem iguais.
+  const turned = ((degrees % 360) + 360) % 360;
+  return COMPASS_WORDS[Math.round(turned / 45) % 8];
+}

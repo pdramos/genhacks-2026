@@ -68,11 +68,20 @@ export const flameIcon = svg(`
   <path d="M24 32 C25 35 28 36 28 39 C28 41.2 26.2 43 24 43 C21.8 43 20 41.2 20 39 C20 36.5 23 35 24 32 Z"
         fill="#fff6c9"/>`);
 
-// Seta do vento (aponta para a direita; o código roda-a).
+// Seta do vento: atravessa o mostrador todo e aponta para a direita (o código roda-a).
+// À esquerda (a "cauda") ficam as linhas de rajada: é de LÁ que o vento vem.
+// À direita fica a ponta da seta: é para LÁ que o vento empurra o fogo.
+// Primeiro desenhamos tudo um pouco mais grosso a castanho (o contorno, como nos outros
+// desenhos do jogo) e depois por cima: as rajadas a branco e a seta a azul.
 export const windArrowIcon = svg(`
-  <path d="M8 24 H34" stroke="#2b6fb8" stroke-width="6" stroke-linecap="round"/>
-  <path d="M28 13 L42 24 L28 35 Z" fill="#2b6fb8" stroke="#2b6fb8" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M6 24 H12" stroke="#9cc8f0" stroke-width="6" stroke-linecap="round"/>`);
+  <g stroke="#3b2a1e" stroke-linecap="round" stroke-linejoin="round" fill="#3b2a1e">
+    <path d="M3 15 H13 M3 33 H13 M1.5 24 H5.5" stroke-width="6.2" fill="none"/>
+    <path d="M10 24 H32" stroke-width="8.6" fill="none"/>
+    <path d="M30 13 L46 24 L30 35 Z" stroke-width="3"/>
+  </g>
+  <path d="M3 15 H13 M3 33 H13 M1.5 24 H5.5" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M10 24 H33" stroke="#2b6fb8" stroke-width="5.4" stroke-linecap="round"/>
+  <path d="M31.5 16.5 L42.5 24 L31.5 31.5 Z" fill="#2b6fb8" stroke="#2b6fb8" stroke-width="1.6" stroke-linejoin="round"/>`);
 
 // Casa e escola, para o cartão do resultado.
 export const houseIcon = svg(`
