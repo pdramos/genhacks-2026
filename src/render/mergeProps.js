@@ -21,11 +21,44 @@
 // E as árvores a balançar ao vento? Antes, cada árvore rodava sozinha. Agora estão coladas,
 // por isso o balanço é feito pela placa gráfica: cada ponto da árvore guarda (no atributo
 // "aSway") a sua fase, a altura acima do pé da árvore e para que lado se inclina.
-// A cada frame só mudamos UM número: o tempo (swayTime.value).
+// A cada frame só mudamos uns poucos números partilhados: o tempo (swayTime.value) e o vento
+// (treeWind, ver em baixo). Todas as árvores se INCLINAM para o lado para onde o vento sopra.
 import * as THREE from 'three';
 
 // O relógio partilhado por todos os materiais que balançam. A vista muda-o em update(t).
 export const swayTime = { value: 0 };
+
+// ---------- O vento nas árvores ----------
+// Números partilhados por TODOS os materiais que balançam (são "uniforms": a placa gráfica lê-os
+// a cada desenho, por isso basta mudá-los aqui para todas as árvores do mapa mudarem).
+//   dir   = para onde o vento EMPURRA (downwind), no mundo: x = leste, z = sul
+//   lean  = a inclinação fixa das árvores (em radianos), maior com vento mais forte
+//   gust  = quanto as rajadas dobram as árvores a mais (uma "onda" que corre a favor do vento)
+//   wave  = onde vai essa onda (cresce com o tempo; windFx.js empurra-a em update)
+//   sway  = o tamanho do balanço pequeno (para os lados, cada árvore no seu ritmo)
+// Sem windFx (ex.: um teste), fica uma brisa fraca de norte.
+export const treeWind = {
+  dir: { value: new THREE.Vector2(0, 1) },
+  lean: { value: 0.025 },
+  gust: { value: 0.01 },
+  wave: { value: 0 },
+  sway: { value: 0.035 },
+};
+// A escala da onda das rajadas no mapa: 0.35 dá uma onda a cada ~18 quadrados (2 x pi / 0.35).
+export const GUST_WAVE_SCALE = 0.35;
+
+// Muda o vento das árvores. direction = de onde o vento VEM (graus, 0 = norte, como no GLOSSARY);
+// speed e gust em km/h (sem gust, conta como vento sem rajadas).
+export function setTreeWind(direction, speed, gust = speed) {
+  const radians = (direction * Math.PI) / 180;
+  treeWind.dir.value.set(-Math.sin(radians), Math.cos(radians)); // downwind
+  // ~0.075 rad (4 graus) com 33 km/h, e no máximo 0.11 (as árvores não se podem deitar).
+  treeWind.lean.value = Math.min(0.11, (0.075 * speed) / 33);
+  // A força da rajada é a diferença para o vento médio: 67 - 33 = 34 km/h -> ~0.03 rad a mais.
+  const extra = Math.max(0, gust - speed);
+  treeWind.gust.value = Math.min(0.05, 0.004 + extra * 0.0008);
+  treeWind.sway.value = 0.03 + Math.min(0.02, extra * 0.0005);
+}
 
 // ---------- 1. Cozer um quadrado ----------
 // group    = o grupo do quadrado (com as casas, árvores, mato...), já posto no mundo
@@ -214,20 +247,37 @@ function gpuOnly(array, size) {
 // ---------- O material que balança ----------
 // Uma cópia do material original que sabe inclinar os pontos com o vento (no "vertex shader",
 // o programa da placa gráfica que põe cada ponto no sítio). Fazemos 1 cópia por material.
-// A conta é a mesma de antes: inclinação = sin(tempo * 1.6 + fase) * 0.04,
-// e cada ponto anda para o lado tanto mais quanto mais alto estiver na árvore.
+// A conta tem 3 partes (todas em radianos), e cada ponto anda para o lado tanto mais quanto
+// mais alto estiver na árvore (o pé não sai do sítio):
+//   1) a inclinação fixa A FAVOR do vento (uWindLean);
+//   2) as rajadas: uma onda que corre pelo mapa a favor do vento e dobra as árvores um pouco mais
+//      quando passa (uWindGust). Vê-se a "onda" a atravessar a floresta, como num campo de trigo;
+//   3) o balanço pequeno de antes, para os lados (sin(tempo * 1.6 + fase) * uSway).
+// Os pontos dos blocos já estão no sítio certo do MUNDO (os blocos não rodam nem mudam de
+// sítio), por isso a direção do vento do mundo serve tal e qual.
 const swayCopies = new Map();
 function swayMaterial(original) {
   if (swayCopies.has(original)) return swayCopies.get(original);
   const material = original.clone();
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uSwayTime = swayTime;
+    shader.uniforms.uWindDir = treeWind.dir;
+    shader.uniforms.uWindLean = treeWind.lean;
+    shader.uniforms.uWindGust = treeWind.gust;
+    shader.uniforms.uWindWave = treeWind.wave;
+    shader.uniforms.uSway = treeWind.sway;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec4 aSway;\nuniform float uSwayTime;')
+      .replace('#include <common>', `#include <common>
+        attribute vec4 aSway;
+        uniform float uSwayTime, uWindLean, uWindGust, uWindWave, uSway;
+        uniform vec2 uWindDir;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         // aSway = (fase, altura acima do pé, direção x, direção z); sem árvore, tudo 0 = não mexe
-        float swayAngle = sin(uSwayTime * 1.6 + aSway.x) * 0.04;
-        transformed.xz -= aSway.zw * swayAngle * aSway.y;`);
+        float swayAngle = sin(uSwayTime * 1.6 + aSway.x) * uSway;
+        // a onda das rajadas: 0 a 1, ao quadrado para a rajada ser curta e a calma comprida
+        float gustWave = 0.5 + 0.5 * sin(dot(transformed.xz, uWindDir) * ${GUST_WAVE_SCALE.toFixed(3)} - uWindWave + aSway.x * 0.15);
+        float windLean = uWindLean + uWindGust * gustWave * gustWave;
+        transformed.xz += (uWindDir * windLean - aSway.zw * swayAngle) * aSway.y;`);
   };
   material.customProgramCacheKey = () => 'sway';
   swayCopies.set(original, material);
