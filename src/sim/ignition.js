@@ -7,8 +7,9 @@ import { FLAMMABILITY } from './fire.js';
 import { CIGARETTE_MIN_FLAMMABILITY } from './balance.js';
 
 // Um número fixo que se junta à semente antes de sortear.
-// Porquê? O fogo também usa createRandom(seed). Sem esta "pitada de sal", o primeiro número
-// do fogo seria sempre o mesmo que escolheu a ignição, e as duas coisas ficavam ligadas.
+// Porquê? Quando o fogo também usava createRandom(seed), o sal evitava que o primeiro número do
+// fogo fosse o mesmo que escolheu a ignição. Hoje o fogo usa outros dados (tileRandom), mas o sal
+// fica: tirá-lo mudava o "?" que cada semente escolhe e, com isso, os números de equilíbrio publicados.
 const IGNITION_SALT = 7919;
 
 // Escolhe onde começa o fogo. Devolve { x, y }.

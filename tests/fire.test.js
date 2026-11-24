@@ -279,18 +279,23 @@ for (const [letter, fuel] of [['E', 'eucalyptus'], ['B', 'brush'], ['G', 'grass'
     // Um quadrado em losango teria rácio ~0.7; um fogo em forma de quadrado teria ~1.4.
     const field = villageFrom(...Array(41).fill(letter.repeat(41)));
     let ratioSum = 0;
-    const seeds = 10;
-    for (let seed = 1; seed <= seeds; seed++) {
+    let seeds = 0;
+    for (let seed = 1; seed <= 10; seed++) {
       const { steps } = runDisaster(field, { ignition: { x: 20, y: 20 }, wind: { direction: 0, speed: 0 }, seed });
       // O primeiro passo em que o fogo está a 12 quadrados (ou mais) do centro.
       const fireTiles = ({ burning, burned }) => [...burning, ...burned];
       const snapshot = steps.find((s) => fireTiles(s).some(([x, y]) => Math.hypot(x - 20, y - 20) >= 12));
+      // Na relva sem vento, cerca de 4% dos fogos apagam-se logo no início (medido em 300 noites):
+      // esses não dizem nada sobre a forma, por isso não contam. Mas a maioria tem de crescer.
+      if (!snapshot) continue;
+      seeds++;
       const tiles = fireTiles(snapshot);
       const axes = [0, 90, 180, 270].map((angle) => farthestInDirection(tiles, 20, 20, angle));
       const diagonals = [45, 135, 225, 315].map((angle) => farthestInDirection(tiles, 20, 20, angle));
       const average = (list) => list.reduce((a, b) => a + b, 0) / list.length;
       ratioSum += average(diagonals) / average(axes);
     }
+    assert.ok(seeds >= 8, `only ${seeds} of 10 fires grew to 12 tiles`);
     const ratio = ratioSum / seeds;
     assert.ok(ratio > 0.9 && ratio < 1.1, `diagonal / axis reach was ${ratio.toFixed(2)}`);
   });
@@ -400,6 +405,38 @@ test('the stronger the wind, the more embers fly', () => {
     return count;
   };
   assert.ok(countEmbers(60) > countEmbers(25), `60 km/h: ${countEmbers(60)} embers, 25 km/h: ${countEmbers(25)}`);
+});
+
+// ---------- Dados por quadrado: mudar um sítio do mapa não baralha o resto da noite ----------
+// Um corredor de mato com 3 quadrados de largura, de norte a sul, e o fogo a começar no meio.
+// Sem vento, o fogo desce e sobe ao mesmo tempo, em duas "pontas" que já não se tocam.
+// Se pusermos um corta-fogo lá em cima (no norte), a ponta de BAIXO tem de arder exatamente
+// igual, quadrado a quadrado e passo a passo. (Antes, com uma fila única de números aleatórios,
+// o corta-fogo no norte mudava a ordem dos sorteios e a ponta sul ardia de outra maneira.)
+test('a firebreak at the north end of the fire changes nothing at the south end (dice per tile)', () => {
+  const corridor = () => villageFrom(...Array(41).fill('BBB'));
+  const withBreak = corridor();
+  for (let x = 0; x < 3; x++) withBreak.tiles[8][x] = 'firebreak';
+  const southOf = (snapshot) => [...snapshot.burning, ...snapshot.burned]
+    .filter(([, y]) => y >= 24)
+    .map(([x, y]) => `${x},${y}`)
+    .sort()
+    .join(' ');
+  let checkedSeeds = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const options = { ignition: { x: 1, y: 20 }, wind: { direction: 0, speed: 0 }, seed };
+    const plain = runDisaster(corridor(), options).steps;
+    const blocked = runDisaster(withBreak, options).steps;
+    // Só conta se o fogo chegou mesmo ao corta-fogo E se a ponta sul ardeu (senão não prova nada).
+    if (!plain.some((s) => s.burned.some(([, y]) => y === 8))) continue;
+    if (!plain.some((s) => s.burned.some(([, y]) => y >= 24))) continue;
+    checkedSeeds++;
+    const steps = Math.min(plain.length, blocked.length);
+    for (let i = 0; i < steps; i++) {
+      assert.equal(southOf(blocked[i]), southOf(plain[i]), `seed ${seed}, step ${i}`);
+    }
+  }
+  assert.ok(checkedSeeds >= 5, `the fire reached the firebreak in only ${checkedSeeds} of 10 nights`);
 });
 
 test('a fire with embers is still the same every time with the same seed', () => {

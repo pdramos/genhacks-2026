@@ -273,3 +273,27 @@ Sem fazer nada, por "?" (sementes 1–200): (17, 3) 0,34★ · (20, 5) 0,28★ �
 - A meta "< 0,5★" do contrato **não se cumpre** (~0,6–0,7★). O que falta: o fogo de (5, 9) morre sozinho em ~1 de cada 4 noites (o vento empurra-o um pouco para oeste, contra a EN247) e o de (22, 1) pára muitas vezes nas casas do alto, sem chegar à Malveira. Descer mais pediria mexer no fogo (flancos mais largos), o que mudaria os testes da forma do fogo.
 - O lado leste (Janes) deixou de ter "?": nenhum sítio de lá punha a vila em perigo a sério com vento de norte.
 - O perito ficou um pouco mais fácil (3★ ~70%, era ~65%): os "?" estão mais juntos, por isso a mesma defesa (a ravina por cima do quartel) serve a vários.
+
+### Ronda "dados por quadrado" (24/11/2026)
+Um jurado simulado (o agente `genhacks-expert`) jogou a seguir os conselhos do próprio jogo (trabalhar a sul dos "?" e à volta do quartel) e salvou **menos** casas do que não fazendo nada: 106 contra 149. Cada uma das 21 ações, sozinha, na mesma noite: **15 pioravam** e nenhuma melhorava. A causa: o fogo tirava todos os números aleatórios de **uma só fila** (`createRandom(seed)`), por isso mudar um quadrado mudava a ordem dos sorteios e baralhava a noite inteira. Um mato limpo no canto sul (4, 31), onde o fogo quase não chega, mudava o resultado em 45 de 120 noites.
+
+**Mudança:** `tileRandom(seed, ...números)` em `src/sim/random.js` (um "hash", como o `fuelVariation`): cada pergunta do fogo tem o seu dado fixo. Pega fogo ao vizinho = (semente, passo, quadrado, direção); brasa = (semente, passo, quadrado, 0-3); passos a arder = (semente, quadrado). **Nenhuma regra nem constante mudou.** Teste novo: um corta-fogo na ponta norte de um fogo não muda nada na ponta sul (falha com a fila antiga).
+
+**Resultado:**
+- A noite do jurado: 0 das 21 ações pioram sozinhas, e o plano dá 125 casas contra 108 sem fazer nada. O mato no canto sul muda 0 de 120 noites.
+- Cada uma das 45 ações do perito, sozinha, em 120 noites: perder 10 ou mais casas passou de 10% para **1,2%**; piorar de todo, de 18,8% para 3,7%.
+- Os dados novos não são "mais fracos" nem "mais fortes" do que dados perfeitos (`Math.random`): em 6000 noites de Sintra sem ações, 207,8 ± 2,0 quadrados ardidos, contra 207,1 ± 2,0 com dados perfeitos e 211,0 ± 2,1 com a fila antiga.
+- Validação contra o fogo real (1000 noites): Sørensen 0,65 (igual), acerto 81,0% (era 82,2%).
+
+| estratégia | sementes 1–120 (o teste) | 121–1120 |
+|---|---|---|
+| nada | 0,65★ (≥ 2★ 24%, 3★ 10%) | 0,84★ (32%, 15%) |
+| ingénuo | 0,77★ | 0,98★ |
+| ao calhas | 0,78★ | 0,94★ |
+| corta-fogo nos "?" | 0,63★ | 0,68★ |
+| limpar à volta dos "?" | 0,85★ (3★ 16%) | 0,95★ (3★ 21%) |
+| só o quartel | 1,15★ | 1,44★ |
+| bom plano (€18 590) | 1,68★, ≥ 2★ 70%, 3★ 16% | 1,85★, 78%, 21% |
+| **perito (€20 000)** | **2,47★, ≥ 2★ 88%, 3★ 68%** | **2,57★, 91%, 73%** |
+
+Aviso honesto: nas sementes 121–1120, "nada" ficou em 0,84★ (era 0,73★). Em 3000 noites a diferença para dados perfeitos está dentro do ruído (0,749 ± 0,020 contra 0,722 ± 0,020): é a sorte de *quais* noites saem, não uma mudança nas regras. A meta do teste (sementes 1–120) continua a cumprir-se.

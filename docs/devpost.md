@@ -69,17 +69,19 @@ teachers. The kids take the lesson home to the parents who own the land and have
   draws what the rules say.
 - **Everything is generated in code:** every house, tree, flag and sound. No downloaded models,
   textures, images or audio.
-- **Deterministic fire:** a seeded random generator, so the same seed gives the same night in Node and
-  in the browser. That is what makes "same night, three plans" honest.
+- **Deterministic fire with fair dice:** every tile has its own fixed "dice" for each step, picked from
+  the seed, so the same seed gives the same night in Node and in the browser, and changing one tile only
+  changes the fire where that tile matters. That is what makes "same night, three plans" honest.
 - **Built with AI:** see "Use of AI" below.
 
 ## How we tested it
 
 | Check | Result |
 |---|---|
-| Automated tests (`npm test`, Node's `node:test`) | **219 of 219 pass** |
-| Balance: 8 strategies × **120 seeds** | Doing nothing **0.59★** (3★ in **12%** of nights) · a sensible plan **1.62★** · expert plan **2.49★** (3★ in **73%**) |
-| Spending blindly | Spending all **€20,000** from the top-left: **0.79★**, barely better than doing nothing |
+| Automated tests (`npm test`, Node's `node:test`) | **231 of 231 pass** |
+| Balance: 8 strategies × **120 seeds** | Doing nothing **0.65★** (3★ in **10%** of nights) · a sensible plan **1.68★** · expert plan **2.47★** (3★ in **68%**) |
+| Spending blindly | Spending all **€20,000** from the top-left: **0.77★**, barely better than doing nothing |
+| Luck vs skill | One tile of the expert plan, alone, lost 10+ houses by pure luck on **10%** of nights; with fair dice, **1.2%** |
 | Clicks on glowing tiles | **180 of 180**, from 3 camera views with all 3 tools (was 159 of 180) |
 | Fire model vs the real burned area | **1000 nights**, see below |
 | Learning (quiz before and after) | [TODO: N players, mean before → after, the 2 questions that rose most, what did not improve] |
@@ -89,16 +91,16 @@ the model 1000 times from the real start, with no player actions:
 
 | Run | Hit rate | False alarms | Sørensen (overlap) |
 |---|---:|---:|---:|
-| **Model, real wind** | **82.2%** | 45.9% | **0.65** |
+| **Model, real wind** | **81.0%** | 45.4% | **0.65** |
 | Same model, no wind | 51.7% | 57.2% | 0.47 |
 | A circle with the true burned area | 67.8% | 32.2% | 0.68 |
 
-The real wind matters: 82% of the real burned tiles against 52% without it. But the model burns too
+The real wind matters: 81% of the real burned tiles against 52% without it. But the model burns too
 much to the east and in the south-centre (it has no firefighters, and about 700 fought that fire), and
 **a plain circle with the right area scores slightly better on the official map**. We publish that
 anyway. The full method, maps and limitations are in
 [docs/validation.md](https://github.com/pdramos/genhacks-2026/blob/main/docs/validation.md), and
-anyone can rerun it with `npm run validate` in about 15 seconds.
+anyone can rerun it with `npm run validate` in about 20 seconds.
 
 **With players.** `?playtest=1` adds a 5-question anonymous quiz before and after playing (the 50 m
 strip, the wind, eucalyptus vs native trees, clearing brush, wind and slope). It stores no names and
@@ -109,6 +111,11 @@ nothing personal, only answers and scores, and exports a CSV.
 - **Making it hard but possible.** Early versions were either hopeless or trivial. We wrote a balance
   test that plays 8 strategies on 120 nights and fails if doing nothing wins too often (over 15%) or if
   the best plan cannot save every house at least half the time.
+- **Luck hiding skill.** A judge-style playtest found that doing exactly what the game advises could save
+  *fewer* houses than doing nothing: the fire drew all its random numbers from one queue, so changing one
+  tile reshuffled the whole night. On that night, 15 of the player's 21 actions made things worse on their
+  own. We gave every tile its own fixed dice; on the same seed, now 0 of the 21 do, and the plan beats
+  doing nothing (125 vs 108 houses). This night is kept as a test (`tests/fixtures/judge-night.json`).
 - **Being honest about luck.** On some nights the wind takes the fire away from the village whatever
   you do. Without the same-night comparison, players would think their plan worked. Now the game says
   "Lucky night" instead.
@@ -122,7 +129,7 @@ nothing personal, only answers and scores, and exports a CSV.
 - A playable game on a **real night**, in a **real village**, with the **real wind**, that runs in any
   browser and on a phone.
 - A fire model **checked in public** against the official burned area, including where it fails.
-- **219 tests**, written while learning to program from scratch.
+- **231 tests**, written while learning to program from scratch.
 
 ## What we learned
 

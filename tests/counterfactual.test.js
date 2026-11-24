@@ -274,3 +274,19 @@ test('nightLessons: with the downwind tip already given, the expert lesson does 
   assert.match(lessons[0], /downwind/);
   assert.equal(lessons[1], 'On this same night the expert plan saved 38 more houses.');
 });
+
+// ---------- Dados por quadrado: o plano que segue os conselhos do jogo não é castigado pela sorte ----------
+// A noite de um jurado simulado (24/11/2026): ele fez o que o jogo aconselha (trabalhar a sul dos "?"
+// e à volta do quartel). Com a fila única de números aleatórios, 15 das 21 ações, cada uma sozinha,
+// pioravam esta noite, e o plano todo salvava 106 casas contra 149 sem fazer nada.
+const judgeNight = JSON.parse(readFileSync(new URL('./fixtures/judge-night.json', import.meta.url), 'utf8'));
+
+test('the judge night: no single sensible action makes the night worse, and the plan beats doing nothing', () => {
+  const { seed, actions } = judgeNight;
+  const nothing = playPlan(level, seed, []).housesSaved;
+  for (const action of actions) {
+    const alone = playPlan(level, seed, [action]).housesSaved;
+    assert.ok(alone >= nothing, `${action.action} at (${action.x}, ${action.y}) alone: ${alone} houses, doing nothing: ${nothing}`);
+  }
+  assert.ok(playPlan(level, seed, actions).housesSaved > nothing);
+});

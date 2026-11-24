@@ -2,7 +2,9 @@
 
 Brace's level is a real night: the fire that started near the Peninha sanctuary, in the Serra de Sintra (Portugal), at 22:50 on 6 October 2018. We checked the game's fire model against the area that really burned that night. We did not change any fire rule to match the data, because changing the rules to fit one fire would be cheating (overfitting).
 
-**Short answer:** with the real wind, the model burns **82%** of the tiles that really burned inside our map. It also burns too much: **46%** of the tiles it burns did not burn in real life. The real wind clearly matters: without wind the model only gets 52% of the real tiles. But a plain circle around the start, given the true burned area, matches the official map slightly *better* than the model does (overlap 0.68 vs 0.65). So the model gets the direction right, but it does not beat a simple circle on the official map, and this one fire is not enough to show that it predicts the exact shape.
+*Updated on 24 Nov 2026:* the fire now rolls its random numbers per tile (each tile, step and direction has its own fixed "dice"), so that changing one tile in a plan no longer reshuffles the whole night. No fire rule changed. We reran everything below; the main overlap score stayed at 0.65.
+
+**Short answer:** with the real wind, the model burns **81%** of the tiles that really burned inside our map. It also burns too much: **45%** of the tiles it burns did not burn in real life. The real wind clearly matters: without wind the model only gets 52% of the real tiles. But a plain circle around the start, given the true burned area, matches the official map slightly *better* than the model does (overlap 0.68 vs 0.65). So the model gets the direction right, but it does not beat a simple circle on the official map, and this one fire is not enough to show that it predicts the exact shape.
 
 ## What we compared
 
@@ -36,7 +38,7 @@ Attribution lines (for the README and Devpost):
    - **A, no wind:** the same model with wind speed and gusts set to 0, so no embers fly either.
    - **B, circle:** the 242 map tiles closest to the start, a circle with the *true* burned area. This is a generous baseline, because it is told the right area, which the model must work out alone.
 
-All the code is in `dev/validate.js` and runs with `npm run validate`, in about 15 s. The numbers are saved to `data/validation/sintra-2018-results.json`.
+All the code is in `dev/validate.js` and runs with `npm run validate`, in about 20 s. The numbers are saved to `data/validation/sintra-2018-results.json`.
 
 ## Results
 
@@ -44,42 +46,42 @@ All the code is in `dev/validate.js` and runs with `npm run validate`, in about 
 
 | Run | Model tiles | Hit rate | False alarms | Jaccard | Sørensen | Mean burned per night |
 |---|---:|---:|---:|---:|---:|---:|
-| **Model, real wind** | 368 | **82.2%** | 45.9% | 0.48 | **0.65** | 128.9 ha |
-| Baseline A: model, no wind | 292 | 51.7% | 57.2% | 0.31 | 0.47 | 114.9 ha |
+| **Model, real wind** | 359 | **81.0%** | 45.4% | 0.48 | **0.65** | 126.8 ha |
+| Baseline A: model, no wind | 292 | 51.7% | 57.2% | 0.31 | 0.47 | 114.6 ha |
 | Baseline B: circle, true area | 242 | 67.8% | 32.2% | 0.51 | 0.68 | 102.2 ha |
-| Model, real wind, top 242 tiles | 242 | 59.9% | 40.1% | 0.43 | 0.60 | 128.9 ha |
-| Baseline A, no wind, top 242 tiles | 242 | 47.5% | 52.5% | 0.31 | 0.48 | 114.9 ha |
+| Model, real wind, top 242 tiles | 242 | 59.5% | 40.5% | 0.42 | 0.60 | 126.8 ha |
+| Baseline A, no wind, top 242 tiles | 242 | 47.9% | 52.1% | 0.32 | 0.48 | 114.6 ha |
 
 The "top 242 tiles" rows keep only the 242 most likely tiles. That way the model and the circle cover the same area, and only the shape is compared.
 
 **Where they agree and disagree.** `#` = burned in both, `M` = model only, `R` = reality only, `.` = neither. North is at the top, and the start is tile (2, 0). The village of Malveira is around columns 13-22, rows 11-20.
 
 ```
-RR###RRR........................
-RR#######.......................
+RR##RRRR........................
+RR#####R#.......................
 R########MM.....................
 ###########M....................
 RR#########MM...................
-#R##########MMM.................
-########M####MMM................
+RR##########MMM.................
+########M####MM.................
 ########M####MMM................
 ########M####MMMM...............
 RRRRR########MMMM...............
 .RRRR#######MMMMM...............
 .##RRR######MMMMMM..............
-R###.R######MMMMMM..............
+R###.R######MMMMMMM.............
 .###RRR#M##MMMMMMM..............
 ####RRR.MMMMMMMMMM..............
 ####.RRR#MMMMMMMMM..............
 ###...RR#MMMMMMMMM..............
 ###.R.RR...MMMMMM...............
 ###RRR..........................
-###M............................
-###RM......MMMM.................
-####M.....MMMMM.................
-#####M..MM.MMMM.................
+###.............................
+###RM......MMM..................
+####M......MMMM.................
+#####....M.MMMM.................
 #####MMMMM.MMMM.................
-#####MMMMMMMMM..................
+#####MMMMM.MMM..................
 #####MMMMM.MMM..................
 #####MMMMMMMMM..................
 #####MMMMMMMMM..................
@@ -93,19 +95,19 @@ R###.R######MMMMMM..............
 
 | Start | Nights | Hit rate | False alarms | Sørensen |
 |---|---:|---:|---:|---:|
-| All ? spots (as the game plays) | 1000 | 12.4% | 80.4% | 0.15 |
-| ? at (17, 3) | 155 | 52.5% | 64.9% | 0.42 |
-| ? at (5, 9), by the EN247 on the Peninha side | 163 | 28.9% | 55.7% | 0.35 |
-| ? at (20, 5) | 165 | 16.5% | 81.4% | 0.18 |
-| ? at (22, 1) | 170 | 6.2% | 85.0% | 0.09 |
-| ? at (20, 7) | 170 | 1.2% | 97.0% | 0.02 |
+| All ? spots (as the game plays) | 1000 | 5.0% | 88.8% | 0.07 |
+| ? at (17, 3) | 155 | 50.4% | 65.1% | 0.41 |
+| ? at (5, 9), by the EN247 on the Peninha side | 163 | 32.2% | 56.7% | 0.37 |
+| ? at (20, 5) | 165 | 16.9% | 81.1% | 0.18 |
+| ? at (20, 7) | 170 | 3.3% | 93.6% | 0.04 |
+| ? at (22, 1) | 170 | 0.0% | 100.0% | 0.00 |
 | ? at (20, 10) | 177 | 0.0% | 100.0% | 0.00 |
 
 **Cross-check against the EFFIS satellite map.** This map is coarser (250 m pixels) and larger (606 ha). It covers 378 tiles inside our map and contains all 242 ICNF tiles.
 
 | Run | Hit rate | False alarms | Jaccard | Sørensen |
 |---|---:|---:|---:|---:|
-| Model, real wind | 77.8% | 20.1% | 0.65 | 0.79 |
+| Model, real wind | 76.2% | 19.8% | 0.64 | 0.78 |
 | Baseline A: no wind | 48.7% | 37.0% | 0.38 | 0.55 |
 | Baseline B: circle, EFFIS area | 72.2% | 27.8% | 0.57 | 0.72 |
 | ICNF map vs EFFIS map (two "real" maps) | 64.0% | 0.0% | 0.64 | 0.78 |
@@ -113,23 +115,23 @@ R###.R######MMMMMM..............
 ## What this means
 
 **What matches:**
-- **The wind drives the fire in the right direction.** With the real north wind, the model hits 82% of the real tiles. Without wind it hits 52%, and its overlap with reality (Sørensen) falls from 0.65 to 0.47. The real fire ran south, downhill and downwind, along the west side of the map, and so does the model. Columns 0-5 burn in reality all the way to the southern edge, and the model burns them too: tiles in the bottom row of those columns burn in 66-76% of the nights.
-- **The size is in the right range.** Inside the map, the model burns 129 ha on an average night against 101 ha in reality, 28% too much. That is not a factor of 2 or 10.
+- **The wind drives the fire in the right direction.** With the real north wind, the model hits 81% of the real tiles. Without wind it hits 52%, and its overlap with reality (Sørensen) falls from 0.65 to 0.47. The real fire ran south, downhill and downwind, along the west side of the map, and so does the model. Columns 0-5 burn in reality all the way to the southern edge, and the model burns them too: tiles in the bottom row of those columns burn in 64-75% of the nights.
+- **The size is in the right range.** Inside the map, the model burns 127 ha on an average night against 101 ha in reality, 26% too much. That is not a factor of 2 or 10.
 
 **What does not match:**
-- **The model does not beat a simple circle on the official map.** A circle around the start, given the true area, scores 0.68 against the model's 0.65 on the ICNF map (Jaccard 0.51 vs 0.48). When both are cut to the same area, the model drops to 0.60. One reason: only 23% of the real fire is inside the map, and that part is the "near end" of the fire, right below the start. Any blob around the start in the map's north-west corner covers a lot of it. Against the coarser EFFIS map, the model does beat the circle (0.79 vs 0.72). But we treat ICNF, the finer official map, as the main reference, and we do not pick whichever one flatters us.
-- **The model burns too far east and too far into the middle of the map.** Of the 169 false-alarm tiles, 66 lie in column 13 or further east, towards Malveira da Serra, and 73 lie in the south-centre (rows 18-31, west of column 13). Likely reasons:
+- **The model does not beat a simple circle on the official map.** A circle around the start, given the true area, scores 0.68 against the model's 0.65 on the ICNF map (Jaccard 0.51 vs 0.48). When both are cut to the same area, the model drops to 0.60. One reason: only 23% of the real fire is inside the map, and that part is the "near end" of the fire, right below the start. Any blob around the start in the map's north-west corner covers a lot of it. Against the coarser EFFIS map, the model does beat the circle (0.78 vs 0.72). But we treat ICNF, the finer official map, as the main reference, and we do not pick whichever one flatters us.
+- **The model burns too far east and too far into the middle of the map.** Of the 163 false-alarm tiles, 65 lie in column 13 or further east, towards Malveira da Serra, and 68 lie in the south-centre (rows 18-31, west of column 13). Likely reasons:
   - **No firefighting.** About 700 firefighters defended the villages that night. The model has no firefighters at all, so its flanks keep creeping sideways until the fuel runs out.
   - **Spotting.** In the model, embers jump 2-3 tiles ahead with the 65-70 km/h gusts. Some of these start fires in places the real fire never reached.
-- **It misses some real tiles.** The model misses 43 of the 242 real tiles. 16 of them are road tiles, which can never burn in the model, although the official perimeter includes the roads the fire crossed. So the best possible hit rate is 93%. Of the other 27 misses, 8 are in the top-left corner, around the start (rows 0-2), and 19 are in the western strip (rows 4-20, columns 0-6). They are brush, grass and cleared ground that the model burns in 10-50% of the nights, many of them just under the 50% line (P 0.44-0.50).
-- **The game's ? spots are a "what if", not a replay.** When the fire starts at the game's ? spots, the overlap is low (0.15). This is expected. Five of the six spots are on the east side, so the game asks "what if the cigarette had landed here instead?" on the real night's wind. Only the western spot (5, 9) and the northern one (17, 3) send the fire over ground that really burned.
-- **Timing.** On average, the model fire goes out by itself after 7.9 hours. The real fire was declared controlled after about 12 hours, at 10:45. We did not compare how fast the fire spread, because we have no public timeline of the real fire front.
+- **It misses some real tiles.** The model misses 46 of the 242 real tiles. 16 of them are road tiles, which can never burn in the model, although the official perimeter includes the roads the fire crossed. So the best possible hit rate is 93%. Of the other 30 misses, 10 are in the top-left corner, around the start (rows 0-2), and 20 are in the western strip (rows 4-20, columns 0-6). They are brush, grass and cleared ground that the model burns in 9-50% of the nights, a third of them just under the 50% line (P 0.44-0.50).
+- **The game's ? spots are a "what if", not a replay.** When the fire starts at the game's ? spots, the overlap is low (0.07). This is expected. Five of the six spots are on the east side, so the game asks "what if the cigarette had landed here instead?" on the real night's wind. Only the western spot (5, 9) and the northern one (17, 3) send the fire over ground that really burned.
+- **Timing.** On average, the model fire goes out by itself after 7.7 hours. The real fire was declared controlled after about 12 hours, at 10:45. We did not compare how fast the fire spread, because we have no public timeline of the real fire front.
 
 ## Limitations
 
 - **One fire only.** This is one fire on one night, so it cannot show that the model is accurate in general. It only shows how the model compares on this one night.
 - **Most of the fire is outside the map.** 77% of the real burned area lies outside our 2.1 km map, and the start is about 360 m beyond the top edge.
-- **The exact start point is not public.** ICNF gives only the place name Fonte da Peninha, so we used the spring's position in OpenStreetMap, which lies about 90 m outside the official burned area. The real start may be a few hundred metres away, and the score depends on the start tile: with 300 nights, Sørensen is 0.65 from tile (2, 0), 0.65 from (3, 0), 0.63 from (4, 0), 0.53 from (1, 0) and only 0.24 from (0, 0). The circle stays between 0.65 and 0.70 for all of these starts.
+- **The exact start point is not public.** ICNF gives only the place name Fonte da Peninha, so we used the spring's position in OpenStreetMap, which lies about 90 m outside the official burned area. The real start may be a few hundred metres away, and the score depends on the start tile: with 300 nights, Sørensen is 0.64 from tile (2, 0), 0.65 from (3, 0), 0.63 from (4, 0), 0.60 from (1, 0) and only 0.07 from (0, 0). The circle stays between 0.65 and 0.70 for all of these starts.
 - **Coarse tiles.** A 65 m tile is either burned or not. Small unburned islands and ragged edges get lost, and a tile counts as burned when at least half of it burned.
 - **The "real" map is uncertain too.** The ICNF and EFFIS maps of the same fire only agree at Sørensen 0.78 inside our map (EFFIS is 41% larger in total). So a score near 0.8 is about as close as two official maps get to each other.
 - **The ground is from today, not from 2018.** The vegetation on the game map comes from OpenStreetMap in 2026. After the fire, the park cut invasive trees and replanted, so some tiles may not show the fuel that burned in 2018.
@@ -138,7 +140,7 @@ R###.R######MMMMMM..............
 ## How to reproduce
 
 ```
-npm run validate                    # 1000 nights, about 15 s, writes data/validation/sintra-2018-results.json
+npm run validate                    # 1000 nights, about 20 s, writes data/validation/sintra-2018-results.json
 node dev/validate.js --nights 200   # quicker
 npm test                            # includes tests/validation.test.js (fast checks)
 ```

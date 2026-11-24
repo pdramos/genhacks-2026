@@ -41,23 +41,30 @@ forest land, and **10 m** on each side of roads. Few people know it, and fewer d
 
 ## How we tested it
 
-- **219 automated tests** (`npm test`, Node's built-in `node:test`): rules, map checks, the law
+- **231 automated tests** (`npm test`, Node's built-in `node:test`): rules, map checks, the law
   strips, ignition, the real wind, the result lessons, the quiz maths and the validation grid.
 - **Balance:** a test plays the level on **120 seeds** with 8 different strategies. The fire is
   deterministic: the same seed gives the same night in Node and in the browser.
 
   | Strategy | Avg stars | 3★ nights | Money spent |
   |---|---:|---:|---:|
-  | Do nothing | 0.59 | 12% | €0 |
-  | Spend everything from the top-left | 0.79 | 18% | €20,000 |
-  | Random | 0.82 | 15% | €19,927 |
-  | Firebreak on every "?" | 0.72 | 12% | €3,650 |
-  | Protect only the fire station | 1.14 | 15% | €4,650 |
-  | A sensible plan | 1.62 | 20% | €18,590 |
-  | **Expert plan** (tuned by computer) | **2.49** | **73%** | €20,000 |
+  | Do nothing | 0.65 | 10% | €0 |
+  | Spend everything from the top-left | 0.77 | 13% | €20,000 |
+  | Random | 0.78 | 13% | €19,927 |
+  | Firebreak on every "?" | 0.63 | 12% | €3,650 |
+  | Clear brush around every "?" | 0.85 | 16% | €3,350 |
+  | Protect only the fire station | 1.15 | 9% | €4,650 |
+  | A sensible plan | 1.68 | 16% | €18,590 |
+  | **Expert plan** (tuned by computer) | **2.47** | **68%** | €20,000 |
 
-  Thinking pays: the expert plan saves every house in 73% of the nights, against 12% for doing
+  Thinking pays: the expert plan saves every house in 68% of the nights, against 10% for doing
   nothing, and spending the money blindly is barely better than doing nothing.
+- **Fair dice:** every tile has its own fixed "dice" for each 10-minute step, so changing one tile
+  only changes the fire where that tile matters. Before this, one change reshuffled the whole night:
+  a single sensible action (one tile of the expert plan, alone) lost 10 or more houses on 10% of the
+  nights by pure luck. Now it does on 1.2%, and clearing brush in a far corner the fire barely
+  reaches no longer changes anything (it changed the result on 45 of 120 nights). That is what
+  makes "Try again (same night)" a fair test of your plan.
 - **Against the real fire:** we compared our fire model with the official map of what really burned
   in 2018, over **1000 nights**. See below.
 - **With players:** `?playtest=1` adds a 5-question anonymous quiz before and after playing, to
@@ -68,15 +75,15 @@ forest land, and **10 m** on each side of roads. Few people know it, and fewer d
 ## How close is the fire to the real one?
 
 Full details in [docs/validation.md](docs/validation.md); run it yourself with `npm run validate`
-(about 15 s). With no player actions, from the real start, over 1000 nights:
+(about 20 s). With no player actions, from the real start, over 1000 nights:
 
 | Run | Hit rate | False alarms | Sørensen (overlap) |
 |---|---:|---:|---:|
-| **Model, real wind** | **82.2%** | 45.9% | **0.65** |
+| **Model, real wind** | **81.0%** | 45.4% | **0.65** |
 | Same model, no wind | 51.7% | 57.2% | 0.47 |
 | A circle with the true burned area | 67.8% | 32.2% | 0.68 |
 
-The real wind clearly matters (82% of the real burned tiles against 52% without wind). But the model
+The real wind clearly matters (81% of the real burned tiles against 52% without wind). But the model
 burns too much to the east and in the south-centre (there are no firefighters in it, and about 700
 fought that fire), and **a simple circle with the right area scores slightly better on the official
 map** (0.68 vs 0.65). We say so plainly: the game teaches where to work, it is not a fire forecast.
@@ -119,7 +126,7 @@ the newest code.) Then open <http://localhost:8000/>. Useful extras: `?seed=7` r
 `gallery.html?style=sintra` shows every 3D piece of a style.
 
 ```
-npm test          # 219 tests, including the balance check
+npm test          # 231 tests, including the balance check
 npm run validate  # the fire model against the real 2018 burned area
 ```
 
