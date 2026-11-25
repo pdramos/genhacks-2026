@@ -87,8 +87,8 @@
       { "time": "2018-10-07T10:00", "direction": 9, "speed": 19.7, "gust": 44.6, "temperature": 16, "humidity": 48 }
     ]
   },
-  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. In real life, a fire broke out near the Peninha sanctuary and raced downhill towards Malveira da Serra: it burned about 430 hectares, hundreds of people were evacuated, and no aircraft could fly until dawn. You have €20,000 to prepare the village, and the law tells you to clear fuel strips around houses and roads, so that is where you work.",
-  "aftermath": "In real life: about 430 hectares burned (official figure), most of it in one night. Hundreds of people, a campsite and 70 horses were evacuated, and 21 people were lightly hurt. Around 700 firefighters fought the fire, but no aircraft could fly until dawn; it was controlled at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
+  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. In real life, a fire broke out near the Peninha sanctuary and raced downhill towards Malveira da Serra: it burned about 430 hectares, hundreds of people were evacuated, and no aircraft fought it until dawn. You have €20,000 to prepare the village, and the law tells you to clear fuel strips around houses and roads, so that is where you work.",
+  "aftermath": "In real life: about 430 hectares burned (official figure), most of it in one night. Hundreds of people, a campsite and 70 animals from riding stables were evacuated, and 21 people were lightly hurt, almost all of them firefighters. Around 700 firefighters fought the fire, but no aircraft joined them until dawn; it was brought under control at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
   "ignitionHint": "Tonight a cigarette thrown from a car will start a fire at one of the spots marked ? beside the serra roads. You will not know which one until it happens.",
   "law": {
     "title": "Portugal: fuel strips",
@@ -204,6 +204,7 @@
     "https://www.euronews.com/2018/10/07/wildfire-rages-near-lisbon-hundreds-evacuated",
     "https://newsinfo.inquirer.net/1040053/700-firefighters-in-portugal-battle-wildfire-west-of-lisbon",
     "https://www.sabado.pt/portugal/amp/dois-bombeiros-com-ferimentos-ligeiros-depois-de-combate-a-incendio-em-sintra",
+    "https://www.sabado.pt/portugal/amp/20181009-1725-reflorestacao-do-parque-natural-de-sintra-cascais-tem-inicio-no-sabado",
     "https://observador.pt/2022/08/27/abate-de-especies-invasoras-e-reconversao-florestal-previnem-fogos-no-parque-natural-sintra-cascais/",
     "https://archive-api.open-meteo.com/v1/archive?latitude=38.77&longitude=-9.46&start_date=2018-10-06&end_date=2018-10-07&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,relative_humidity_2m&timezone=Europe/Lisbon",
     "https://www.openstreetmap.org/copyright",

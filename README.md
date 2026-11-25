@@ -1,9 +1,9 @@
 # Brace (working title) — GenHacks 2026
 
 **▶ Play it in your browser (no account needed): https://pdramos.github.io/genhacks-2026/**
-Works on a computer and on a phone held sideways.
+Made for a computer browser.
 
-> **Spend €20,000 to fire-proof a real Portuguese village, then watch the real hourly wind of
+> **Spend €20,000 to fire-proof a real Portuguese village, then watch the real wind of
 > 6 October 2018 test your plan.**
 
 ![Preparing Malveira da Serra: the glowing tiles show where the law lets you work](docs/images/build.jpg)
@@ -13,10 +13,10 @@ teachers. The kids take the lesson home to the parents who own the land and have
 
 ## The real night
 
-Saturday 6 October 2018, 22:50, Serra de Sintra, near Lisbon. A north wind of 33 km/h, gusting to
-68 km/h, roared down the mountain. A fire started near the Peninha sanctuary and ran downhill towards
+Saturday 6 October 2018, 22:50, Serra de Sintra, near Lisbon. A north wind of 33 km/h, gusting near
+70 km/h, roared down the mountain. A fire started near the Peninha sanctuary and ran downhill towards
 Malveira da Serra. About **430 hectares** burned (official ICNF figure), hundreds of people were
-evacuated, around **700 firefighters** fought it, and no aircraft could fly until dawn.
+evacuated, around **700 firefighters** fought it, and no aircraft fought it until dawn.
 
 Portuguese law (Decreto-Lei 82/2021, art. 49.º) already says what should be done before a night
 like that: clear fuel strips of **100 m** around villages next to forest, **50 m** around houses on
@@ -75,7 +75,7 @@ forest land, and **10 m** on each side of roads. Few people know it, and fewer d
 ## How close is the fire to the real one?
 
 Full details in [docs/validation.md](docs/validation.md); run it yourself with `npm run validate`
-(about 20 s). With no player actions, from the real start, over 1000 nights:
+(about 15 s). With no player actions, from the real start, over 1000 nights:
 
 | Run | Hit rate | False alarms | Sørensen (overlap) |
 |---|---:|---:|---:|
@@ -99,7 +99,12 @@ map** (0.68 vs 0.65). We say so plainly: the game teaches where to work, it is n
 - **Learning is not measured yet.** The quiz is built; the playtests with real players are still to
   be done.
 - **A firebreak on a "?" can make the night worse:** the cigarette rolls into the dry scrub beside it.
-  The result screen tells the player when that happens.
+  The result screen only explains this on nights when doing nothing would have saved every house.
+- **Some parts are game choices.** The cigarette is a dramatisation: the real cause of the fire
+  was never confirmed. The fire station is a stand-in, placed where the real
+  primary school is, because Malveira has no fire station. When you work on a "?", the cigarette
+  looks for the nearest dry tile in a fixed order that starts on the north side. That is a
+  simplification, and part of the expert plan's edge depends on it.
 
 ## What's new here
 
@@ -190,5 +195,8 @@ code was written by **Claude Code (Anthropic)**, an AI coding assistant, in smal
 student directed, tested and explained back in their own words. The student made the design decisions
 (the game idea, the real fire, the look of the town, the difficulty goals). AI was also used to help
 gather the real data and the news sources listed above, to tune the expert plan, and to review the
-code. No AI-generated images, models or sounds are used: everything you see and hear is drawn or
+code. AI agents also played the game the way a judge would (the "judge-style playtest" that found
+the luck problem was one of them), researched what past hackathon winners did, and helped plan the
+remaining work. The student chose what to build and what to
+cut, and explained each milestone back before moving on. No AI-generated images, models or sounds are used: everything you see and hear is drawn or
 synthesised by the game's own code.

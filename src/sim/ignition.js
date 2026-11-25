@@ -49,11 +49,15 @@ export function catchesCigarette(village, x, y) {
 
 // Onde começa MESMO o fogo, já com o plano do jogador feito.
 // O cigarro cai no candidato que a semente escolheu (pickIgnition). Se o jogador lá pôs um
-// corta-fogo, ou limpou o mato, o cigarro não se apaga por magia: o vento rola-o para o lado
+// corta-fogo, ou limpou o mato, o cigarro não se apaga por magia: rola para o lado
 // e o fogo começa no primeiro quadrado com combustível seco à volta, primeiro nos 8 vizinhos
 // e depois no anel seguinte.
 // A ordem é fixa (linha a linha, de cima para baixo e da esquerda para a direita), por isso
 // a mesma vila e a mesma semente dão sempre o mesmo quadrado.
+// Atenção: esta ordem NÃO olha para o vento. Começa a norte (de onde vem o vento naquela noite),
+// por isso é uma simplificação, declarada nas Limitations do README. Parte da vantagem do
+// plano do perito depende dela (com a ordem ao contrário, as noites com 3 estrelas do perito
+// caem muito), por isso mudá-la mudava todos os números publicados.
 // Porquê? Sem isto, um corta-fogo em cada candidato (€3.390) dava 3 estrelas em todas as noites.
 // E na ronda "salvar todas as casas": limpar o mato em volta de cada "?" fazia o fogo morrer
 // logo ao nascer (terra limpa arde mal), por isso valia mais do que defender a vila. Agora
