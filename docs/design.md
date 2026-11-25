@@ -1,6 +1,6 @@
 # Desenho do jogo — GenHacks 2026
 
-> Nome provisório: **Brace** ("prepare-se para o impacto"). O nome final fica para decidir até 28/11.
+> Nome: **Same Night** ("a mesma noite"), escolhido pelo estudante a 25/11/2026, entre os nomes que os jurados simulados propuseram. O nome provisório era **Brace**.
 > Data: 21/11/2026 · Autor: o estudante, com o Claude Code como assistente (declarado no Devpost)
 
 ## 1. Intenção: o porquê

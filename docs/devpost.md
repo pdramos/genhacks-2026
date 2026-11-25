@@ -5,13 +5,10 @@
 > (facts, cold reading, checklist). Copy each part into the matching Devpost field. Everything in
 > this header is for us, not for the page. The only thing still to fill in is the video link.
 >
-> **Name: recommended by the review, waiting for the student's OK.** 4 of the 5 simulated judges put
-> "Same Night" first, because it is the idea that makes this project different ("Same night, three
-> plans", "Try again (same night)"). If the student says no by 6/12, use
-> "Brace: one real wildfire, three plans" and change `Same Night` to `Brace` in the About and the README.
-> After the OK, change all four places at once: this file, the README title, `<title>Brace</title>` in
-> `index.html`, and "Brace's level" in `docs/validation.md` (to "The game's level"). Until then, do not
-> publish the README with a name different from the game's.
+> **Name: Same Night, chosen by the student on 25/11/2026.** 4 of the 5 simulated judges put it
+> first, because it is the idea that makes this project different ("Same night, three plans",
+> "Try again (same night)"). It is now the same in this file, the README title, the game's tab
+> (`index.html`) and `docs/validation.md`. Check the Devpost name limit when creating the project.
 
 **Project name:** Same Night: one real wildfire, three plans
 

@@ -1,4 +1,4 @@
-# Brace (working title): one real wildfire, three plans
+# Same Night: one real wildfire, three plans
 
 **▶ Play it in your browser: https://pdramos.github.io/genhacks-2026/** (no account, nothing to
 install; made for a computer browser) · GenHacks 2026, Healthcare & Environmental track

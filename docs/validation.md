@@ -1,6 +1,6 @@
 # Validation: does our fire behave like the real one?
 
-Brace's level is a real night: the fire that started near the Peninha sanctuary, in the Serra de Sintra (Portugal), at 22:50 on 6 October 2018. We checked the game's fire model against the area that really burned that night. We did not change any fire rule to match the data, because changing the rules to fit one fire would be cheating (overfitting).
+The game's level is a real night: the fire that started near the Peninha sanctuary, in the Serra de Sintra (Portugal), at 22:50 on 6 October 2018. We checked the game's fire model against the area that really burned that night. We did not change any fire rule to match the data, because changing the rules to fit one fire would be cheating (overfitting).
 
 *Updated on 24 Nov 2026:* the fire now rolls its random numbers per tile (each tile, step and direction has its own fixed "dice"), so that changing one tile in a plan no longer reshuffles the whole night. No fire rule changed. We reran everything below; the main overlap score stayed at 0.65.
 
