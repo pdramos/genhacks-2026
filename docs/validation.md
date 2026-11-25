@@ -38,7 +38,7 @@ Attribution lines (for the README and Devpost):
    - **A, no wind:** the same model with wind speed and gusts set to 0, so no embers fly either.
    - **B, circle:** the 242 map tiles closest to the start, a circle with the *true* burned area. This is a generous baseline, because it is told the right area, which the model must work out alone.
 
-All the code is in `dev/validate.js` and runs with `npm run validate`, in about 20 s. The numbers are saved to `data/validation/sintra-2018-results.json`.
+All the code is in `dev/validate.js` and runs with `npm run validate`, in about 15 s. The numbers are saved to `data/validation/sintra-2018-results.json`.
 
 ## Results
 
@@ -140,7 +140,7 @@ R###.R######MMMMMMM.............
 ## How to reproduce
 
 ```
-npm run validate                    # 1000 nights, about 20 s, writes data/validation/sintra-2018-results.json
+npm run validate                    # 1000 nights, about 15 s, writes data/validation/sintra-2018-results.json
 node dev/validate.js --nights 200   # quicker
 npm test                            # includes tests/validation.test.js (fast checks)
 ```

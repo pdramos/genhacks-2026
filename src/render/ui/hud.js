@@ -358,7 +358,8 @@ export function showResultCard(outcome, schoolLabel = 'School', level = {}, lost
     if (comparison.showLuckyBanner) {
       const lucky = document.createElement('div');
       lucky.className = 'result-lucky';
-      lucky.textContent = 'Lucky night: the fire died out on its own';
+      // Só sabemos que "não fazer nada" também salvava tudo, não que o fogo se apagou sozinho.
+      lucky.textContent = 'Lucky night: doing nothing would have saved every house too';
       card.querySelector('.result-title').after(lucky);
     }
   }
