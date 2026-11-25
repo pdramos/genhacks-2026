@@ -3,7 +3,8 @@
 Fonte: genhacks-open.devpost.com e /rules, lidos a 20/11/2026. O Devpost bloqueia pedidos automáticos (403), por isso para reler a página usa-se o browser.
 
 ## Datas
-- Submissões de 1/nov/2026 00:00 ET a **26/dez/2026 00:00 ET** (= 26/dez 05:00 em Lisboa). Submissões atrasadas não são avaliadas.
+- Submissões até **26/dez/2026 às 17:00 ET (= 22:00 em Lisboa)**. Submissões atrasadas não são avaliadas. *Corrigido a 25/11/2026:* as regras e a página de datas dizem agora ambas 17:00 ET (22:00 GMT). A versão antiga deste doc dizia 00:00 ET (05:00 em Lisboa), um erro para o lado seguro.
+- Julgamento de 26/dez a 7/jan/2027; vencedores anunciados a 7/jan/2027.
 - Meta interna do estudante: enviar até **20/dez/2026**.
 
 ## Elegibilidade e regras
@@ -35,9 +36,11 @@ Fonte: genhacks-open.devpost.com e /rules, lidos a 20/11/2026. O Devpost bloquei
 - **Presentation:** "How clearly do the demo video and project page show what the project does and how it works? Is it easily understood?"
 
 ## Jurados (lista publicada)
-Sharaf Karim (SWE intern, Queen's University) · Shail Patel (2x CWSF Winner) · Pranjol Das (SWE intern, Ford) · Faiaz Umaer (Cell Cathode intern, Tesla) · Taha Mahmood (Product Manager, Enercare) · Daniyal Ahmed (Software Engineer, Dayforce) · Hadeed Khan (Staff Accountant, KPG) · Max Riazantsev (Software Engineer, Hibachi) · Enes Uzun (QA Automation Test Engineer, Morningstar) · Mirza Yasir Abdullah Baig (AI Engineer & Founder, Yasir Insights).
+Sharaf Karim (SWE intern, Queen's University) · Shail Patel (2x CWSF Winner) · Pranjol Das (SWE intern, Ford) · Faiaz Umaer (Cell Cathode intern, Tesla) · Taha Mahmood (Product Manager, Enercare) · Daniyal Ahmed (Software Engineer, Dayforce) · Hadeed Khan (Staff Accountant, KPMG) · Max Riazantsev (Software Engineer, Hibachi) · Enes Uzun (QA Automation Test Engineer, Morningstar) · Mirza Yasir Abdullah Baig (AI Engineer & Founder, Yasir Insights).
 
-Leitura: o júri é sobretudo de jovens engenheiros de software, com um campeão de feira de ciências canadiana (valoriza método, medição e validação), um PM numa empresa de climatização e serviços para casas (valoriza utilizador, problema e métricas), um engenheiro de QA (valoriza testes e robustez) e um contabilista (valoriza clareza para quem não é técnico). São canadianos e avaliam em inglês.
+*Atualização de 25/11/2026:* a lista tem agora **16 jurados**. Juntaram-se, entre outros, um doutorando em IA e neurociência, um Sr. Software Engineer, um Lead Member of Technical Staff e fundadores ligados à IA. A lista de cargos está em `research-2026-11-25.md` (secção 6). Continua a não se saber que jurados avaliam cada trilha.
+
+Leitura (de 20/11, com 10 jurados): o júri é sobretudo de jovens engenheiros de software, com um campeão de feira de ciências canadiana (valoriza método, medição e validação), um PM numa empresa de climatização e serviços para casas (valoriza utilizador, problema e métricas), um engenheiro de QA (valoriza testes e robustez) e um contabilista (valoriza clareza para quem não é técnico). São canadianos e avaliam em inglês.
 
 ## Prémios
 - 1.º: CAD 500 + créditos (Momen $2k, Formaloo $500 + 20 min com o CEO, Deployxa $1k/pessoa, MojoAuth Business Pro, CodeCrafters VIP 2 anos, Adaption Labs $1k + brindes).

@@ -1,5 +1,7 @@
 # Dados reais: vencedores vs não vencedores em hackathons estudantis online (Devpost, 2026)
 
+> **Atualizado a 25/11/2026:** a pesquisa nova, `research-2026-11-25.md` (10 hackathons, 278 projetos, verificada por céticos), substitui este documento sempre que discordarem. A secção 7 dela diz que afirmações daqui se aguentam e quais caíram.
+
 O GenHacks 2026 ainda não tem vencedores (galeria não publicada; termina 26/12/2026) e não há edições anteriores do mesmo organizador. Por isso, estes dados vêm de hackathons estudantis online parecidos, já encerrados em 2026, coletados por um navegador diretamente das galerias do Devpost.
 
 Legenda das métricas automáticas (extraídas da página de cada projeto):

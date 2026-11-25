@@ -1,5 +1,7 @@
 # O que vence (e porque é que os outros perdem)
 
+> **Atualizado a 25/11/2026:** a pesquisa nova, `research-2026-11-25.md` (10 hackathons, 278 projetos, verificada por céticos), substitui este documento sempre que discordarem. A secção 7 dela diz que afirmações daqui se aguentam e quais caíram.
+
 Síntese de 3 análises independentes de 25 vencedores contra cerca de 330 não vencedores em 2 hackathons estudantis online de 2026 (CSC Back-to-School e EurekaDev). Os dados brutos estão em `winners-vs-losers-data.md`. Atenção aos limites: a amostra é pequena, as métricas foram contadas por regex e o que se vê é correlação, não causa.
 
 ## Padrões dos vencedores
