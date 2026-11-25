@@ -147,11 +147,12 @@ onTileClick((tile) => {
   }
   if (!tile) return showToast(BLOCKED_MESSAGES.outside, 'error');
 
+  let done; // a mensagem do que correu bem (ex.: "Clear brush: −€250")
   if (selectedTool === 'undo') {
     const result = undoAction(buildState, tile.x, tile.y);
     if (!result.ok) return showToast(BLOCKED_MESSAGES[result.reason], 'error');
     game.view.setTileType(tile.x, tile.y, result.restoredType); // redesenha o quadrado
-    showToast(`Undone: +${formatEuros(result.refund)}`, 'success');
+    done = `Undone: +${formatEuros(result.refund)}`;
   } else {
     const budgetBefore = remainingBudget(buildState);
     const result = applyAction(buildState, tile.x, tile.y, selectedTool);
@@ -162,11 +163,13 @@ onTileClick((tile) => {
     game.view.setTileType(tile.x, tile.y, result.newType); // redesenha o quadrado
     // O que se pagou mesmo (numa encosta custa mais do que o preço da carta).
     const paid = budgetBefore - remainingBudget(buildState);
-    showToast(`${ACTIONS[selectedTool].label}: −${formatEuros(paid)}`, 'success');
+    done = `${ACTIONS[selectedTool].label}: −${formatEuros(paid)}`;
   }
   updateBudget();
   // O dinheiro e os quadrados mudaram: os que brilham também. Se já não sobra nenhum, avisa.
-  if (updateGlow() === 0) showToast(noTilesMessage(), 'error');
+  // Como só se vê uma mensagem de cada vez, juntamos as duas numa só (senão o preço sumia logo).
+  if (updateGlow() === 0) showToast(`${done} · ${noTilesMessage()}`, 'error');
+  else showToast(done, 'success');
   updateHover();
 });
 

@@ -87,7 +87,8 @@
       { "time": "2018-10-07T10:00", "direction": 9, "speed": 19.7, "gust": 44.6, "temperature": 16, "humidity": 48 }
     ]
   },
-  "briefing": "Serra de Sintra, near Lisbon. Saturday 6 October 2018, 22:50. A north wind of 33 km/h, gusting near 70 km/h, roars down the mountain. In real life, a fire broke out near the Peninha sanctuary and raced downhill towards Malveira da Serra: it burned about 430 hectares, hundreds of people were evacuated, and no aircraft fought it until dawn. You have €20,000 to prepare the village, and the law tells you to clear fuel strips around houses and roads, so that is where you work.",
+  "briefingLead": "Saturday night, 10:50 pm. A north wind of 33 km/h, with gusts of nearly 70 km/h, roars down the Serra de Sintra.",
+  "briefing": "You have €20,000 to prepare the village, and the law tells you to clear fuel strips around houses and roads, so that is where you work. In real life, a fire broke out near the Peninha sanctuary and raced downhill, pushed by the wind, towards Malveira da Serra: it burned about 430 hectares, hundreds of people were evacuated, and no aircraft fought it until dawn.",
   "aftermath": "In real life: about 430 hectares burned (official figure), most of it in one night. Hundreds of people, a campsite and 70 animals from riding stables were evacuated, and 21 people were lightly hurt, almost all of them firefighters. Around 700 firefighters fought the fire, but no aircraft joined them until dawn; it was brought under control at 10:45 the next morning. Since then, the park has been cutting invasive trees and replanting native forest to make the next fire weaker.",
   "ignitionHint": "Tonight a cigarette thrown from a car will start a fire at one of the spots marked ? beside the serra roads. You will not know which one until it happens.",
   "law": {
@@ -123,6 +124,7 @@
     "map": "OpenStreetMap land cover (wood -> E, scrub/heath -> B, grass/farmland/garden -> G, bare rock -> C), buildings (3+ per tile -> H, sparse plots -> gardens G/O) and the main roads, drawn as one line each. The fire station tile and the dry verges at the cigarette spots are game choices.",
     "fetched": "2026-11-22"
   },
+  "creditLine": "Data: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL) · [Open-Meteo](https://open-meteo.com/) (CC BY 4.0) · Copernicus DEM",
   "attribution": [
     "Map data © OpenStreetMap contributors, Open Database License (ODbL 1.0), https://www.openstreetmap.org/copyright. Retrieved via the Overpass API on 22 Nov 2026.",
     "Elevation: Open-Meteo Elevation API (CC BY 4.0), based on the Copernicus DEM GLO-90 (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA)."

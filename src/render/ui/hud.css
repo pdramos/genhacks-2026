@@ -369,6 +369,25 @@ body[data-phase="disaster"] .toast-stack, body[data-phase="result"] .toast-stack
 .story-sources { margin: 0 0 6px; padding-left: 18px; font-size: 12.5px; columns: 2; }
 .story-sources a { color: var(--blue); }
 .credit { font-size: 11.5px; color: var(--ink-soft); }
+.credit a { color: var(--blue); }
+/* A linha curta dos créditos. O botão "Full credits" parece um link; a zona de clique é maior do
+   que a letra (padding com margem negativa), para se acertar com o dedo. */
+.credit-short { position: relative; }
+.credit-tail { white-space: nowrap; }
+.credit-toggle {
+  padding: 6px 4px; margin: -6px -4px; border: 0; background: none; font: inherit; color: var(--blue);
+  text-decoration: underline; cursor: pointer;
+}
+.credit-toggle::after { content: ' \25B8'; }                         /* ▸ fechado */
+.credit-toggle[aria-expanded="true"]::after { content: ' \25BE'; }   /* ▾ aberto */
+.credit-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+/* Os créditos completos abrem num balão POR CIMA da linha curta: o cartão não muda de tamanho. */
+.credit-full {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 1;
+  max-height: 40vh; overflow-y: auto; padding: 8px 10px;
+  border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: var(--hard-shadow);
+}
+.credit-full[hidden] { display: none; }
 
 /* Cartão do briefing (antes de construir): o resto da interface espera por baixo */
 body.briefing #hud, body.briefing #info { visibility: hidden; }
@@ -510,7 +529,7 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
 .law-game-text { margin: 4px 0 0; font-size: 14px; line-height: 1.4; }
 .law-links { margin: 6px 0; padding-left: 18px; font-size: 13.5px; }
 .law-links a { color: var(--blue); }
-/* No cartão do briefing, o botão "The law" fica à esquerda e "Prepare the town" à direita */
+/* No cartão do briefing, o botão "The law" fica à esquerda e "Prepare the village" à direita */
 .briefing-card [data-do="law"] { margin-right: auto; }
 @media (max-height: 520px) {
   /* Ecrã baixo: a carta inteira desliza, como as outras (ver o bloco "Ecrãs baixos" abaixo) */
@@ -555,7 +574,7 @@ body.cinematic .map-markers { display: none; } /* durante a cena do cigarro */
   .tool-price { font-size: 11px; }
   .mini-coin { width: 12px; height: 12px; }
   .tool-hotkey { display: none; } /* no telemóvel não há teclado */
-  .toast-stack { bottom: 214px; } /* por cima do botão de começar */
+  .toast-stack { bottom: 226px; } /* por cima do botão de começar (com folga para 2 linhas) */
   .toast { font-size: 14px; padding: 6px 14px; }
   .result-title { font-size: 21px; }
   .result-number { font-size: 24px; }

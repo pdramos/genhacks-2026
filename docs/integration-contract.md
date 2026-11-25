@@ -20,6 +20,10 @@ Várias pessoas/agentes trabalham ao mesmo tempo, cada uma no **seu ficheiro**. 
   "ignition": { "x": 0, "y": 0 },  // quadrado de vegetação (mato/relva) COLADO a uma estrada: é onde cai o cigarro
   "wind": { "direction": 0, "speed": 0 },  // de onde vem o vento, em graus; km/h
   "briefing": "...", "sources": ["url", ...]  // opcional; os ecrãs de missão chegam depois
+  "briefingLead": "..."  // opcional; 1 frase que aparece POR CIMA do "Your goal" (o briefing vem por baixo)
+  "creditLine": "Data: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL) · ..."
+                         // opcional; linha curta dos créditos no briefing, com ligações [texto](url);
+                         // esconde os créditos completos atrás de "Full credits". Tem de nomear o OpenStreetMap.
   "schoolName": "Fire station"  // opcional; nome do edifício "S" no cartão final (por omissão "School")
 }
 ```

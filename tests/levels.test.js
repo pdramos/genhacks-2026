@@ -209,3 +209,12 @@ test('the Sintra map credits its real data (OpenStreetMap is ODbL: the attributi
   assert.match(credits, /Copernicus/);
   assert.ok(level.sources.includes('https://www.openstreetmap.org/copyright'));
 });
+
+test('the short credit line on the briefing still names OpenStreetMap, ODbL and links the licence', async () => {
+  // A linha curta é a única que se vê sem clicar: a licença ODbL pede que nomeie o OpenStreetMap.
+  const level = JSON.parse(await readFile(new URL('sintra.json', LEVELS_DIR), 'utf8'));
+  assert.match(level.creditLine, /© OpenStreetMap contributors/);
+  assert.match(level.creditLine, /ODbL/);
+  assert.match(level.creditLine, /\(https:\/\/www\.openstreetmap\.org\/copyright\)/);
+  assert.match(level.creditLine, /Open-Meteo/);
+});

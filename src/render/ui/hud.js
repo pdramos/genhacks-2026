@@ -76,11 +76,12 @@ const toastStack = document.createElement('div');
 toastStack.className = 'toast-stack';
 toastStack.setAttribute('role', 'status'); // os leitores de ecrã leem as mensagens novas
 document.body.append(toastStack);
-const MAX_TOASTS = 3;
 const TOAST_MS = 2200;
 
 // Mostra uma mensagem curta que aparece, fica um pouco e desaparece.
 // kind: 'info' (normal), 'success' (verde) ou 'error' (vermelho, abana).
+// Só há UMA mensagem de cada vez: a nova substitui a antiga. (Antes ficavam até 3, mais as que
+// estavam a sair: 6 no ecrã quando se clicava depressa, e no vídeo isso parecia desarrumado.)
 export function showToast(text, kind = 'info') {
   if (!text) return;
   // Se a última mensagem é igual, não empilha outra: só a faz "pulsar" de novo.
@@ -91,12 +92,15 @@ export function showToast(text, kind = 'info') {
     last.hideTimer = setTimeout(() => hideToast(last), TOAST_MS);
     return;
   }
+  // Uma mensagem diferente: as antigas saem já, sem animação, para nunca ficarem duas no ecrã.
+  for (const old of [...toastStack.children]) {
+    clearTimeout(old.hideTimer);
+    old.remove();
+  }
   const toast = document.createElement('div');
   toast.className = `toast ${kind}`;
   toast.textContent = text;
   toastStack.append(toast);
-  // Demasiadas mensagens? Tira a mais antiga.
-  if (toastStack.children.length > MAX_TOASTS) hideToast(toastStack.firstElementChild);
   toast.hideTimer = setTimeout(() => hideToast(toast), TOAST_MS);
 }
 
@@ -247,8 +251,10 @@ function moveBetweenLetters(angle, real, spread) {
 }
 
 // ---------- Cartão do briefing (antes da construção) ----------
-// Conta a história verdadeira do nível (level.briefing) e só depois deixa construir.
-// onStart é chamado quando o jogador carrega em "Prepare the town".
+// Conta a história verdadeira do nível e só depois deixa construir. A ordem é:
+//   level.briefingLead (a abertura, 1 frase) -> "Your goal" -> level.briefing (o resto).
+// Assim o objetivo aparece logo no início, e não depois de um parágrafo inteiro.
+// onStart é chamado quando o jogador carrega em "Prepare the village".
 export function showBriefingCard(level, onStart) {
   if (!level.briefing) { onStart?.(); return null; }
   const card = document.createElement('div');
@@ -258,7 +264,7 @@ export function showBriefingCard(level, onStart) {
     <div class="result-title">Mission briefing</div>
     <div class="briefing-name"></div>
     <div class="briefing-place"></div>
-    <p class="briefing-text"></p>
+    <p class="briefing-text briefing-lead"></p>
     <div class="briefing-goal">
       <div class="story-heading">Your goal</div>
       <ul class="goal-list">
@@ -268,15 +274,29 @@ export function showBriefingCard(level, onStart) {
       </ul>
       <p class="goal-hint"></p>
     </div>
-    <div class="credit">Real weather of that night: Open-Meteo (CC BY 4.0)</div>
+    <p class="briefing-text briefing-rest"></p>
+    <div class="credit">Real weather of that night: Open-Meteo (CC BY 4.0), from ERA5 (Copernicus Climate Change Service)</div>
     <div class="result-buttons">
-      <button type="button" class="result-button" data-do="start">Prepare the town</button>
+      <button type="button" class="result-button" data-do="start">Prepare the village</button>
     </div>`;
   card.querySelector('.briefing-name').textContent = level.name;
   card.querySelector('.briefing-place').textContent = level.place || '';
-  card.querySelector('.briefing-text').textContent = level.briefing;
+  // Sem abertura no nível, a história inteira vai para cima do objetivo (como era antes).
+  const lead = card.querySelector('.briefing-lead');
+  const rest = card.querySelector('.briefing-rest');
+  if (level.briefingLead) {
+    lead.textContent = level.briefingLead;
+    rest.textContent = level.briefing;
+  } else {
+    lead.textContent = level.briefing;
+    rest.remove();
+  }
   // Os créditos do mapa e do relevo (OpenStreetMap, Copernicus), por baixo do crédito do tempo.
   addLevelCredits(card.querySelector('.credit'), level);
+  // Os créditos completos têm ~60 palavras: ficam escondidos atrás de uma linha curta
+  // (level.creditLine) com um botão "Credits" que os abre. A linha curta continua a nomear o
+  // OpenStreetMap, como pede a licença ODbL.
+  if (level.creditLine) foldCredits(card, level.creditLine);
   // As regras das estrelas (src/sim/stars.js): sem o edifício importante, 0 estrelas.
   const school = level.schoolName || 'School';
   card.querySelector('.goal-school').textContent = `Save the ${school.toLowerCase()} (lose it and you get no stars)`;
@@ -479,6 +499,61 @@ function addLevelCredits(after, level) {
     });
     last.after(credit);
     last = credit;
+  }
+}
+
+// Junta todas as linhas .credit do cartão numa caixa escondida e põe no lugar delas uma linha curta:
+//   "Data: © OpenStreetMap contributors (ODbL) · Open-Meteo (CC BY 4.0) · Copernicus DEM · Full credits"
+// O botão "Full credits" abre a caixa POR CIMA da linha curta, como um balão: assim o cartão não
+// cresce nem sai do ecrã. aria-expanded diz aos leitores de ecrã se está aberta; Escape fecha.
+function foldCredits(card, shortText) {
+  const lines = [...card.querySelectorAll('.credit')];
+  if (lines.length === 0) return;
+  const short = document.createElement('div');
+  short.className = 'credit credit-short';
+  lines[0].before(short);
+  appendWithLinks(short, shortText);
+  const full = document.createElement('div');
+  full.className = 'credit-full';
+  full.id = 'credit-full-' + Math.random().toString(36).slice(2, 8);
+  full.hidden = true;
+  full.append(...lines);
+  // O separador e o botão andam juntos (nowrap), para o "·" nunca ficar sozinho no fim da linha.
+  const tail = document.createElement('span');
+  tail.className = 'credit-tail';
+  tail.append(' · ');
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'credit-toggle';
+  toggle.textContent = 'Full credits';
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-controls', full.id);
+  const setOpen = (open) => {
+    full.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+  };
+  toggle.addEventListener('click', () => setOpen(full.hidden));
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !full.hidden) { setOpen(false); toggle.focus(); }
+  });
+  tail.append(toggle);
+  short.append(tail, full);
+}
+
+// Escreve um texto com ligações no estilo "[texto](https://...)" (como no markdown) dentro de
+// `element`. O texto entra com append (nunca vira HTML), por isso é seguro.
+function appendWithLinks(element, text) {
+  // split com dois grupos () dá: [texto, nome, endereço, texto, nome, endereço, ..., texto]
+  const parts = text.split(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/);
+  for (let i = 0; i < parts.length; i += 3) {
+    element.append(parts[i]);
+    if (i + 2 >= parts.length) break; // o último pedaço é só texto
+    const link = document.createElement('a');
+    link.textContent = parts[i + 1];
+    link.href = parts[i + 2];
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    element.append(link);
   }
 }
 
