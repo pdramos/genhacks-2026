@@ -29,6 +29,7 @@ import { resolveIgnition } from '../src/sim/ignition.js';
 import { windForLevel } from '../src/sim/weather.js';
 import { countStars } from '../src/sim/stars.js';
 import { createRandom } from '../src/sim/random.js';
+import { TOO_EASY_STARS } from '../src/sim/balance.js';
 
 const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
 // O plano do perito: uma lista de ações { x, y, action }, feita antes de saber onde cai o cigarro.
@@ -208,9 +209,21 @@ function summarize(runs) {
 }
 
 // Joga tudo uma vez só (os testes abaixo só leem os resultados).
-const results = Object.fromEntries(
-  Object.entries(STRATEGIES).map(([name, strategy]) => [name, summarize(play(strategy))]),
+const runsByName = Object.fromEntries(
+  Object.entries(STRATEGIES).map(([name, strategy]) => [name, play(strategy)]),
 );
+const results = Object.fromEntries(
+  Object.entries(runsByName).map(([name, runs]) => [name, summarize(runs)]),
+);
+
+// As noites que o jogo SORTEIA: salta as "fáceis demais", em que não fazer nada já dava
+// TOO_EASY_STARS estrelas ou mais (src/sim/counterfactual.js, pickNightSeed). A tabela de cima
+// é sobre TODAS as noites do modelo; esta é só sobre as que um jogador pode apanhar ao acaso.
+const dealt = runsByName.nothing.map((run) => run.stars < TOO_EASY_STARS);
+const dealtResults = Object.fromEntries(
+  Object.entries(runsByName).map(([name, runs]) => [name, summarize(runs.filter((_, i) => dealt[i]))]),
+);
+const dealtCount = dealt.filter(Boolean).length;
 
 // A tabela, para quem corre "npm test".
 const percent = (share) => `${Math.round(share * 100)}%`.padStart(4);
@@ -221,6 +234,12 @@ for (const [name, r] of Object.entries(results)) {
     `${name.padEnd(10)} ${r.average.toFixed(2).padStart(9)}   ${r.byStars.map((n) => String(n).padStart(2)).join('/')}   `
     + `${percent(r.twoOrMoreShare)}  ${percent(r.threeShare)}  ${String(r.averageSpent).padStart(6)}`,
   );
+}
+console.log(`
+Nights the game deals (doing nothing under ${TOO_EASY_STARS} stars): ${dealtCount} of ${SEEDS.length}`);
+for (const name of ['nothing', 'good', 'expert']) {
+  const r = dealtResults[name];
+  console.log(`${name.padEnd(10)} ${r.average.toFixed(2).padStart(9)}   ${percent(r.twoOrMoreShare)} with 2+ stars   ${percent(r.threeShare)} with 3 stars`);
 }
 
 // ---------- As metas ----------
@@ -341,4 +360,13 @@ test('clearing the brush around every "?" is no shortcut: few 3 stars, well belo
   assert.ok(results.markers.threeShare < 0.35, `markers: ${percent(results.markers.threeShare)} with 3 stars`);
   assert.ok(results.markers.average <= results.expert.average - 0.7,
     `markers ${results.markers.average.toFixed(2)} vs expert ${results.expert.average.toFixed(2)}`);
+});
+
+test('on the nights the game deals, doing nothing loses and the expert plan still saves everything on at least half', () => {
+  // Sem as noites fáceis demais, "não fazer nada" quase nunca ganha estrelas, mas um bom plano
+  // continua a poder salvar tudo: a noite precisa de um plano, e o plano funciona.
+  assert.ok(dealtCount >= SEEDS.length * 0.6, `only ${dealtCount} of ${SEEDS.length} nights are dealt`);
+  assert.equal(dealtResults.nothing.twoOrMoreShare, 0);
+  assert.ok(dealtResults.nothing.average < 0.3, `doing nothing: ${dealtResults.nothing.average.toFixed(2)} stars`);
+  assert.ok(dealtResults.expert.threeShare >= 0.5, `expert: 3 stars on ${percent(dealtResults.expert.threeShare)}`);
 });

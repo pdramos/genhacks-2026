@@ -1,7 +1,7 @@
 # Same Night: one real wildfire, three plans
 
-**▶ Play it in your browser: https://pdramos.github.io/genhacks-2026/** (no account, nothing to
-install; made for a computer browser) · GenHacks 2026, Healthcare & Environmental track
+**▶ Play it in your browser: https://pdramos.github.io/genhacks-2026/?seed=1960** (no account, nothing to
+install; made for a computer browser; the link opens a night chosen for learning) · GenHacks 2026, Healthcare & Environmental track
 
 > **A 3D game: prepare a real Portuguese village for the 2018 wildfire that forced 347 people out;
 > that night's real wind drives the fire. Our fire matches the official burn map at
@@ -80,6 +80,12 @@ single hectare.
   tuned by computer on other random versions of this same night (same map, same six "?" spots, same
   wind; seeds 3001-3400 and 5001-5300), not on these 120. So 68% shows that a plan can work on this
   night, not that it works on other fires.
+- **No free wins.** On 24% of these 120 nights (29% of 2,000 with `BALANCE_SEEDS=2000`), doing nothing already earns 2 or 3
+  stars, because the wind takes the fire away from the village. A player who got one of those first
+  would think doing nothing wins. So a new game never deals one: it draws another night
+  (`pickNightSeed` in `src/sim/counterfactual.js`). On the 91 nights it can deal, doing nothing
+  averages 0.09 stars and the expert plan still saves everything on 68% (the second table that
+  `tests/balance.test.js` prints).
 - **Fair dice:** every tile has its own fixed "dice" for each 10-minute step, so changing one tile
   only changes the fire where that tile matters. Before this, one change reshuffled the whole night.
   A test (`tests/counterfactual.test.js`, "the judge night") now checks that none of the 21 actions

@@ -22,8 +22,10 @@ prepare a real Portuguese village for the 2018 wildfire that forced 347 people o
 plans: an expert plan saves the whole village 68% of the time; doing nothing, 10%.
 
 **Links ("Try it out"):**
-- Play: https://pdramos.github.io/genhacks-2026/ (no account; made for a computer browser). After
-  the seed is chosen on 29/11, add `?seed=<X>` here and in the two Play links of the About.
+- Play: https://pdramos.github.io/genhacks-2026/?seed=1960 (no account; made for a computer browser). Night 1960 was
+  chosen on 26/11 by AI agents who played 8 candidate nights: doing nothing loses 100 houses and the
+  fire station, a sensible plan gets 181/194 (2 stars), the expert plan 194/194, and the cigarette
+  scene is not hidden by trees. Reserve: night 531. Re-check both after any change to `src/sim/`.
 - Code: https://github.com/pdramos/genhacks-2026
 - Video: [TODO: YouTube link ("unlisted"), due 15/12]
 - Already inside the About: the ICNF burned-area map service
@@ -73,6 +75,10 @@ changed" warning. The captions quote no numbers from the screen.
   map; 23% of the fire inside the map; five of six "?" on the east side: `docs/validation.md`.
 - 68% / 10% / 13% / 16%, 2.47 / 0.65 / 0.77 / 1.68 stars, €18,590: the table that
   `node --test tests/balance.test.js` prints (strategies expert, nothing, naive, good).
+- No free wins: 24% of the 120 nights (29% of 2,000, with `BALANCE_SEEDS=2000`) give doing nothing 2+ stars; 91 of 120 are
+  dealt; on those, doing nothing 0.09 stars and the expert 68%: the second table of the same test.
+- Night 1960 (the Play link): doing nothing 100/194 and the fire station lost, a sensible plan
+  181/194, the expert 194/194. Check it on the published site after any change to `src/sim/`.
 - Expert plan tuned on other random versions of the same night (seeds 3001-3400 and 5001-5300, not
   1-120): comment in `tests/balance.test.js`, line 148.
 - 231 tests, about 3 s: `npm test`.
@@ -101,7 +107,8 @@ work?" (and turn the two tables in "Measured behaviour" into lists the same way)
   compared tile by tile with ICNF's official burned-area map. Overlap (0 = none, 1 = identical):
   **0.65** with the real wind of that night, **0.47** with no wind.
 - **Does a plan beat luck?** 120 replays of the night, every plan facing the same fires. Whole village
-  saved: expert plan on **68%** of replays, doing nothing on **10%**.
+  saved: expert plan on **68%** of replays, doing nothing on **10%**. The game never deals a night
+  that doing nothing would win, so on the nights you can get, doing nothing averages **0.09** stars.
 - **Do players learn?** A 5-question anonymous quiz before and after (`?playtest=1`). **Not measured
   yet.**
 
@@ -132,7 +139,7 @@ work?" (and turn the two tables in "Measured behaviour" into lists the same way)
   work matters: over 120 replays of the night, an expert plan saves the whole village on **68%** of
   them; doing nothing, on **10%**.
 
-**Play it:** https://pdramos.github.io/genhacks-2026/ (no account, nothing to install; made for a
+**Play it:** https://pdramos.github.io/genhacks-2026/?seed=1960 (no account, nothing to install; made for a
 computer browser) · [source code](https://github.com/pdramos/genhacks-2026)
 
 ## The night, and the law
@@ -177,8 +184,9 @@ starts is a "what if".
 **3. The result: same night, three plans.** Stars for the houses you saved, and **no stars if the
 fire station burns**. Then the game replays the exact same night twice in the background, doing nothing and
 with an expert plan, and shows the three results side by side, with at most two short lessons, like
-*"The wind blows from the north: work just south (downwind) of the ? spots."* If doing nothing would
-have saved every house as well, it says **"Lucky night"** instead of praising you.
+*"The wind blows from the north: work just south (downwind) of the ? spots."* And there are no free
+wins: if a new game draws a night where doing nothing would earn 2 or 3 stars, it draws another one,
+so every night needs a plan.
 
 **4. Try again (same night).** It keeps the same wind, the same "?" and the same luck (the same
 random numbers), so the only thing that changes is your plan. (If you work on that "?", the
@@ -192,7 +200,7 @@ Three questions, each with its own test:
 | Question | How we tested it | Result |
 |---|---|---|
 | Does our fire behave like the real one? | 1,000 runs starting from the map tile nearest the recorded start (which lies about 360 m north of the map), with no player actions, compared tile by tile with the official burned-area map from ICNF, Portugal's forest agency | Overlap (0 = none, 1 = identical): **0.65** with the real wind of that night, **0.47** with no wind |
-| Does a plan beat luck? | 120 replays of the night in the game (the fire starts at one of the six "?", same real wind); every plan faces the same fires | Whole village saved (every house and the fire station): expert plan on **68%** of replays, doing nothing on **10%** |
+| Does a plan beat luck? | 120 replays of the night in the game (the fire starts at one of the six "?", same real wind); every plan faces the same fires | Whole village saved (every house and the fire station): expert plan on **68%** of replays, doing nothing on **10%**. The game never deals those winning nights for doing nothing: on the ones it deals, doing nothing averages **0.09** stars |
 | Do players learn? | A 5-question anonymous quiz before and after playing (`?playtest=1`, no names stored) | **Not measured yet** |
 
 What these numbers do and do not say:
@@ -310,6 +318,10 @@ counts.
 - **Making it hard but possible.** Early versions were either hopeless or trivial. Now a balance test
   plays 8 strategies on 120 replays and fails if doing nothing gets 3 stars on 15% of replays or more,
   or if the expert plan gets 3 stars on fewer than half of them.
+- **No free wins.** On about 3 nights in 10, the wind takes the fire away from the village and doing
+  nothing already earns 2 or 3 stars. A player who got one of those first would learn the wrong
+  lesson: that you do not need to do anything. So a new game never deals such a night: it draws
+  another one. On the nights it can deal, the expert plan still saves everything on 68% of them.
 - **Luck hiding skill.** An AI agent, playing the game the way a judge would, found a night where
   following the game's own advice saved *fewer* houses than doing nothing. The fire drew all its
   random numbers from one queue, so changing one tile reshuffled the whole night: 15 of that player's
@@ -353,7 +365,7 @@ the AI tools I directed. The rules ask us to list all AI use, so here it is.
 
 ## Try it
 
-- **Play** (no account; made for a computer browser): https://pdramos.github.io/genhacks-2026/
+- **Play** (no account; made for a computer browser): https://pdramos.github.io/genhacks-2026/?seed=1960
 - **Every 3D piece, built in code:** https://pdramos.github.io/genhacks-2026/gallery.html?style=sintra
 - **Code:** https://github.com/pdramos/genhacks-2026 (`npm test`, `npm run validate`)
 

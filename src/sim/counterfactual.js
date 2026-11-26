@@ -10,6 +10,7 @@ import { runDisaster } from './fire.js';
 import { resolveIgnition, pickIgnition } from './ignition.js';
 import { windForLevel } from './weather.js';
 import { countStars } from './stars.js';
+import { TOO_EASY_STARS } from './balance.js';
 
 // Joga UMA noite do princípio ao fim com uma lista de ações [{ x, y, action }, ...].
 // São os mesmos passos do jogo (e do tests/balance.test.js): vila nova, ações, onde cai o
@@ -43,6 +44,25 @@ export function compareNight(level, seed, playerOutcome, playerStart = null) {
   const picked = pickIgnition(level, seed);
   const movedStart = Boolean(playerStart) && (playerStart.x !== picked.x || playerStart.y !== picked.y);
   return { player, nothing, expert, lucky, showLuckyBanner: luckyAndUntested(lucky, player), movedStart };
+}
+
+// "Esta noite é fácil demais?" Sim quando, sem fazer nada, já se ganham TOO_EASY_STARS estrelas
+// ou mais (balance.js). Demora cerca de 2 ms: joga a noite uma vez, sem nenhuma ação.
+export function isTooEasyNight(level, seed) {
+  return playPlan(level, seed, []).stars >= TOO_EASY_STARS;
+}
+
+// Sorteia a semente de um jogo novo, mas salta as noites fáceis demais: assim nenhum jogador
+// apanha, por azar, uma primeira partida em que "não fazer nada" ganha.
+//   nextSeed = a função que sorteia uma semente (no jogo: newSeed, em src/render/runState.js)
+//   maxTries = quantas vezes tentar no máximo (cerca de 7 em cada 10 noites servem, por isso
+//              50 tentativas falhadas seguidas são praticamente impossíveis; é só uma segurança
+//              para níveis onde TODAS as noites são fáceis: aí devolve a última, sem ficar preso).
+// Só serve para jogos novos: o "?seed=" do link e o "Try again (same night)" não passam por aqui.
+export function pickNightSeed(level, nextSeed, maxTries = 50) {
+  let seed = nextSeed();
+  for (let tries = 1; tries < maxTries && isTooEasyNight(level, seed); tries++) seed = nextSeed();
+  return seed;
 }
 
 // Noite com sorte E o jogador também com 3 estrelas: o plano dele não foi posto à prova.

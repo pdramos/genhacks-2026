@@ -97,3 +97,10 @@ export const DEFAULT_BUDGET = 6000;
 // ---------- Estrelas ----------
 // Que parte das casas é preciso salvar para a 2.ª estrela (ver src/sim/stars.js).
 export const TWO_STAR_SHARE = 0.8;
+
+// Uma noite é "fácil demais" quando, SEM FAZER NADA, já se ganham pelo menos estas estrelas.
+// Em ~29% das noites do modelo, o vento leva o fogo para longe e "não fazer nada" dá 2 ou 3
+// estrelas. Um jogador que apanhe uma dessas na primeira partida conclui que não precisa de
+// fazer nada para ganhar. Por isso o jogo não as sorteia (ver pickNightSeed em counterfactual.js).
+// (Decisão do estudante, 26/11/2026.)
+export const TOO_EASY_STARS = 2;

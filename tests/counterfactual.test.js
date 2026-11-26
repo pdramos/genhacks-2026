@@ -10,7 +10,9 @@ import { runDisaster } from '../src/sim/fire.js';
 import { resolveIgnition, pickIgnition } from '../src/sim/ignition.js';
 import { windForLevel } from '../src/sim/weather.js';
 import { countStars } from '../src/sim/stars.js';
-import { playPlan, compareNight, nightLessons, luckyAndUntested } from '../src/sim/counterfactual.js';
+import { playPlan, compareNight, nightLessons, luckyAndUntested, isTooEasyNight, pickNightSeed } from '../src/sim/counterfactual.js';
+import { createRandom } from '../src/sim/random.js';
+import { TOO_EASY_STARS } from '../src/sim/balance.js';
 
 const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
 const EXPERT_ACTIONS = level.expertPlan.actions;
@@ -289,4 +291,41 @@ test('the judge night: no single sensible action makes the night worse, and the 
     assert.ok(alone >= nothing, `${action.action} at (${action.x}, ${action.y}) alone: ${alone} houses, doing nothing: ${nothing}`);
   }
   assert.ok(playPlan(level, seed, actions).housesSaved > nothing);
+});
+
+// ---------- Noites fáceis demais: o jogo não as sorteia ----------
+// Noite 14: o vento leva o fogo para longe e "não fazer nada" dá 3 estrelas (uma "Lucky night").
+// Noite 16: "não fazer nada" dá 2 estrelas. Noite 7: sem plano, perde-se o quartel (0 estrelas).
+
+test('a night that doing nothing wins (2 or 3 stars) is too easy; one that needs a plan is not', () => {
+  assert.equal(TOO_EASY_STARS, 2);
+  assert.equal(playPlan(level, 14, []).stars, 3);
+  assert.equal(isTooEasyNight(level, 14), true);
+  assert.equal(playPlan(level, 16, []).stars, 2);
+  assert.equal(isTooEasyNight(level, 16), true);
+  assert.equal(playPlan(level, 7, []).stars, 0);
+  assert.equal(isTooEasyNight(level, 7), false);
+});
+
+test('pickNightSeed skips the nights that are too easy and keeps the first one that needs a plan', () => {
+  const queue = [14, 16, 7, 14];
+  const seed = pickNightSeed(level, () => queue.shift());
+  assert.equal(seed, 7);
+  assert.deepEqual(queue, [14], 'it stops drawing as soon as it finds a good night');
+});
+
+test('pickNightSeed gives up after maxTries instead of looping forever', () => {
+  let draws = 0;
+  const seed = pickNightSeed(level, () => { draws++; return 14; }, 5);
+  assert.equal(seed, 14);
+  assert.equal(draws, 5);
+});
+
+test('in 200 new games, the game never deals a night that doing nothing would win', () => {
+  const rand = createRandom(2026);
+  const nextSeed = () => 1 + Math.floor(rand() * 2147483646); // como newSeed (src/render/runState.js)
+  for (let game = 0; game < 200; game++) {
+    const seed = pickNightSeed(level, nextSeed);
+    assert.ok(playPlan(level, seed, []).stars < TOO_EASY_STARS, `seed ${seed} is too easy`);
+  }
 });

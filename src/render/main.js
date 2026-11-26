@@ -9,6 +9,7 @@ import { createFireFx } from './fireFx.js';
 import { createWindFx } from './windFx.js';
 import { windForLevel } from '../sim/weather.js';
 import { newSeed, saveRetry, loadRetry } from './runState.js';
+import { pickNightSeed } from '../sim/counterfactual.js';
 
 const params = new URLSearchParams(location.search);
 // ?level=demo carrega data/levels/demo.json (por omissão, o nível a sério: Sintra, outubro de 2018).
@@ -22,10 +23,12 @@ const style = await import(`./styles/${styleName}.js`);
 // Cada jogo novo sorteia uma semente (é ela que decide onde cai o cigarro e o acaso do fogo).
 // "Try again (same night)" (no cartão do fim) guarda a semente e o plano antes de recarregar
 // a página: se os encontrarmos aqui, repetimos a MESMA noite com o MESMO plano.
-// ?seed=123 fixa a semente à mão (útil para testar).
+// ?seed=123 fixa a semente à mão (o link do playtest e do Devpost usam isto).
+// Num jogo novo sorteado, o jogo salta as noites em que "não fazer nada" já ganhava
+// (pickNightSeed): ninguém deve achar, na primeira partida, que não precisa de fazer nada.
 const RETRY_KEY = 'brace-retry';
 const retry = takeRetry();
-const seed = retry?.seed ?? (Number(params.get('seed')) || newSeed());
+const seed = retry?.seed ?? (Number(params.get('seed')) || pickNightSeed(level, newSeed));
 
 // Lê (e apaga logo) o "Try again" guardado. O try/catch é porque o navegador pode bloquear o
 // sessionStorage (janela privada, por exemplo): nesse caso é só um jogo novo.

@@ -16,9 +16,11 @@ import { createStartButton, showWind, hideWind, isWindVisible, setWindAngles, pu
 import { lostHouses, describeLostHouses } from './mapHints.js';
 import { markLostHouses } from './mapMarkers.js';
 
-// Ritmo do "filme": cada passo dura no máximo 2 segundos e o filme todo no máximo 40 segundos.
+// Ritmo do "filme": cada passo dura no máximo 2 segundos e o filme todo no máximo 30 segundos.
+// (Eram 40 s: nos testes, ficar tanto tempo só a ver, sem nada para decidir, cansava, sobretudo
+// no "Try again". Não descer abaixo de 30 s: as brasas e o fumo precisam de tempo para se verem.)
 const MAX_STEP_MS = 2000;
-const MAX_TOTAL_MS = 40000;
+const MAX_TOTAL_MS = 30000;
 // Quanto tempo (no máximo) uma brasa demora a voar até cair. O MESMO tempo vai para o
 // fireFx.ember (a animação) e para o atraso do ignite: o fogo nasce quando a brasa aterra.
 const EMBER_FLIGHT_MS = 1300;
