@@ -82,6 +82,19 @@ body.quiz-open .wind-chip, body.quiz-open #info { visibility: hidden; }
 
 /* "Finish playtest" no cartão do fim: roxo, a cor do modo de teste */
 .result-button.playtest-finish { background: #c9b8f0; }
+/* Os cartões que explicam o playtest (os 3 passos e "Step 2: play!") */
+.quiz-steps { margin: 4px 0 10px; padding-left: 22px; font-size: 16px; line-height: 1.4; }
+.quiz-steps li { margin: 0 0 6px; }
+.quiz-why { font-weight: 600; }
+.quiz-privacy { margin-top: 10px; line-height: 1.4; }
+.quiz-review-picked { font-size: 14px; color: var(--red); }
+/* Durante os cartões do playtest o 3D fica quase tapado: as faixas que brilham davam pistas */
+body.quiz-open .quiz-backdrop { background: rgba(30, 20, 10, .92); }
+/* O "botão" de exemplo dentro do texto: igual ao verdadeiro, para o jogador o reconhecer depois */
+.finish-sample {
+  display: inline-block; padding: 1px 10px; border: 2px solid var(--ink); border-radius: 10px;
+  background: #c9b8f0; font-weight: 700; white-space: nowrap;
+}
 
 /* ---------- Ecrãs baixos (telemóvel deitado) ---------- */
 /* hud.css já faz a carta toda deslizar com os botões colados em baixo. Aqui mantemos a coluna

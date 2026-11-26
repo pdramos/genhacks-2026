@@ -33,7 +33,7 @@ const OUTCOME_LABELS = {
   improved: 'Learned it',
   kept: 'Knew it',
   missed: 'Still to learn',
-  worse: 'Changed to wrong',
+  worse: 'Was right, now wrong',
   right: 'Right', // só quando não há respostas do "antes"
   wrong: 'Wrong',
 };
@@ -56,11 +56,82 @@ async function startPlaytest() {
   });
   // "Play again" e "Try again" recarregam a página: o mesmo jogador não responde outra vez.
   if (readCurrent()) return;
+  // 1) Para que serve tudo isto (os 3 passos) e o aviso do que é enviado.
+  await showWelcome();
+  // 2) As perguntas de ANTES de jogar.
   const before = await runQuiz(questions, 'before');
   writeCurrent({ before });
   recordQuiz('before', before, scoreQuiz(questions, before));
+  // 3) Em vez de o quiz simplesmente desaparecer: o que fazer agora e como acabar.
+  await showNowPlay();
   // O briefing estava escondido por baixo: o foco vai para o botão dele.
   document.querySelector('.briefing-card [data-do="start"]')?.focus();
+}
+
+// ---------- Os cartões que explicam o playtest ----------
+// Um cartão só com texto e um botão. Devolve uma promessa que acaba quando se carrega no botão.
+// fill(body) = a função que põe o texto no meio do cartão.
+function showInfoCard(title, fill, buttonText) {
+  const { card, body, buttons, close } = openCard(title);
+  card.classList.add('quiz-info');
+  fill(body);
+  const go = makeButton(buttonText);
+  buttons.append(go);
+  go.focus();
+  return new Promise((resolve) => go.addEventListener('click', () => { close(); resolve(); }));
+}
+
+function paragraph(text, className = 'quiz-intro') {
+  const p = document.createElement('p');
+  p.className = className;
+  p.textContent = text;
+  return p;
+}
+
+// O 1.º cartão: os 3 passos, PORQUÊ comparar o antes com o depois, e o que é enviado.
+function showWelcome() {
+  return showInfoCard('Help test this game', (body) => {
+    body.append(paragraph('Thank you for testing Same Night! It takes about 10 minutes, in 3 steps:'));
+    const steps = document.createElement('ol');
+    steps.className = 'quiz-steps';
+    for (const text of [
+      'Answer 5 quick questions about wildfires. It is fine not to know the answers.',
+      'Play: prepare a real village with €20,000, then watch a fire spread with the real weather of that night. You can try again.',
+      'When the fire is over, press "Finish playtest" on the results card and answer the same 5 questions again.',
+    ]) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      steps.append(li);
+    }
+    body.append(steps);
+    body.append(paragraph('Why the same questions twice? Comparing your answers before and after playing '
+      + 'shows if the game taught you something. That is what this test is for.', 'quiz-intro quiz-why'));
+    body.append(paragraph('This is not a school test: we are testing the game, not you. Please do not look '
+      + 'anything up, just pick what you think.'));
+    body.append(paragraph('No names. Your answers, how you play (clicks and times), your device type and '
+      + 'screen size are sent to the student who made this game. Like any website, the database also keeps '
+      + 'technical records for a short time (for example, your IP address). If you are under 13, ask a parent '
+      + 'first. If you do not want to take part, just close this page.', 'credit quiz-privacy'));
+  }, 'Start the 5 questions');
+}
+
+// O cartão depois das perguntas de antes: agora joga, e no fim carrega no botão roxo.
+function showNowPlay() {
+  return showInfoCard('Step 2: play!', (body) => {
+    body.append(paragraph('Step 1 done, thanks! Your first answers are saved. You will not see the right '
+      + 'answers yet: they come at the end, after you answer the same questions again.'));
+    body.append(paragraph('Now prepare the village and press "Start disaster" to see if your plan stops the '
+      + 'fire. You can try again as many times as you like.'));
+    const finish = document.createElement('p');
+    finish.className = 'quiz-intro';
+    const sample = document.createElement('span');
+    sample.className = 'finish-sample';
+    sample.textContent = 'Finish playtest';
+    finish.append('When you are done, press ', sample, ' on the card at the end (the one with the stars). '
+      + 'The same 5 questions come back, and then you see your answers from before and after. '
+      + 'Please do not close the page before that.');
+    body.append(finish);
+  }, 'Play');
 }
 
 async function loadQuestions() {
@@ -198,15 +269,11 @@ function runQuiz(questions, stage) {
       const intro = document.createElement('p');
       intro.className = 'quiz-intro';
       intro.textContent = isBefore
-        ? 'A quick quiz before you play, then the game, then the same quiz again. No names. '
-          + 'Your answers, how you play (clicks and times) and your device type and screen size are '
-          + 'sent to the student who made this game, to see if it teaches anything. Like any website, '
-          + 'the database service briefly keeps connection logs (such as the IP address). '
-          + 'If you are under 13, ask a parent first. If you do not want to take part, just close this page.'
-        : 'The same questions again. Pick the best answer.';
+        ? 'Before playing: pick what you think. It is fine not to know. You will see the right answers at the end.'
+        : 'After playing: the same 5 questions (the answers are in a new order). Pick what you think now; it is fine to keep an answer.';
       const progress = document.createElement('div');
       progress.className = 'story-heading quiz-progress';
-      progress.textContent = `Question ${index + 1} of ${questions.length}`;
+      progress.textContent = `${isBefore ? 'Before playing' : 'After playing'} · Question ${index + 1} of ${questions.length}`;
       const text = document.createElement('div');
       text.className = 'quiz-question';
       text.id = `quiz-question-${index}`;
@@ -239,7 +306,7 @@ function runQuiz(questions, stage) {
       if (index === 0) body.append(intro);
       body.append(progress, text, list);
       next.disabled = true;
-      next.textContent = index < questions.length - 1 ? 'Next' : (isBefore ? 'Start the game' : 'See my results');
+      next.textContent = index < questions.length - 1 || !isBefore ? 'Next' : 'Done';
       body.scrollTop = 0;
       card.scrollTop = 0;
       // O foco vai para a PERGUNTA, não para a opção 1: assim um Enter sem querer não responde.
@@ -297,6 +364,15 @@ function showFinalScreen(questions, before, after, saved, sent) {
     scores.append(scoreBox('After', afterScore));
   }
   body.append(scores);
+  if (beforeScore) {
+    const diff = afterScore.correct - beforeScore.correct;
+    let message;
+    if (diff > 0) message = `You got ${diff} more right after playing.`;
+    else if (afterScore.correct === afterScore.total) message = 'You already knew all of it!';
+    else if (diff === 0) message = 'Same score as before.';
+    else message = 'A little lower than before. That happens!';
+    body.append(paragraph(`${message} Below: each question, the right answer and why.`, 'quiz-intro quiz-why'));
+  }
   // O estado do envio fica logo aqui em cima, para quem joga em casa saber se já pode fechar.
   const sendNote = document.createElement('p');
   sendNote.className = 'quiz-send';
@@ -305,7 +381,7 @@ function showFinalScreen(questions, before, after, saved, sent) {
   body.append(sendNote);
   sent?.then((status) => {
     sendNote.textContent = {
-      sent: 'Sent! Thank you. You can close this page now.',
+      sent: 'Sent! Thank you. Read the answers below, then close this page or play again.',
       refused: 'The results server did not accept them, sorry. They are saved on this device.',
       offline: 'Could not send them (no internet?). They are saved on this device and will be sent next time.',
     }[status] ?? '';
@@ -334,11 +410,19 @@ function showFinalScreen(questions, before, after, saved, sent) {
     text.textContent = question.question;
     const answer = document.createElement('div');
     answer.className = 'quiz-review-answer';
-    answer.textContent = `Answer: ${question.options[question.answer]}`;
+    answer.textContent = `Right answer: ${question.options[question.answer]}`;
     const why = document.createElement('div');
     why.className = 'quiz-review-why';
     why.textContent = question.explanation;
     item.append(tag, text, answer, why);
+    // Errada agora: mostra também o que escolheu (por cima da certa), para se perceber o erro.
+    const picked = after?.[i];
+    if (!afterScore.perQuestion[i] && Number.isInteger(picked) && question.options[picked]) {
+      const yours = document.createElement('div');
+      yours.className = 'quiz-review-picked';
+      yours.textContent = `You picked: ${question.options[picked]}`;
+      answer.before(yours);
+    }
     list.append(item);
   });
   body.append(list);
@@ -391,7 +475,7 @@ function showFinalScreen(questions, before, after, saved, sent) {
 // "As tuas escolhas mudaram o que aconteceu?" (Yes / A little / No) e "o que confundiu?" (texto
 // curto). Devolve { choice, comment }. Nada é obrigatório: dá para seguir sem responder.
 function askFeedback() {
-  const { body, buttons, close } = openCard('Two last questions');
+  const { body, buttons, close } = openCard('Two last questions, then your results');
   const question = document.createElement('div');
   question.className = 'quiz-question';
   question.id = 'feedback-choices';

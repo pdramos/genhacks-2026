@@ -247,7 +247,7 @@
       }
       const table = el('table', null, 'learning');
       const head = el('tr', null, 'head');
-      ['Question', 'Learned it', 'Knew it', 'Still to learn', 'Changed to wrong'].forEach((h, i) => head.append(el('th', h, i === 0 ? 'q' : null)));
+      ['Question', 'Learned it', 'Knew it', 'Still to learn', 'Was right, now wrong'].forEach((h, i) => head.append(el('th', h, i === 0 ? 'q' : null)));
       table.append(head);
       for (const q of L.perQuestion) {
         const row = el('tr', null, 'qrow');

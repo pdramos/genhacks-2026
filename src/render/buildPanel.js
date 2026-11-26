@@ -42,7 +42,7 @@ const PARK_LABEL = '🔒 Natural park'; // 🔒 = cadeado
 const TOOL_LOOKS = {
   clearBrush: { icon: rakeIcon, hint: 'Click a glowing brush tile to clear it' },
   firebreak: { icon: bulldozerIcon, hint: 'Click a glowing tile to make a firebreak (€1,000 on trees: they must be cut down)' },
-  replaceTrees: { icon: saplingIcon, hint: 'Click a glowing eucalyptus tile to plant broadleaf trees' },
+  replaceTrees: { icon: saplingIcon, hint: 'Click a glowing eucalyptus tile to plant broadleaf trees (they burn less fiercely)' },
   undo: { icon: undoIcon, hint: 'Click a changed tile to undo it (full refund)' },
 };
 

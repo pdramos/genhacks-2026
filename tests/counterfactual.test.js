@@ -185,14 +185,14 @@ test('nightLessons: losing the school comes first and names it in lower case', (
 test('nightLessons: saving no more houses than doing nothing points downwind', () => {
   const lessons = nightLessons({ ...baseNight, player: result(20), expert: result(25) });
   assert.match(lessons[0], /^Your work saved no more houses than doing nothing\./);
-  assert.match(lessons[0], /The wind blows from the north: work just south \(downwind\) of the \? spots\./);
+  assert.match(lessons[0], /The wind blows from the north: work just south \(downwind\) of the \? spots, between them and the houses\./);
 });
 
 // Visto ao jogar (semente 12): quem não fez NADA não pode ouvir "o teu trabalho não salvou mais casas".
 test('nightLessons: a player who prepared nothing hears that, not "your work"', () => {
   const lessons = nightLessons({ ...baseNight, player: result(20), expert: result(25), spent: 0 });
   assert.match(lessons[0], /^You didn't prepare anything, so tonight was the same as doing nothing\./);
-  assert.match(lessons[0], /work just south \(downwind\) of the \? spots\./);
+  assert.match(lessons[0], /work just south \(downwind\) of the \? spots, between them and the houses\./);
   assert.ok(!lessons.some((lesson) => /Your work/.test(lesson)));
 });
 

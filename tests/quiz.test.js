@@ -32,11 +32,15 @@ test('the quiz file has 5 questions, each with 3-4 options, one right answer and
   }
 });
 
-test('the law question uses the same widths as "The law" card of the Sintra level', () => {
-  const level = JSON.parse(readFileSync(new URL('../data/levels/sintra.json', import.meta.url), 'utf8'));
-  const law = quiz.questions.find((question) => question.id === 'law-houses');
-  const houses = level.law.strips.find((strip) => strip.where.startsWith('around houses'));
-  assert.equal(law.options[law.answer], houses.width);
+test('the questions are general: no question needs to know the law of one country', () => {
+  // Quem joga pode ser de qualquer país (os jurados são canadianos): nada de "In Portugal..." nem
+  // números de uma lei. A lei portuguesa fica no cartão "The law" do jogo, não no quiz.
+  for (const question of quiz.questions) {
+    const text = [question.question, ...question.options].join(' ');
+    assert.doesNotMatch(text, /Portugal|Decreto|law says|\b\d+ ?m\b/i, question.id);
+  }
+  const where = quiz.questions.find((question) => question.id === 'where-to-clear');
+  assert.match(where.options[where.answer], /around the houses and along the roads/);
 });
 
 // ---------- scoreQuiz ----------

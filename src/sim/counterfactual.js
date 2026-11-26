@@ -122,8 +122,8 @@ export function nightLessons({ player, nothing, expert, lucky, movedStart = fals
     const from = compassWords(windFrom);
     const to = compassWords(oppositeOf(windFrom));
     const tip = from && to
-      ? `The wind blows from the ${from}: work just ${to} (downwind) of the ? spots.`
-      : 'Work just downwind of the ? spots.';
+      ? `The wind blows from the ${from}: work just ${to} (downwind) of the ? spots, between them and the houses.`
+      : 'Work just downwind of the ? spots, between them and the houses.';
     // Quem não gastou nada não fez "trabalho": dizemos-lhe isso mesmo, com a mesma dica.
     const opening = spent === 0
       ? "You didn't prepare anything, so tonight was the same as doing nothing."

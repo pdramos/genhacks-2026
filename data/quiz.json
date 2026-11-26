@@ -1,63 +1,62 @@
 {
-  "about": "Before/after quiz for playtests (only with ?playtest=1). 'answer' is the index of the right option (0 = the first). Facts: wind and slope speed up a fire; eucalyptus and pine burn more readily than native broadleaf trees; less fuel near houses means weaker flames; Portugal's Decreto-Lei 82/2021, art. 49.º (the same numbers as 'The law' card in data/levels/sintra.json).",
+  "about": "Before/after quiz for playtests (only with ?playtest=1). 'answer' is the index of the right option (0 = the first). The questions are general on purpose (not about one country's law), so anyone can take them, and every one is something the game shows: the wind decides which side of a village is in danger and can push a fire downhill; eucalyptus and pine burn more fiercely than broadleaf trees; less fuel means weaker flames; Portugal's law (Decreto-Lei 82/2021) asks for cleared strips around homes and along roads (the glowing tiles), and FireSmart Canada gives similar advice for the ground around homes. Options have similar lengths and the right answer is in a different place each time, so it cannot be guessed from its shape. The order matters: no question gives away the answer to a later one.",
   "questions": [
     {
-      "id": "firebreak-wind",
-      "question": "The wind blows from the north. A fire could start in the scrub north of the village. Where does a firebreak protect the houses best?",
+      "id": "firebreak-side",
+      "question": "A strong wind blows from the north (toward the south). Fires could start in the forest on any side of a village. On which side does a firebreak (a strip of bare ground that fire cannot cross) protect the houses best?",
       "options": [
-        "South of the village, behind the houses",
-        "Between the scrub and the houses, on the north side",
-        "Far to the east, away from everything",
-        "Anywhere: the wind does not matter"
+        "The east side",
+        "The north side",
+        "The south side",
+        "The west side"
       ],
       "answer": 1,
-      "explanation": "The wind pushes a fire downwind. A break between where it can start and the houses meets the fire before it gets there."
+      "explanation": "Wind pushes a fire downwind. A fire on the north side is blown straight at the houses, so a firebreak on that side meets it first. Fires on the other sides are blown away from the village. In the game, the wind arrow shows where a fire will go."
+    },
+    {
+      "id": "where-to-clear",
+      "question": "You only have money to clear dry bushes in a few places. Where does it protect a village the most?",
+      "options": [
+        "Deep in the forest, where most of the trees are",
+        "On the hilltops, where a fire is easy to spot",
+        "In a strip right around the houses and along the roads",
+        "In the gardens and parks in the middle of the village"
+      ],
+      "answer": 2,
+      "explanation": "A fire has to cross that strip to reach the houses, and roads are how people escape. In the game, these strips are the glowing tiles. Portugal's law asks for them, and FireSmart Canada gives the same advice for the ground around homes."
     },
     {
       "id": "trees",
-      "question": "Which trees catch fire and spread it more easily?",
+      "question": "Which kind of forest usually burns more fiercely?",
       "options": [
-        "Eucalyptus and pine",
-        "Cork oaks and other native broadleaf trees",
-        "All trees burn the same way"
+        "Eucalyptus or pine",
+        "Oak, birch or aspen",
+        "They burn about the same"
       ],
       "answer": 0,
-      "explanation": "Eucalyptus (oily leaves) and pine (resin) burn readily. Native broadleaf trees, like the cork oak, burn less easily."
+      "explanation": "Eucalyptus leaves are full of oil and pine has sticky resin: both catch fire easily. Broadleaf trees like oak, birch and aspen have moister leaves and slow a fire down. That is why the game lets you replace eucalyptus with broadleaf trees."
+    },
+    {
+      "id": "wind-downhill",
+      "question": "A strong wind blows down a hill toward a village. A fire starts on the hilltop. What happens?",
+      "options": [
+        "It stays near the top, because fire only climbs uphill",
+        "The wind can push it down the hill to the village",
+        "It spreads at the same speed in every direction"
+      ],
+      "answer": 1,
+      "explanation": "Fire climbs slopes fastest, but a strong wind can push it downhill too. On 6 October 2018 a north wind drove a fire down the Serra de Sintra toward Malveira da Serra: the night in the game."
     },
     {
       "id": "scrub",
-      "question": "Why clear the dry scrub around a house?",
+      "question": "What does clearing dry bushes do when a wildfire arrives?",
       "options": [
-        "It slows the wind down",
-        "Fire trucks need room to park",
-        "Less fuel: flames stay smaller and embers find less to set alight",
-        "It makes rain more likely"
+        "The wind slows down near the ground",
+        "The ground stays wet, so the fire goes out",
+        "There is less to burn, so the flames are smaller"
       ],
       "answer": 2,
-      "explanation": "Dry scrub is fuel. With less of it near the walls, the flames that arrive are weaker and flying embers have less to light."
-    },
-    {
-      "id": "wind-slope",
-      "question": "When does a fire spread fastest?",
-      "options": [
-        "On flat ground, with no wind",
-        "Going downhill, against the wind",
-        "Going uphill, with the wind behind it"
-      ],
-      "answer": 2,
-      "explanation": "Flames lean towards the slope above them and heat it before it burns. The wind leans them forward in the same way."
-    },
-    {
-      "id": "law-houses",
-      "question": "In Portugal, how wide is the strip the law says must be cleared around a house on forest land?",
-      "options": [
-        "10 m",
-        "50 m",
-        "100 m",
-        "500 m"
-      ],
-      "answer": 1,
-      "explanation": "Decreto-Lei 82/2021, art. 49.º: 50 m around houses on forest land, 100 m around villages next to forest, 10 m on each side of roads."
+      "explanation": "Dry bushes are fuel (in the game: \"dry scrub\", cleared with \"Clear brush\"). With less of them, the flames that arrive are weaker and flying embers have less to light."
     }
   ]
 }
