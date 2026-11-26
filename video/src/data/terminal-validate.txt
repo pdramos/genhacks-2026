@@ -1,0 +1,21 @@
+Real fire (ICNF): 428.7 ha in total; inside the 2.1 km map: 100.8 ha = 242 tiles; 77% of the real fire is outside the map.
+Real start: Fonte da Peninha, tile (2.23, -5.48) = outside the map; the model starts at the nearest burnable tile (2, 0).
+1000 nights (seeds 1-1000), no player actions. A tile is "model-burned" if it burned in at least 50% of nights.
+With the real wind, the model fire burns out on its own after 7.7 hours on average (the real one was controlled after ~12 hours).
+
+MAIN: start at the real ignition point
+Run                                        model tiles  hit rate  false alarms  Jaccard  Sorensen  mean burned
+Model, real wind (hourly ERA5)                     359   81.0%         45.4%     0.48      0.65  126.8 ha
+Baseline A: model, no wind                         292   51.7%         57.2%     0.31      0.47  114.6 ha
+Baseline B: circle, same area                      242   67.8%         32.2%     0.51      0.68  102.2 ha
+Model, real wind, same area (top N)                242   59.5%         40.5%     0.42      0.60  126.8 ha
+Baseline A: no wind, same area (top N)             242   47.9%         52.1%     0.32      0.48  114.6 ha
+
+CROSS-CHECK: against the coarser EFFIS (MODIS) perimeter, 378 tiles in the map
+Run                                        model tiles  hit rate  false alarms  Jaccard  Sorensen  mean burned
+Model, real wind vs EFFIS                          359   76.2%         19.8%     0.64      0.78  126.8 ha
+Baseline A: no wind vs EFFIS                       292   48.7%         37.0%     0.38      0.55  114.6 ha
+Baseline B: circle (EFFIS area) vs EFFIS           378   72.2%         27.8%     0.57      0.72  159.7 ha
+ICNF map vs EFFIS map (two real maps)              242   64.0%          0.0%     0.64      0.78  100.8 ha
+
+Wrote data/validation/sintra-2018-results.json (17.1 s)

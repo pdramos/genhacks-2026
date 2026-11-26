@@ -9,3 +9,8 @@ media/
 
 # Segredos locais (ex.: a chave para ver os resultados do playtest). Nunca vão para o GitHub.
 *.local.txt
+
+# Projeto do video (Remotion): dependencias, renders e gravacoes do jogo (grandes)
+video/node_modules/
+video/out/
+video/public/clips/

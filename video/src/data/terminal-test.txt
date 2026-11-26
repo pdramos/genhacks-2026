@@ -1,0 +1,25 @@
+✔ the demo level file is a valid 20x20 village (15.7512ms)
+✔ a level without heights is flat (every height is 0) (0.8179ms)
+✔ heights are read from digits 0-9, one per tile (0.502ms)
+✔ rejects heights that are not digits or have the wrong size (0.4068ms)
+✔ rejects a level without a map (0.1549ms)
+✔ each step of the fire is 10 minutes (2.3412ms)
+✔ a level without hourly wind always gives its fixed wind (with the gust) (1.0287ms)
+✔ the hourly wind starts at the hour of the ignition (22:50 -> the 22:00 hour) (0.4673ms)
+✔ the hourly wind changes when the clock passes the hour (0.1757ms)
+✔ after the last hour of data, the last hour is kept (0.1917ms)
+✔ without a date, the hourly wind starts at the first hour (0.1824ms)
+✔ compassWord gives the 8 points of the compass in plain words (0.196ms)
+✔ compassWord rounds to the nearest point (the real night: 4 to 11 degrees is north) (0.1574ms)
+✔ compassWord: a boundary always goes to the next point clockwise (0.6786ms)
+✔ compassWord wraps negative angles and angles of 360 or more (0.2997ms)
+✔ compassWord: where the fire goes is the opposite word (direction + 180) (0.1807ms)
+✔ compassWord gives null for a number that does not exist (0.1987ms)
+ℹ tests 251
+ℹ suites 0
+ℹ pass 251
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4820.9384
