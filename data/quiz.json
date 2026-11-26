@@ -1,5 +1,5 @@
 {
-  "about": "Before/after quiz for playtests (only with ?playtest=1). 'answer' is the index of the right option (0 = the first). The questions are general on purpose (not about one country's law), so anyone can take them, and every one is something the game shows: the wind decides which side of a village is in danger and can push a fire downhill; eucalyptus and pine burn more fiercely than broadleaf trees; less fuel means weaker flames; Portugal's law (Decreto-Lei 82/2021) asks for cleared strips around homes and along roads (the glowing tiles), and FireSmart Canada gives similar advice for the ground around homes. Options have similar lengths and the right answer is in a different place each time, so it cannot be guessed from its shape. The order matters: no question gives away the answer to a later one.",
+  "about": "Before/after quiz for playtests (only with ?playtest=1). 'answer' is the index of the right option (0 = the first). The questions are general on purpose (not about one country's law), so anyone can take them, and every one is something the game shows: the wind decides which side of a village is in danger and can push a fire downhill; the cleared strips around homes and along roads (the glowing tiles) protect a village most; you can only tell if a plan helped by comparing it with the same night without it (the \"Same night, three plans\" card); less fuel means weaker flames. Options have similar lengths and the right answer is in a different place each time, so it cannot be guessed from its shape. The order matters: no question gives away the answer to a later one. (26/11: the tree-species question was removed: nobody can know it before playing and the game does not teach it well.)",
   "questions": [
     {
       "id": "firebreak-side",
@@ -26,15 +26,16 @@
       "explanation": "A fire has to cross that strip to reach the houses, and roads are how people escape. In the game, these strips are the glowing tiles. Portugal's law asks for them, and FireSmart Canada gives the same advice for the ground around homes."
     },
     {
-      "id": "trees",
-      "question": "Which kind of forest usually burns more fiercely?",
+      "id": "same-night",
+      "question": "Your plan saved 150 of 194 houses. How can you tell if your plan really helped?",
       "options": [
-        "Eucalyptus or pine",
-        "Oak, birch or aspen",
-        "They burn about the same"
+        "Replay the same fire with nothing prepared",
+        "Count how many bushes and trees you cleared",
+        "Check how much of your money you spent",
+        "See how tall the flames were near the houses"
       ],
       "answer": 0,
-      "explanation": "Eucalyptus leaves are full of oil and pine has sticky resin: both catch fire easily. Broadleaf trees like oak, birch and aspen have moister leaves and slow a fire down. That is why the game lets you replace eucalyptus with broadleaf trees."
+      "explanation": "The same fire can miss a village just by luck. Only by replaying the same night without your work can you see what your plan changed. That is what the \"Same night, three plans\" card shows after every night: your plan, doing nothing and an expert plan, on the exact same fire."
     },
     {
       "id": "wind-downhill",
