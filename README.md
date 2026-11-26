@@ -94,7 +94,14 @@ single hectare.
 - **Against the real fire:** we compared our fire model with the official map of what really burned
   in 2018, over **1,000 runs**. See below.
 - **With players:** `?playtest=1` adds a 5-question anonymous quiz before and after playing, to
-  measure what players learned. Results stay on that device and export as CSV.
+  measure what players learned, and two last questions ("did your choices change what happened?",
+  "what was confusing?"). So friends can test from home, each session is sent to a private
+  database (Supabase): the quiz answers, each night's result and plan, the device type and screen
+  size, and a timeline of clicks. No names or emails are collected and the table stores no IP
+  addresses (the database service keeps short-lived access logs, like any website). Players read
+  this before the quiz, and nothing is sent until they answer it. Anyone can only add a session;
+  reading needs a private key that is not in this repository (`playtest-results.html`). With
+  `&kiosk=1`, one computer runs several players in a row and keeps a CSV copy.
 
 ## How close is the fire to the real one?
 

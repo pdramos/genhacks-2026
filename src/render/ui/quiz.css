@@ -4,6 +4,9 @@
 
 /* Enquanto o questionário está aberto, o briefing espera escondido por baixo */
 body.quiz-open .briefing-card { visibility: hidden; }
+/* Durante o quiz, a bússola ("From the north...") e a dica ficam escondidas: davam a resposta
+   da 1.ª pergunta e, no telemóvel, ficavam meio tapadas pelo cartão. */
+body.quiz-open .wind-chip, body.quiz-open #info { visibility: hidden; }
 
 .quiz-backdrop { position: fixed; inset: 0; z-index: 44; background: rgba(30, 20, 10, .55); }
 .quiz-card {
@@ -34,6 +37,20 @@ body.quiz-open .briefing-card { visibility: hidden; }
   border: 2px solid var(--ink); border-radius: 50%; background: var(--gold); font-size: 14px; font-weight: 700;
 }
 .quiz-option[aria-pressed="true"] .quiz-option-number { background: var(--orange); color: #fff; }
+/* As 2 perguntas finais: a caixa de texto do comentário (opcional) */
+.feedback-label { display: block; margin-top: 14px; font-size: 16px; }
+.feedback-comment {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit; font-size: 15px;
+  border: 3px solid var(--ink); border-radius: 12px; background: #fff; resize: vertical;
+}
+.feedback-comment:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* O estado do envio, logo por baixo das notas (verde quando chegou) */
+.quiz-send { margin: 6px 0 10px; padding: 6px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--cream-deep); font-weight: 600; text-align: center; }
+.quiz-send.ok { background: #e3f6dc; color: #1f6b2a; }
+/* No telemóvel, sem o realce azul do toque por cima da opção escolhida */
+.quiz-option, .result-button { -webkit-tap-highlight-color: transparent; }
+/* O anel de foco da caixa de texto não fica cortado na borda do cartão */
+.quiz-body { padding-left: 4px; padding-right: 4px; }
 .quiz-card .result-button:disabled { opacity: .45; cursor: default; transform: none; box-shadow: 0 4px 0 var(--ink); }
 
 /* ---------- O ecrã final ---------- */
@@ -78,7 +95,7 @@ body.quiz-open .briefing-card { visibility: hidden; }
   /* O cartão das perguntas fica mais largo e as opções vão em duas colunas: assim uma pergunta
      com 4 opções cabe toda sem deslizar (senão a 4.ª opção ficava escondida em baixo) */
   .quiz-card.quiz-asking { width: min(720px, calc(100% - 32px)); }
-  .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .quiz-asking .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; } /* só no quiz, não nas 2 perguntas finais */
   .quiz-option { padding: 4px 10px; font-size: 14.5px; box-shadow: 0 2px 0 var(--ink); }
   .quiz-option-number { width: 22px; height: 22px; line-height: 18px; font-size: 12px; }
   .quiz-scores { margin-bottom: 6px; }

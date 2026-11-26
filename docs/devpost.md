@@ -201,7 +201,7 @@ Three questions, each with its own test:
 |---|---|---|
 | Does our fire behave like the real one? | 1,000 runs starting from the map tile nearest the recorded start (which lies about 360 m north of the map), with no player actions, compared tile by tile with the official burned-area map from ICNF, Portugal's forest agency | Overlap (0 = none, 1 = identical): **0.65** with the real wind of that night, **0.47** with no wind |
 | Does a plan beat luck? | 120 replays of the night in the game (the fire starts at one of the six "?", same real wind); every plan faces the same fires | Whole village saved (every house and the fire station): expert plan on **68%** of replays, doing nothing on **10%**. The game never deals those winning nights for doing nothing: on the ones it deals, doing nothing averages **0.09** stars |
-| Do players learn? | A 5-question anonymous quiz before and after playing (`?playtest=1`, no names stored) | **Not measured yet** |
+| Do players learn? | A 5-question anonymous quiz before and after playing (`?playtest=1`; no names or emails, and the results table stores no IP addresses) | **Not measured yet** |
 
 What these numbers do and do not say:
 - **The no-wind run is a control:** it shows that the wind matters. Our fire gets the direction
@@ -374,7 +374,7 @@ the AI tools I directed. The rules ask us to list all AI use, so here it is.
 ## Built with
 
 javascript · three.js · webgl · html5 · css3 · node.js · openstreetmap · overpass-api · open-meteo ·
-era5 · copernicus-dem · github-pages · claude-code
+era5 · copernicus-dem · github-pages · supabase · claude-code
 
 ---
 

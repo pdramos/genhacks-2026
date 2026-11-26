@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Página privada de resultados: não queremos que apareça em pesquisas -->
+  <meta name="robots" content="noindex, nofollow">
+  <title>Same Night playtests</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <!--
+    OS RESULTADOS DO PLAYTEST (para o autor do jogo).
+    Esta página está no site público, mas NÃO tem dados lá dentro: vai buscá-los à base de dados
+    com uma chave secreta (que não está no repositório). Sem a chave certa, a base de dados recusa.
+    A chave pode vir no fim do endereço (#key=...): a página guarda-a NESTE aparelho e tira-a da
+    barra de endereço, para não aparecer numa captura de ecrã.
+    As contas estão em src/sim/playtestReport.js (testadas); o envio em src/render/playtestLog.js.
+  -->
+  <style>
+    :root {
+      --ink: #3b2a1a; --ink-soft: #6d5a48; --cream: #fff6e5; --cream-deep: #ffe9c2; --paper: #ffffff;
+      --orange: #f08a24; --green: #4caf50; --red: #e8452c; --blue: #2f6fb5; --gold: #ffc93c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Fredoka, system-ui, sans-serif; color: var(--ink); background: var(--cream); }
+    main { max-width: 900px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 2px; font-size: 26px; }
+    h2 { margin: 0 0 8px; font-size: 19px; }
+    .sub { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; }
+    .card { margin: 0 0 14px; padding: 12px 14px; background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 3px 0 var(--ink); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .tile { padding: 8px 10px; background: var(--cream); border: 2px solid var(--ink); border-radius: 12px; }
+    .tile b { display: block; font-size: 24px; }
+    .tile span { font-size: 13px; color: var(--ink-soft); }
+    .note { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-soft); }
+    .warn { color: var(--red); font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 5px 6px; border-bottom: 1px solid #eadfcc; text-align: left; vertical-align: top; }
+    th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+    td.num { text-align: right; white-space: nowrap; }
+    .bars { display: grid; grid-template-columns: 5.8em 1fr 2.5em; gap: 4px 8px; align-items: center; font-size: 14px; }
+    /* Telemóvel: cada pergunta numa linha própria, por cima dos 4 números */
+    @media (max-width: 640px) {
+      table.learning tr.qrow, table.learning tr.head { display: grid; grid-template-columns: repeat(4, 1fr); }
+      table.learning tr.qrow td.q { grid-column: 1 / -1; border-bottom: 0; padding-bottom: 0; font-weight: 600; }
+      table.learning tr.head th.q { display: none; }
+    }
+    .bar { height: 14px; background: var(--cream-deep); border-radius: 7px; overflow: hidden; }
+    .bar > div { height: 100%; background: var(--orange); }
+    .bar.green > div { background: var(--green); }
+    ul.comments { margin: 0; padding-left: 18px; }
+    ul.comments li { margin: 0 0 6px; }
+    details { margin: 0 0 8px; padding: 6px 8px; background: var(--cream); border: 2px solid var(--ink); border-radius: 10px; }
+    summary { cursor: pointer; font-size: 14px; }
+    pre { margin: 6px 0 0; padding: 6px; max-height: 260px; overflow: auto; font-size: 12px; white-space: pre-wrap; background: var(--paper); border-radius: 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, .button {
+      padding: 8px 14px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
+      background: var(--gold); border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 3px 0 var(--ink);
+    }
+    button.secondary { background: var(--paper); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    input, select { padding: 8px 10px; font: inherit; border: 3px solid var(--ink); border-radius: 12px; background: var(--paper); }
+    input[type="password"] { flex: 1 1 220px; min-width: 0; }
+    label { font-size: 14px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Same Night: playtest results</h1>
+    <p class="sub">Private page for the game's author. No names or emails are collected, and the table stores no IP addresses. Players are friends and family: never try to work out who is who.</p>
+
+    <!-- Pedir a chave (só aparece sem chave, ou com a chave errada) -->
+    <section id="key-card" class="card" hidden>
+      <h2>Your private key</h2>
+      <form id="key-form" class="row">
+        <input id="key-input" type="password" autocomplete="off" placeholder="Paste your key" aria-label="Private key">
+        <button type="submit">Open</button>
+      </form>
+      <p id="key-error" class="note warn" hidden></p>
+      <p class="note">The key is in the file dev/playtest-key.local.txt on the project computer. It is never sent anywhere except to the results database.</p>
+    </section>
+
+    <p id="status" class="note"></p>
+
+    <section id="report" hidden>
+      <div class="card">
+        <div class="row">
+          <label>Game version <select id="version"></select></label>
+          <label><input id="show-tests" type="checkbox"> Show test sessions</label>
+          <button id="refresh" class="secondary" type="button">Refresh</button>
+        </div>
+      </div>
+      <div class="card"><h2>Overview</h2><div id="tiles" class="tiles"></div></div>
+      <div class="card"><h2>Did players learn? (quiz before and after)</h2><div id="learning"></div></div>
+      <div class="card"><h2>How they played</h2><div id="play"></div></div>
+      <div class="card"><h2>"Did your choices change what happened?"</h2><div id="choices"></div></div>
+      <div class="card"><h2>What was confusing</h2><div id="comments"></div></div>
+      <div class="card"><h2>Every session (newest first)</h2><div id="sessions"></div></div>
+      <div class="card row">
+        <button id="download-json" class="secondary" type="button">Download all (JSON)</button>
+        <button id="download-csv" class="secondary" type="button">Download summary (CSV)</button>
+        <button id="forget" class="secondary" type="button">Forget the key on this device</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { summarizePlaytests, filterSessions, MIN_PLAYERS_TO_REPORT } from './src/sim/playtestReport.js';
+    import { PLAYTEST_API, PLAYTEST_KEY } from './src/render/playtestConfig.js';
+
+    const KEY_STORAGE = 'same-night-results-key';
+    const $ = (id) => document.getElementById(id);
+    let questions = [];
+    let allSessions = [];
+
+    // ---------- A chave ----------
+    function readKey() {
+      // Vinda no endereço (#key=...): guarda-a neste aparelho e tira-a da barra de endereço.
+      const fromHash = new URLSearchParams(location.hash.slice(1)).get('key');
+      if (fromHash) {
+        try { localStorage.setItem(KEY_STORAGE, fromHash); } catch { /* fica só nesta visita */ }
+        history.replaceState(null, '', location.pathname + location.search);
+        return fromHash;
+      }
+      try { return localStorage.getItem(KEY_STORAGE); } catch { return null; }
+    }
+
+    function askForKey(message) {
+      $('key-card').hidden = false;
+      $('report').hidden = true;
+      $('key-error').hidden = !message;
+      $('key-error').textContent = message || '';
+      $('status').textContent = '';
+      $('key-input').focus();
+    }
+
+    $('key-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const key = $('key-input').value.trim();
+      if (!key) return;
+      try { localStorage.setItem(KEY_STORAGE, key); } catch { /* fica só nesta visita */ }
+      load(key);
+    });
+    $('forget').addEventListener('click', () => {
+      try { localStorage.removeItem(KEY_STORAGE); } catch { /* nada a esquecer */ }
+      allSessions = [];
+      askForKey('');
+    });
+
+    // ---------- Buscar os dados ----------
+    async function load(key) {
+      $('status').textContent = 'Loading...';
+      try {
+        if (!questions.length) {
+          questions = (await fetch('data/quiz.json', { cache: 'no-cache' }).then((r) => r.json())).questions;
+        }
+        const response = await fetch(`${PLAYTEST_API}/get_playtest_sessions`, {
+          method: 'POST',
+          headers: { apikey: PLAYTEST_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ view_key: key }),
+        });
+        if (response.status === 403) {
+          try { localStorage.removeItem(KEY_STORAGE); } catch { /* nada */ }
+          return askForKey('That key is not right. Check the file and try again.');
+        }
+        if (!response.ok) throw new Error(`the database answered ${response.status}`);
+        allSessions = await response.json();
+        $('key-card').hidden = true;
+        $('report').hidden = false;
+        fillVersions();
+        render();
+        $('status').textContent = `Updated ${new Date().toLocaleTimeString()}.`;
+      } catch (error) {
+        $('status').textContent = `Could not load the results (${error.message}). Check the internet and press Refresh.`;
+      }
+    }
+    $('refresh').addEventListener('click', () => { const key = readKey(); if (key) load(key); });
+    // Colar o link com #key=... numa página já aberta só muda o fim do endereço: reagimos também.
+    addEventListener('hashchange', () => { const key = readKey(); if (key) load(key); });
+
+    function fillVersions() {
+      const select = $('version');
+      const chosen = select.value;
+      const versions = [...new Set(allSessions.map((s) => s.version).filter((v) => v && v !== 'test'))].sort().reverse();
+      select.replaceChildren(new Option('All versions', ''), ...versions.map((v) => new Option(v, v)));
+      select.value = versions.includes(chosen) ? chosen : '';
+    }
+    $('version').addEventListener('change', render);
+    $('show-tests').addEventListener('change', render);
+
+    // ---------- Desenhar ----------
+    function shownSessions() {
+      return filterSessions(allSessions, { showTests: $('show-tests').checked, version: $('version').value || null });
+    }
+
+    function render() {
+      const sessions = shownSessions();
+      const report = summarizePlaytests(sessions, questions);
+      renderTiles(report);
+      renderLearning(report);
+      renderPlay(report);
+      renderChoices(report);
+      renderComments(report);
+      renderSessions(sessions);
+    }
+
+    const el = (tag, text, className) => {
+      const node = document.createElement(tag);
+      if (text !== undefined && text !== null) node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    };
+    const fixed = (value, digits = 1) => (value === null || value === undefined ? '—' : Number(value).toFixed(digits));
+
+    function renderTiles(r) {
+      const tile = (number, label) => { const t = el('div', null, 'tile'); t.append(el('b', String(number)), el('span', label)); return t; };
+      $('tiles').replaceChildren(
+        tile(r.sessions, 'players (did the first quiz)'),
+        tile(r.finished, 'finished the playtest'),
+        tile(r.notReached, 'stopped before the end'),
+        tile(r.devices.computer, 'on a computer'),
+        tile(r.devices.phone, 'on a phone'),
+        tile(r.devices.tablet, 'on a tablet'),
+        ...(r.devices.other ? [tile(r.devices.other, 'unknown device')] : []),
+      );
+    }
+
+    // Uma linha de barra: rótulo | barra | número.
+    function barRow(container, label, value, max, green = false) {
+      container.append(el('span', label));
+      const bar = el('div', null, green ? 'bar green' : 'bar');
+      const fill = el('div');
+      fill.style.width = `${max ? Math.round((100 * value) / max) : 0}%`;
+      bar.append(fill);
+      container.append(bar, el('span', String(value)));
+    }
+
+    function renderLearning(r) {
+      const box = $('learning');
+      const L = r.learning;
+      box.replaceChildren();
+      box.append(el('p', `${L.players} player(s) did both quizzes. Average score: ${fixed(L.averageBefore)} / ${L.total} before → ${fixed(L.averageAfter)} / ${L.total} after.`));
+      if (!L.enough) {
+        box.append(el('p', `Fewer than ${MIN_PLAYERS_TO_REPORT} players: not enough to publish. The Devpost page keeps "Learning: not measured yet".`, 'note warn'));
+      }
+      const table = el('table', null, 'learning');
+      const head = el('tr', null, 'head');
+      ['Question', 'Learned it', 'Knew it', 'Still to learn', 'Changed to wrong'].forEach((h, i) => head.append(el('th', h, i === 0 ? 'q' : null)));
+      table.append(head);
+      for (const q of L.perQuestion) {
+        const row = el('tr', null, 'qrow');
+        row.append(el('td', q.question, 'q'));
+        for (const n of [q.improved, q.kept, q.missed, q.worse]) row.append(el('td', String(n), 'num'));
+        table.append(row);
+      }
+      box.append(table);
+      box.append(el('p', 'Limits to say on the page: same questions twice, no control group, measured right after playing.', 'note'));
+    }
+
+    function renderPlay(r) {
+      const box = $('play');
+      const P = r.play;
+      box.replaceChildren();
+      box.append(el('p', `${P.players} player(s) finished at least one night. On average ${fixed(P.averageTries)} night(s) each; ${P.usedTryAgain} used "Try again".`));
+      box.append(el('p', `Houses saved: ${fixed(P.averageFirstSaved, 0)} on the first night, ${fixed(P.averageBestSaved, 0)} on their best night (out of 194 house tiles). Actions on the first night: ${fixed(P.averageFirstActions, 0)} on average.`));
+      for (const [title, stars, green] of [['First night: stars', P.firstStars, false], ['Best night: stars', P.bestStars, true]]) {
+        box.append(el('h2', title));
+        const bars = el('div', null, 'bars');
+        const max = Math.max(1, ...stars);
+        stars.forEach((count, s) => barRow(bars, `${s} ★`, count, max, green));
+        box.append(bars);
+      }
+    }
+
+    function renderChoices(r) {
+      const bars = el('div', null, 'bars');
+      const entries = [['Yes', r.choices.yes], ['A little', r.choices['a-little']], ['No', r.choices.no], ['No answer', r.choices.none]];
+      const max = Math.max(1, ...entries.map(([, n]) => n));
+      for (const [label, n] of entries) barRow(bars, label, n, max);
+      $('choices').replaceChildren(bars, el('p', `Only players who finished. ${r.notReached} stopped before the end.`, 'note'));
+    }
+
+    function renderComments(r) {
+      const box = $('comments');
+      if (!r.comments.length) return box.replaceChildren(el('p', 'No comments yet.', 'note'));
+      const list = el('ul', null, 'comments');
+      for (const text of r.comments) list.append(el('li', text)); // textContent: o texto nunca vira HTML
+      box.replaceChildren(list);
+    }
+
+    function renderSessions(sessions) {
+      const box = $('sessions');
+      if (!sessions.length) return box.replaceChildren(el('p', 'No sessions yet. Send the playtest link to someone!', 'note'));
+      box.replaceChildren();
+      for (const s of [...sessions].reverse()) {
+        // Uma linha estranha (a base de dados aceita envios de qualquer pessoa) não pode partir a página.
+        try {
+          box.append(sessionItem(s));
+        } catch {
+          box.append(el('p', 'One session could not be shown (unexpected data).', 'note'));
+        }
+      }
+    }
+
+    // Só o dia e a parte do dia (manhã, tarde, noite): os jogadores são conhecidos do autor,
+    // e a hora exata ajudava a adivinhar quem jogou cada sessão.
+    function dayPart(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '?';
+      const h = d.getHours();
+      const part = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+      return `${d.toLocaleDateString([], { day: '2-digit', month: 'short' })}, ${part}`;
+    }
+
+    function sessionItem(s) {
+      const objects = (list) => (Array.isArray(list) ? list.filter((x) => x && typeof x === 'object') : []);
+      const tries = objects(s.tries);
+      const quiz = `quiz ${s.before_score ?? '—'} → ${s.after_score ?? '—'}`;
+      const nights = tries.map((t) => `${t.stars ?? '?'}★ ${t.saved ?? '?'}${t.retry ? ' (try again)' : ''}`).join(', ') || 'no night played';
+      const item = el('details');
+      item.append(el('summary', `${dayPart(s.created_at)} · ${s.device ?? '?'} · ${quiz} · nights: ${nights}${s.finished ? ' · finished' : ''}${s.version === 'test' ? ' · TEST' : ''}`));
+      if (s.choices_mattered) item.append(el('p', `Choices changed what happened: ${s.choices_mattered}`, 'note'));
+      if (s.confusing) item.append(el('p', `Confusing: ${s.confusing}`, 'note'));
+      const lines = objects(s.log).map((e) => {
+        const { t, e: name, ...rest } = e;
+        const extra = Object.keys(rest).length ? ` ${JSON.stringify(rest)}` : '';
+        return `${String(t ?? '?').padStart(6)} s  ${name ?? '?'}${extra}`;
+      });
+      item.append(el('p', 'Timeline (seconds since the start):', 'note'), el('pre', lines.join('\n') || '(no events)'));
+      if (tries.length) {
+        item.append(el('p', 'Nights (plan = [x, y, c/f/r]: clear brush / firebreak / replace trees):', 'note'), el('pre', JSON.stringify(tries, null, 1)));
+      }
+      return item;
+    }
+
+    // ---------- Descarregar ----------
+    function download(name, text, type) {
+      const url = URL.createObjectURL(new Blob([text], { type }));
+      const link = el('a');
+      link.href = url;
+      link.download = name;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    const today = () => new Date().toISOString().slice(0, 10);
+    $('download-json').addEventListener('click', () => download(`same-night-playtests-${today()}.json`, JSON.stringify(shownSessions(), null, 1), 'application/json'));
+    $('download-csv').addEventListener('click', () => {
+      // Um valor que comece por = + - @ viraria fórmula no Excel/Sheets: pomos uma ' à frente.
+      const cell = (v) => {
+        let text = String(v ?? '');
+        if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+      const header = ['date', 'version', 'device', 'screen', 'before_score', 'after_score', 'nights', 'first_stars', 'first_saved', 'best_stars', 'best_saved', 'choices_mattered', 'finished', 'confusing'];
+      const rows = shownSessions().map((s) => {
+        const tries = Array.isArray(s.tries) ? s.tries.filter((t) => t && typeof t === 'object') : [];
+        const best = tries.reduce((a, b) => (!a || b.stars > a.stars || (b.stars === a.stars && b.saved > a.saved) ? b : a), null);
+        return [String(s.created_at ?? '').slice(0, 10), s.version, s.device, s.screen, s.before_score, s.after_score, tries.length,
+          tries[0]?.stars, tries[0]?.saved, best?.stars, best?.saved, s.choices_mattered, s.finished, s.confusing].map(cell).join(',');
+      });
+      download(`same-night-playtests-${today()}.csv`, [header.join(','), ...rows].join('\n'), 'text/csv');
+    });
+
+    // ---------- Começar ----------
+    const key = readKey();
+    if (key) load(key); else askForKey('');
+  </script>
+</body>
+</html>

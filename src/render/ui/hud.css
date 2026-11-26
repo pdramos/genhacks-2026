@@ -454,9 +454,11 @@ body.briefing #hud, body.briefing #info { visibility: hidden; }
 .result-card.has-compare .result-stat { padding: 6px; }
 .result-card.has-compare .result-icon { width: 40px; height: 40px; }
 .result-card.has-compare .result-story { max-height: 14vh; }
-/* Ecrãs com pouca altura (portátil pequeno): o cartão desliza por dentro, como no telemóvel,
-   e os botões ficam colados em baixo. (Abaixo de 520px manda o bloco "Ecrãs baixos".) */
-@media (min-height: 521px) and (max-height: 760px) {
+/* Ecrãs com pouca altura (portátil pequeno) E telemóveis altos e estreitos: o cartão desliza por
+   dentro e os botões ficam colados em baixo. Sem isto, num telemóvel com mais de 760px de altura o
+   cartão ficava maior do que o ecrã e o "Finish playtest" saía para fora (revisão de 26/11).
+   (Abaixo de 520px manda o bloco "Ecrãs baixos".) */
+@media (min-height: 521px) and (max-height: 760px), (min-height: 761px) and (max-width: 640px) {
   .result-card.has-compare { max-height: calc(100dvh - 24px); overflow-y: auto; padding-bottom: 0; }
   .result-card.has-compare .result-title { margin: 0 auto 8px; }
   .result-card.has-compare .result-story { max-height: none; overflow: visible; }

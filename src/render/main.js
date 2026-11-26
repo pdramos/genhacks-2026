@@ -12,6 +12,10 @@ import { newSeed, saveRetry, loadRetry } from './runState.js';
 import { pickNightSeed } from '../sim/counterfactual.js';
 
 const params = new URLSearchParams(location.search);
+// Num ecrã de toque não há teclado nem rato: a dica de baixo diz o que fazer com o dedo.
+if (matchMedia('(pointer: coarse)').matches) {
+  document.getElementById('info').textContent = 'Drag to look around · Pinch to zoom · Tap a glowing tile';
+}
 // ?level=demo carrega data/levels/demo.json (por omissão, o nível a sério: Sintra, outubro de 2018).
 const levelName = params.get('level') || 'sintra';
 const level = await fetch(`data/levels/${levelName}.json`, { cache: 'no-cache' }).then((r) => r.json());

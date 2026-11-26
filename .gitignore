@@ -6,3 +6,6 @@ assets/kenney/
 
 # Vídeo do Devpost e as suas fontes (ficheiros grandes; o vídeo vai para o YouTube, não para o git)
 media/
+
+# Segredos locais (ex.: a chave para ver os resultados do playtest). Nunca vão para o GitHub.
+*.local.txt

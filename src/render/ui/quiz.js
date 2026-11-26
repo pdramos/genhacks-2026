@@ -5,16 +5,24 @@
 //   2. No cartão do fim aparece o botão "Finish playtest": as MESMAS perguntas outra vez
 //      ("After playing"), com as opções baralhadas, e um ecrã final com as duas notas,
 //      as perguntas que melhoraram e as explicações.
-//   3. Cada sessão acabada fica guardada SÓ neste aparelho (localStorage), sem nada pessoal:
+//   3. Cada sessão acabada fica guardada neste aparelho (localStorage), sem nada pessoal:
 //      as duas listas de respostas, as notas e a hora. O ecrã final exporta tudo em CSV.
+//   4. Antes do ecrã final, 2 perguntas curtas (as escolhas mudaram o que aconteceu? o que
+//      confundiu?). Tudo é também ENVIADO, anónimo, para a base de dados do playtest
+//      (src/render/playtestLog.js), para o autor ver os resultados de quem joga em casa.
 // As contas estão em src/sim/quiz.js (testadas); as perguntas em data/quiz.json.
 // O aspeto está em quiz.css. O texto das perguntas entra sempre com textContent.
 import { createRandom } from '../../sim/random.js';
 import {
   scoreQuiz, questionOutcomes, shuffledOrder, makeSession, parseSessions, sessionsToCsv,
 } from '../../sim/quiz.js';
+import { recordQuiz, recordFeedback, finishSession, resetSession } from '../playtestLog.js';
 
-const PLAYTEST = new URLSearchParams(location.search).get('playtest') === '1';
+const PARAMS = new URLSearchParams(location.search);
+const PLAYTEST = PARAMS.get('playtest') === '1';
+// &kiosk=1: o playtest é feito num só aparelho (o portátil do autor), um jogador a seguir ao outro.
+// Sem isso (o normal: cada um joga em casa), o ecrã final é mais simples e diz "podes fechar".
+const KIOSK = PARAMS.get('kiosk') === '1';
 const SESSIONS_KEY = 'brace-playtests'; // localStorage: todas as sessões acabadas
 const CURRENT_KEY = 'brace-playtest-current'; // sessionStorage: as respostas do "antes" deste jogador
 const RETRY_KEY = 'brace-retry'; // o "Try again" do jogo (main.js): limpamos ao mudar de jogador
@@ -50,6 +58,7 @@ async function startPlaytest() {
   if (readCurrent()) return;
   const before = await runQuiz(questions, 'before');
   writeCurrent({ before });
+  recordQuiz('before', before, scoreQuiz(questions, before));
   // O briefing estava escondido por baixo: o foco vai para o botão dele.
   document.querySelector('.briefing-card [data-do="start"]')?.focus();
 }
@@ -189,7 +198,11 @@ function runQuiz(questions, stage) {
       const intro = document.createElement('p');
       intro.className = 'quiz-intro';
       intro.textContent = isBefore
-        ? 'A quick quiz before you play. It is anonymous: no names, nothing about you. Just pick the best answer.'
+        ? 'A quick quiz before you play, then the game, then the same quiz again. No names. '
+          + 'Your answers, how you play (clicks and times) and your device type and screen size are '
+          + 'sent to the student who made this game, to see if it teaches anything. Like any website, '
+          + 'the database service briefly keeps connection logs (such as the IP address). '
+          + 'If you are under 13, ask a parent first. If you do not want to take part, just close this page.'
         : 'The same questions again. Pick the best answer.';
       const progress = document.createElement('div');
       progress.className = 'story-heading quiz-progress';
@@ -251,9 +264,13 @@ function addFinishButton(questions) {
     resultCard.hidden = true;
     document.querySelector('.back-to-results')?.setAttribute('hidden', '');
     const after = await runQuiz(questions, 'after');
+    recordQuiz('after', after, scoreQuiz(questions, after));
+    const feedback = await askFeedback();
+    recordFeedback(feedback.choice, feedback.comment);
+    const sent = finishSession(); // uma promessa: true quando chegar à base de dados
     const saved = before ? writeSessions([...readSessions(), makeSession(questions, before, after, Date.now())]) : false;
     writeCurrent(null); // este jogador acabou
-    showFinalScreen(questions, before, after, saved);
+    showFinalScreen(questions, before, after, saved, sent);
   });
   row.append(finish);
 }
@@ -262,7 +279,8 @@ function addFinishButton(questions) {
 // As duas notas (antes -> depois), cada pergunta com o que mudou, a resposta certa e a explicação.
 // Os botões: limpar tudo, exportar o CSV e o próximo jogador.
 // before = null quando as respostas do "antes" se perderam: aí só mostramos a nota do "depois".
-function showFinalScreen(questions, before, after, saved) {
+// sent = a promessa do envio para a base de dados ('sent', 'refused' ou 'offline').
+function showFinalScreen(questions, before, after, saved, sent) {
   const afterScore = scoreQuiz(questions, after);
   const beforeScore = before ? scoreQuiz(questions, before) : null;
   const outcomes = beforeScore ? questionOutcomes(beforeScore, afterScore) : null;
@@ -279,6 +297,20 @@ function showFinalScreen(questions, before, after, saved) {
     scores.append(scoreBox('After', afterScore));
   }
   body.append(scores);
+  // O estado do envio fica logo aqui em cima, para quem joga em casa saber se já pode fechar.
+  const sendNote = document.createElement('p');
+  sendNote.className = 'quiz-send';
+  sendNote.setAttribute('role', 'status');
+  sendNote.textContent = 'Sending your results...';
+  body.append(sendNote);
+  sent?.then((status) => {
+    sendNote.textContent = {
+      sent: 'Sent! Thank you. You can close this page now.',
+      refused: 'The results server did not accept them, sorry. They are saved on this device.',
+      offline: 'Could not send them (no internet?). They are saved on this device and will be sent next time.',
+    }[status] ?? '';
+    sendNote.classList.toggle('ok', status === 'sent');
+  });
   if (!beforeScore) {
     const missing = document.createElement('p');
     missing.className = 'quiz-intro';
@@ -317,9 +349,22 @@ function showFinalScreen(questions, before, after, saved) {
   const updateNote = () => {
     const count = readSessions().length;
     note.textContent = (saved || !before ? '' : 'Could not save this session on this device. ')
-      + `${count} playtest${count === 1 ? '' : 's'} saved on this device (anonymous: answers, scores and time only).`;
+      + `${count} playtest${count === 1 ? '' : 's'} saved on this device (no names: answers, scores and time only).`;
   };
   updateNote();
+  // Em casa (o normal): só um botão para jogar outra vez, já sem o quiz.
+  if (!KIOSK) {
+    note.hidden = true;
+    const again = makeButton('Play again (no quiz)');
+    again.addEventListener('click', () => {
+      const url = new URLSearchParams(location.search);
+      url.delete('playtest');
+      url.delete('test');
+      location.href = `${location.pathname}?${url}`;
+    });
+    buttons.append(again);
+    return;
+  }
 
   const clear = makeButton('Clear all results', 'result-button secondary quiz-clear');
   clear.addEventListener('click', () => {
@@ -334,11 +379,56 @@ function showFinalScreen(questions, before, after, saved) {
     // Esquece este jogador (e um "Try again" que tenha ficado) e recomeça com o mesmo endereço
     // (que ainda tem ?playtest=1).
     writeCurrent(null);
+    resetSession(); // o registo enviado também recomeça: o próximo jogador é outra sessão
     try { sessionStorage.removeItem(RETRY_KEY); } catch { /* sem sessionStorage */ }
     location.reload();
   });
   buttons.append(clear, exportButton, nextPlayer);
   nextPlayer.focus();
+}
+
+// ---------- As 2 perguntas finais (opcionais) ----------
+// "As tuas escolhas mudaram o que aconteceu?" (Yes / A little / No) e "o que confundiu?" (texto
+// curto). Devolve { choice, comment }. Nada é obrigatório: dá para seguir sem responder.
+function askFeedback() {
+  const { body, buttons, close } = openCard('Two last questions');
+  const question = document.createElement('div');
+  question.className = 'quiz-question';
+  question.id = 'feedback-choices';
+  question.textContent = 'Did your choices change what happened in the game?';
+  const list = document.createElement('div');
+  list.className = 'quiz-options';
+  list.setAttribute('role', 'group');
+  list.setAttribute('aria-labelledby', question.id);
+  let choice = null;
+  for (const [value, text] of [['yes', 'Yes'], ['a-little', 'A little'], ['no', 'No']]) {
+    const option = makeButton('', 'quiz-option');
+    option.setAttribute('aria-pressed', 'false');
+    option.textContent = text;
+    option.addEventListener('click', () => {
+      choice = value;
+      for (const other of list.children) other.setAttribute('aria-pressed', String(other === option));
+    });
+    list.append(option);
+  }
+  const label = document.createElement('label');
+  label.className = 'quiz-question feedback-label';
+  label.htmlFor = 'feedback-comment';
+  label.textContent = 'Was anything confusing? (optional; please do not write your name)';
+  const comment = document.createElement('textarea');
+  comment.id = 'feedback-comment';
+  comment.className = 'feedback-comment';
+  comment.maxLength = 300;
+  comment.rows = 3;
+  body.append(question, list, label, comment);
+  const done = makeButton('See my results');
+  buttons.append(done);
+  return new Promise((resolve) => {
+    done.addEventListener('click', () => {
+      close();
+      resolve({ choice, comment: comment.value });
+    });
+  });
 }
 
 // Uma caixa com a nota (ex.: "Before 2/5").

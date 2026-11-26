@@ -219,6 +219,7 @@ function compareThisNight(outcome, schoolName) {
   try {
     // game.ignition = onde o fogo do jogador começou MESMO (para saber se o plano mudou o início).
     const comparison = compareNight(game.level, game.seed, outcome, game.ignition);
+    game.comparison = comparison; // o registo do playtest (playtestLog.js) guarda isto
     const lessons = nightLessons({
       ...comparison,
       spent: game.level.budget - remainingBudget(game.buildState),
