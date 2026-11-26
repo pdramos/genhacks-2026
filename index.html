@@ -10,6 +10,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <!-- A carta de erro tem de aparecer mesmo que o hud.css falhe: um estilo mínimo aqui.
+       :where() tem especificidade 0, por isso o hud.css (mais abaixo) manda quando carrega. -->
+  <style>
+    :where(#fatal) { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 99;
+      max-width: 90vw; width: 420px; padding: 20px; background: #fff6e5; border: 4px solid #3b2a1a;
+      border-radius: 20px; font-family: system-ui, sans-serif; }
+    :where(#fatal[hidden]) { display: none; }
+  </style>
   <!-- O aspeto de toda a interface (barra de cima, cartas, botões, mensagens) -->
   <link rel="stylesheet" href="src/render/ui/hud.css">
   <!-- O questionário dos testes com jogadores (só aparece com ?playtest=1) -->
@@ -75,7 +83,113 @@
   <!-- Os outros módulos do jogo (construção, desastre) põem os seus botões aqui -->
   <div id="hud"></div>
 
-  <script type="module" src="src/render/main.js"></script>
+  <!-- A carta de erro: escondida, só aparece se o jogo NÃO conseguir arrancar.
+       Sem ela, um jurado com um computador sem 3D via só uma página vazia. -->
+  <div id="fatal" class="result-card fatal-card" role="alert" hidden>
+    <div class="result-title"></div>
+    <p class="fatal-text"></p>
+    <div class="result-buttons">
+      <a class="result-button fatal-link" href="https://github.com/pdramos/genhacks-2026#readme" target="_blank" rel="noopener noreferrer">Screenshots (on GitHub)</a>
+      <button type="button" class="result-button" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+  <!-- Um script NORMAL (não é módulo): corre mesmo que o Three.js não descarregue.
+       Vigia o arranque e mostra a carta de erro com a explicação certa. -->
+  <script>
+    (function () {
+      var started = false;  // o main.js chama markGameStarted() quando desenha o 1.º quadro
+      var shown = null;     // a carta que está à vista: 'webgl', 'old' ou 'load'
+      var errorTimer = null, stallTimer = null;
+      var MESSAGES = {
+        webgl: ["Your browser can't run 3D",
+          'Same Night needs 3D graphics (WebGL), and this browser has them turned off or blocked. '
+          + 'Try Chrome or Edge on a computer. In Settings, then System, turn on '
+          + '"Use graphics acceleration when available" and restart the browser. '
+          + 'Very old computers may not have 3D at all.'],
+        old: ['Your browser is too old',
+          'Same Night needs a recent browser. Update it, or try a recent Chrome, Edge, Firefox or Safari.'],
+        load: ['The game could not load',
+          'Part of the game did not download. Check your internet and reload the page. '
+          + 'On a school or work network, try another network: some block the site the game '
+          + 'downloads its 3D engine from.'],
+      };
+      // Se várias coisas falham, mostra a causa mais "funda": sem 3D > browser antigo > download.
+      var PRIORITY = { load: 1, old: 2, webgl: 3 };
+      window.markGameStarted = function () {
+        started = true;
+        clearTimeout(errorTimer);
+        clearTimeout(stallTimer);
+        // Num portátil lento, a carta "could not load" pode ter aparecido antes de o jogo
+        // arrancar. Se afinal arrancou, a carta sai.
+        document.getElementById('fatal').hidden = true;
+        document.body.classList.remove('fatal');
+      };
+      window.showFatalCard = function (kind) {
+        if (started) return; // o jogo já está a correr: um erro depois disto não é "não arrancou"
+        if (shown && PRIORITY[shown] >= PRIORITY[kind]) return;
+        shown = kind;
+        var card = document.getElementById('fatal');
+        card.querySelector('.result-title').textContent = MESSAGES[kind][0];
+        card.querySelector('.fatal-text').textContent = MESSAGES[kind][1];
+        card.hidden = false;
+        document.body.classList.add('fatal'); // esconde a barra de cima e a dica, que ficavam vazias
+      };
+      // 1) Este browser consegue desenhar 3D? O Three.js 0.186 só usa WebGL2, por isso a
+      // pergunta é a mesma. O contexto de teste é libertado logo (o browser tem poucos).
+      function hasWebGL2() {
+        try {
+          var gl = document.createElement('canvas').getContext('webgl2');
+          if (!gl) return false;
+          var lose = gl.getExtension('WEBGL_lose_context');
+          if (lose) lose.loseContext();
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+      if (!hasWebGL2()) window.showFatalCard('webgl');
+      // 2) Browser antigo: não percebe o "importmap" (o sítio de onde vem o Three.js).
+      if (window.HTMLScriptElement && HTMLScriptElement.supports && !HTMLScriptElement.supports('importmap')) {
+        window.showFatalCard('old');
+      }
+      // 3) Um erro antes de o jogo arrancar:
+      //    - fala de WebGL -> sem 3D; fala de "specifier" -> browser antigo (mostra já);
+      //    - vem do main.js -> o jogo parou de vez (mostra já);
+      //    - outro erro qualquer pode não impedir o jogo: espera 10 s e só então avisa.
+      // (Só "WebGL": a palavra "context" também aparece em erros do som, o AudioContext.)
+      function onEarlyError(message, file) {
+        if (started) return;
+        if (/webgl/i.test(message)) return window.showFatalCard('webgl');
+        if (/specifier|does not resolve/i.test(message)) return window.showFatalCard('old');
+        if (/\/src\/render\/main\.js$/.test(file || '')) return window.showFatalCard('load');
+        // Um módulo do jogo (ex.: o estilo 3D) não descarregou: o jogo não vai arrancar.
+        // (Chrome: "dynamically imported module"; Safari: "Importing a module script failed".)
+        if (/dynamically imported module|importing a module script failed/i.test(message)) {
+          return window.showFatalCard('load');
+        }
+        if (!errorTimer) errorTimer = setTimeout(function () { window.showFatalCard('load'); }, 10000);
+      }
+      window.addEventListener('error', function (event) { onEarlyError(String(event.message || ''), event.filename); });
+      window.addEventListener('unhandledrejection', function (event) {
+        onEarlyError(String((event.reason && event.reason.message) || event.reason || ''));
+      });
+      // 4) Um download pendurado (não falha, só nunca acaba) não dá erro nenhum. Por isso há um
+      // vigia: 25 s com a página À VISTA sem o jogo arrancar -> "could not load". Num separador
+      // escondido o relógio não conta (lá o browser também não desenha).
+      function armStallWatch() {
+        if (started || stallTimer || document.visibilityState !== 'visible') return;
+        stallTimer = setTimeout(function () { window.showFatalCard('load'); }, 25000);
+      }
+      armStallWatch();
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') armStallWatch();
+        else { clearTimeout(stallTimer); stallTimer = null; }
+      });
+    })();
+  </script>
+
+  <!-- onerror: o módulo (ou o Three.js que ele importa) não descarregou -->
+  <script type="module" src="src/render/main.js" onerror="showFatalCard('load')"></script>
   <script type="module" src="src/render/buildPanel.js"></script>
   <script type="module" src="src/render/disasterPlayer.js"></script>
   <script type="module" src="src/render/audioHooks.js"></script>

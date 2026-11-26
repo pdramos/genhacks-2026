@@ -387,7 +387,13 @@ body[data-phase="disaster"] .toast-stack, body[data-phase="result"] .toast-stack
   max-height: 40vh; overflow-y: auto; padding: 8px 10px;
   border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: var(--hard-shadow);
 }
-.credit-full[hidden] { display: none; }
+
+/* A carta de erro do index.html (só quando o jogo não arranca: sem 3D ou sem internet) */
+body.fatal .topbar, body.fatal #info { visibility: hidden; }
+/* O foco do teclado nos botões das cartas: um anel azul que se vê bem por cima da borda escura */
+.result-button:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.fatal-text { margin: 4px 0 14px; font-size: 15px; line-height: 1.45; text-align: left; }
+.fatal-link { text-decoration: none; color: inherit; background: #fff; }
 
 /* Cartão do briefing (antes de construir): o resto da interface espera por baixo */
 body.briefing #hud, body.briefing #info { visibility: hidden; }

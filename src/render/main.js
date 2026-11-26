@@ -210,6 +210,9 @@ const frameListeners = [];
 export function onFrame(fn) { frameListeners.push(fn); }
 let lastMs = 0;
 renderer.setAnimationLoop((ms) => {
+  // O 1.º quadro desenhado: o jogo arrancou, por isso a carta de erro do index.html já não
+  // deve aparecer (ver markGameStarted no index.html).
+  if (!lastMs) window.markGameStarted?.();
   // ms = milissegundos desde o início; dt = segundos desde o último desenho
   const dt = lastMs ? Math.min((ms - lastMs) / 1000, 0.1) : 0, t = ms / 1000;
   lastMs = ms;
